@@ -49,6 +49,7 @@ project:
         - file: internals/dag-execution.md
         - file: internals/wrapper-slurm.md
         - file: internals/logging-resume.md
+        - file: internals/dev-test-configs.md
 site:
   template: book-theme
   options:
