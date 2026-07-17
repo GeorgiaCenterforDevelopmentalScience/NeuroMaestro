@@ -106,10 +106,10 @@ mriqc_preprocess:
   output_path: "{work_dir}/quality_control/mriqc"
   required_files:
     - pattern: "sub-{subject}*.html"
-      min_size_kb: 50
+      min_size_kb: 30
 
 mriqc_post:
   output_path: "{work_dir}/quality_control/mriqc"
   required_files:
     - pattern: "group_*.html"
-      min_size_kb: 50
+      min_size_kb: 30

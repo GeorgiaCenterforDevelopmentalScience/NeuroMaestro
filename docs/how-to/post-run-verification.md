@@ -130,6 +130,12 @@ neuropipe merge-logs /data/work/my_study
 
 This scans `{work_dir}/database/json/` for unprocessed JSONL files, inserts them into `pipeline_jobs.db`, and moves processed files to `archived/` subdirectories.
 
+Each file is processed independently — committed to the database and then moved to `archived/` — so `merge-logs` is safe to interrupt and re-run: it resumes with whatever is still in `json/` and never re-inserts an archived file.
+
+:::{note}
+The GUI **Sync Database from JSONL Logs** button runs this same command but is capped at 10 minutes, after which it reports a timeout and stops. Because the merge is resume-safe, a killed run loses no progress — but for a large backlog, run `merge-logs` directly in a terminal (no time limit) rather than clicking the button repeatedly.
+:::
+
 :::{note}
 `merge-logs` only processes JSONL files that contain **both** a start and an end event. A file with only a start event is silently skipped and retried on the next run. This happens in two situations:
 

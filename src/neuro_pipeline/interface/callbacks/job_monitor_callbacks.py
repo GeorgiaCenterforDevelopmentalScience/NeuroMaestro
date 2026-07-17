@@ -350,7 +350,7 @@ def register_job_monitor_callbacks(app):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=600
             )
             if result.returncode == 0:
                 msg = result.stdout.strip() or "Sync complete."
@@ -362,7 +362,7 @@ def register_job_monitor_callbacks(app):
                 err = result.stderr.strip() or result.stdout.strip() or "Unknown error."
                 return dbc.Alert(f"merge-logs failed: {err}", color="danger")
         except subprocess.TimeoutExpired:
-            return dbc.Alert("merge-logs timed out after 120 seconds.", color="danger")
+            return dbc.Alert("merge-logs timed out after 600 seconds.", color="danger")
         except FileNotFoundError:
             return dbc.Alert(
                 "neuropipe command not found. Make sure the package is installed in the active environment.",

@@ -63,11 +63,14 @@ def create_job_monitor_layout():
                                     color="primary",
                                     className="me-2"
                                 ),
-                                html.Small(
+                                html.Small([
                                     "Re-processes raw JSONL event logs and fills missing records. "
-                                    "Use after a cluster crash or if the database looks incomplete.",
-                                    className="text-muted ms-2"
-                                ),
+                                    "Use after a cluster crash or if the database looks incomplete. "
+                                    "Processes files one at a time (each committed then archived), so it is safe to re-run — it resumes where it left off. "
+                                    "This button is capped at 10 minutes; for a large backlog run ",
+                                    html.Code("neuropipe merge-logs <work_dir>"),
+                                    " in a terminal instead (no time limit).",
+                                ], className="text-muted ms-2"),
                                 html.Div(id="merge-logs-result", className="mt-3")
                             ])
                         ], className="mb-3"),
