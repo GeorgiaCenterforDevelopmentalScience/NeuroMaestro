@@ -59,7 +59,7 @@ neuropipe check-outputs \
 ```
 
 :::{important}
-`--work` here is the **output data root** — the folder that directly contains `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` (your `run` `--output` directory with the project name appended). It is **not** the `run` `--work` directory that holds logs and the database. If the level is wrong, every check reports `FAIL – file not found` even though the outputs exist. Verify with `ls <your --work path>` — it should list `BIDS`, `AFNI_derivatives`, etc.
+`--work` here is the **output data root**: the folder that directly contains `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` (your `run` `--output` directory with the project name appended). It is **not** the `run` `--work` directory that holds logs and the database. If the level is wrong, every check reports `FAIL – file not found` even though the outputs exist. Verify with `ls <your --work path>`; it should list `BIDS`, `AFNI_derivatives`, etc.
 :::
 
 To check multiple sessions at once, pass them comma-separated:
@@ -130,10 +130,10 @@ neuropipe merge-logs /data/work/my_study
 
 This scans `{work_dir}/database/json/` for unprocessed JSONL files, inserts them into `pipeline_jobs.db`, and moves processed files to `archived/` subdirectories.
 
-Each file is processed independently — committed to the database and then moved to `archived/` — so `merge-logs` is safe to interrupt and re-run: it resumes with whatever is still in `json/` and never re-inserts an archived file.
+Each file is processed independently (committed to the database and then moved to `archived/`), so `merge-logs` is safe to interrupt and re-run: it resumes with whatever is still in `json/` and never re-inserts an archived file.
 
 :::{note}
-The GUI **Sync Database from JSONL Logs** button runs this same command but is capped at 10 minutes, after which it reports a timeout and stops. Because the merge is resume-safe, a killed run loses no progress — but for a large backlog, run `merge-logs` directly in a terminal (no time limit) rather than clicking the button repeatedly.
+The GUI **Sync Database from JSONL Logs** button runs this same command but is capped at 10 minutes, after which it reports a timeout and stops. Because the merge is resume-safe, a killed run loses no progress, but for a large backlog, run `merge-logs` directly in a terminal (no time limit) rather than clicking the button repeatedly.
 :::
 
 :::{note}
@@ -198,15 +198,24 @@ neuropipe generate-report \
   --check-results /data/work/my_study/check_results_20260401_120000.csv
 ```
 
-The report is saved as `pipeline_report_{project}_{timestamp}.html` next to the database. To save it elsewhere:
+The report is saved as `pipeline_report_{project}_{timestamp}.html` next to the database. `-o` accepts either a full file path or a **directory**. Pass a directory and the same `pipeline_report_{project}_{timestamp}.html` name is generated inside it, so you never have to hand-write a timestamp:
 
 ```bash
+# Full file path, saved exactly there
 neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
   --check-results /data/work/my_study/check_results_20260401_120000.csv \
   -o /data/reports/my_study_wave01.html
+
+# Directory: auto-named pipeline_report_my_study_<timestamp>.html inside it
+neuropipe generate-report \
+  --db-path /data/work/my_study/database/pipeline_jobs.db \
+  --project my_study \
+  --session 01 \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv \
+  -o /data/reports/
 ```
 
 ### Including check-outputs results

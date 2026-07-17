@@ -216,6 +216,6 @@ Results appear as a visualization panel (charts based on query type) and a pagin
 
 **Output File Check** — runs `check-outputs` from the GUI. Enter project name, subject list, optional task filter, session, and prefix, then click **Run Output Check**. Results appear inline. **Export Check CSV** saves the full per-subject results, equivalent to the CSV saved by `neuropipe check-outputs`.
 
-**Generate Report** — generates a standalone HTML report from the job database. Enter the project name and optionally a session and check results CSV path (auto-detected if left blank). The output path defaults to next to the database file. See [Post-Run Verification](../how-to/post-run-verification.md#what-the-report-contains) for a description of report sections.
+**Generate Report** — generates a standalone HTML report from the job database. Enter the project name and optionally a session and check results CSV path (auto-detected if left blank). The output path defaults to next to the database file; you can also give a full file path, or a folder (an auto-named `pipeline_report_{project}_{timestamp}.html` is written inside it). See [Post-Run Verification](../how-to/post-run-verification.md#what-the-report-contains) for a description of report sections.
 
 ![generate_report](../images/generate_report.png)

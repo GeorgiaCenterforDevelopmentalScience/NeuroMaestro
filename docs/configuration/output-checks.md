@@ -64,7 +64,7 @@ The `output_path` and `pattern` fields support these placeholders:
 
 | Placeholder | Expands to | Example |
 |-------------|-----------|---------|
-| `{work_dir}` | The directory that **directly contains** `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` — i.e. your `run` `--output` directory with the project name appended | `/data/processed/branch` |
+| `{work_dir}` | The directory that **directly contains** `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` (i.e. your `run` `--output` directory with the project name appended) | `/data/processed/branch` |
 | `{subject}` | Subject ID without prefix | `001` |
 | `{prefix}` | Subject directory prefix | `sub-` |
 | `{session}` | Session label | `01` |
@@ -72,7 +72,7 @@ The `output_path` and `pattern` fields support these placeholders:
 `output_path` is the base directory. Patterns are joined to it with `os.path.join` before globbing, so they are relative to `output_path`.
 
 :::{important}
-`{work_dir}` is whatever you pass to `check-outputs --work`. Every `output_path` is built relative to it (`{work_dir}/BIDS/...`, `{work_dir}/AFNI_derivatives/...`), so `--work` must point at the folder that holds those subdirectories — **not** the `run` `--work` directory that holds logs and the database. If the path is one level off (e.g. you pass `.../BIDS/branch/BIDS/work`), every glob resolves under a non-existent directory and all checks report `FAIL – file not found`. Confirm your path first:
+`{work_dir}` is whatever you pass to `check-outputs --work`. Every `output_path` is built relative to it (`{work_dir}/BIDS/...`, `{work_dir}/AFNI_derivatives/...`), so `--work` must point at the folder that holds those subdirectories, **not** the `run` `--work` directory that holds logs and the database. If the path is one level off (e.g. you pass `.../BIDS/branch/BIDS/work`), every glob resolves under a non-existent directory and all checks report `FAIL – file not found`. Confirm your path first:
 
 ```bash
 # Should list BIDS  AFNI_derivatives  BIDS_derivatives  quality_control

@@ -159,7 +159,7 @@ neuropipe generate-report \
 | `--db-path` | Path to `pipeline_jobs.db` (required) |
 | `--project` | Project name (required) |
 | `--session` | Filter by session ID (recommended when multiple projects share a database) |
-| `--output` / `-o` | Output HTML path — defaults to `pipeline_report_{project}_{timestamp}.html` next to the database |
+| `--output` / `-o` | Output HTML file, or a directory (the `pipeline_report_{project}_{timestamp}.html` name is added inside it). Defaults to that name next to the database |
 | `--check-results` | Path to a `check_results_*.csv` from `check-outputs` (required). Run `check-outputs` first to generate this file. |
 
 → See [Post-Run Verification](../how-to/post-run-verification.md) for a full workflow and report contents description.

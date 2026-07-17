@@ -66,7 +66,7 @@ def create_job_monitor_layout():
                                 html.Small([
                                     "Re-processes raw JSONL event logs and fills missing records. "
                                     "Use after a cluster crash or if the database looks incomplete. "
-                                    "Processes files one at a time (each committed then archived), so it is safe to re-run — it resumes where it left off. "
+                                    "Processes files one at a time (each committed then archived), so it is safe to re-run: it resumes where it left off. "
                                     "This button is capped at 10 minutes; for a large backlog run ",
                                     html.Code("neuropipe merge-logs <work_dir>"),
                                     " in a terminal instead (no time limit).",
@@ -246,7 +246,7 @@ def create_job_monitor_layout():
                                         html.Code("AFNI_derivatives/"),
                                         ", etc. (your run's ",
                                         html.Code("--output"),
-                                        " dir with the project name appended) — not the log/database Work Directory above.",
+                                        " dir with the project name appended), not the log/database Work Directory above.",
                                     ], className="text-muted"),
                                 ], width=12),
                             ], className="mb-3"),
@@ -312,7 +312,8 @@ def create_job_monitor_layout():
                                 dbc.Col([
                                     dbc.Label("Output Path (optional):", html_for="report-output-path"),
                                     dbc.Input(id="report-output-path", type="text",
-                                              placeholder="Default: next to database", className="mb-3")
+                                              placeholder="File, or a folder (auto-named). Default: next to database",
+                                              className="mb-3")
                                 ], width=3),
                             ]),
                             dbc.Row([

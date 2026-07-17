@@ -294,10 +294,12 @@ def generate_report(
         session=session,
     )
 
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    default_name = f"pipeline_report_{project_name}_{ts}.html"
     if not output_path:
-        ts      = datetime.now().strftime('%Y%m%d_%H%M%S')
-        db_dir  = os.path.dirname(os.path.abspath(db_path))
-        output_path = os.path.join(db_dir, f"pipeline_report_{project_name}_{ts}.html")
+        output_path = os.path.join(os.path.dirname(os.path.abspath(db_path)), default_name)
+    elif os.path.isdir(output_path):
+        output_path = os.path.join(output_path, default_name)
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)

@@ -437,7 +437,7 @@ def generate_report_cmd(
     project: str = typer.Option(..., "--project", help="Project name"),
     output: Optional[str] = typer.Option(
         None, "--output", "-o",
-        help="Output HTML path. Defaults to pipeline_report_<project>_<timestamp>.html next to the database."
+        help="Output HTML file, or a directory (a pipeline_report_<project>_<timestamp>.html name is added inside it). Defaults to that name next to the database."
     ),
     session: Optional[str] = typer.Option(
         None, "--session",
