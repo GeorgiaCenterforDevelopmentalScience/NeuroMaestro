@@ -375,7 +375,7 @@ def register_job_monitor_callbacks(app):
         Output("output-check-result", "children"),
         Input("run-output-check-btn", "n_clicks"),
         State("check-project-name", "value"),
-        State("work-dir-input", "value"),
+        State("check-output-dir", "value"),
         State("check-subjects", "value"),
         State("check-task-filter", "value"),
         State("check-session", "value"),
@@ -386,7 +386,7 @@ def register_job_monitor_callbacks(app):
         if not project:
             return dbc.Alert("Please enter a project name.", color="warning")
         if not work_dir:
-            return dbc.Alert("Please enter the work directory.", color="warning")
+            return dbc.Alert("Please enter the output data directory.", color="warning")
 
         if subjects_raw and subjects_raw.strip():
             subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
@@ -439,7 +439,7 @@ def register_job_monitor_callbacks(app):
         Output("output-check-result", "children", allow_duplicate=True),
         Input("export-check-csv-btn", "n_clicks"),
         State("check-project-name", "value"),
-        State("work-dir-input", "value"),
+        State("check-output-dir", "value"),
         State("check-subjects", "value"),
         State("check-task-filter", "value"),
         State("check-session", "value"),
@@ -450,7 +450,7 @@ def register_job_monitor_callbacks(app):
         if not project:
             return dbc.Alert("Please enter a project name.", color="warning")
         if not work_dir:
-            return dbc.Alert("Please enter the work directory.", color="warning")
+            return dbc.Alert("Please enter the output data directory.", color="warning")
 
         if subjects_raw and subjects_raw.strip():
             subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]

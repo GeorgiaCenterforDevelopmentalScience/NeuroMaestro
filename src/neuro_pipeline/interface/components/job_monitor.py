@@ -232,6 +232,23 @@ def create_job_monitor_layout():
                         dbc.CardBody([
                             dbc.Row([
                                 dbc.Col([
+                                    dbc.Label("Output Data Directory:", html_for="check-output-dir"),
+                                    dbc.Input(id="check-output-dir", type="text",
+                                              placeholder="/data/processed/my_study",
+                                              value=os.getcwd(), className="mb-1"),
+                                    html.Small([
+                                        "The folder that directly contains ",
+                                        html.Code("BIDS/"),
+                                        ", ",
+                                        html.Code("AFNI_derivatives/"),
+                                        ", etc. (your run's ",
+                                        html.Code("--output"),
+                                        " dir with the project name appended) — not the log/database Work Directory above.",
+                                    ], className="text-muted"),
+                                ], width=12),
+                            ], className="mb-3"),
+                            dbc.Row([
+                                dbc.Col([
                                     dbc.Label("Project Name:", html_for="check-project-name"),
                                     dbc.Input(id="check-project-name", type="text",
                                               placeholder="e.g., branch", className="mb-3")

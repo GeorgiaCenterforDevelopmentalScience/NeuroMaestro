@@ -64,12 +64,21 @@ The `output_path` and `pattern` fields support these placeholders:
 
 | Placeholder | Expands to | Example |
 |-------------|-----------|---------|
-| `{work_dir}` | Project work/output directory root | `/data/work/branch` |
+| `{work_dir}` | The directory that **directly contains** `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` — i.e. your `run` `--output` directory with the project name appended | `/data/processed/branch` |
 | `{subject}` | Subject ID without prefix | `001` |
 | `{prefix}` | Subject directory prefix | `sub-` |
 | `{session}` | Session label | `01` |
 
 `output_path` is the base directory. Patterns are joined to it with `os.path.join` before globbing, so they are relative to `output_path`.
+
+:::{important}
+`{work_dir}` is whatever you pass to `check-outputs --work`. Every `output_path` is built relative to it (`{work_dir}/BIDS/...`, `{work_dir}/AFNI_derivatives/...`), so `--work` must point at the folder that holds those subdirectories — **not** the `run` `--work` directory that holds logs and the database. If the path is one level off (e.g. you pass `.../BIDS/branch/BIDS/work`), every glob resolves under a non-existent directory and all checks report `FAIL – file not found`. Confirm your path first:
+
+```bash
+# Should list BIDS  AFNI_derivatives  BIDS_derivatives  quality_control
+ls <your --work path>
+```
+:::
 
 ## Check Type: `required_files`
 
@@ -250,10 +259,12 @@ Run checks independently of a pipeline submission:
 ```bash
 neuropipe check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects 001,002,003,004,005
 ```
+
+`--work` is the base for `{work_dir}` in the checks YAML: it must be the folder that directly contains `BIDS/`, `AFNI_derivatives/`, etc. (your `run` `--output` directory with the project name appended), not the `run` `--work` log/database directory.
 
 ### Optional filters
 

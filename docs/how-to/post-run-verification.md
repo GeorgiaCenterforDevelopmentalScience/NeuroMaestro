@@ -52,11 +52,15 @@ Before generating any report, confirm which subjects actually have valid output 
 ```bash
 neuropipe check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects 001,002,003,004,005 \
   --session 01
 ```
+
+:::{important}
+`--work` here is the **output data root** — the folder that directly contains `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` (your `run` `--output` directory with the project name appended). It is **not** the `run` `--work` directory that holds logs and the database. If the level is wrong, every check reports `FAIL – file not found` even though the outputs exist. Verify with `ls <your --work path>` — it should list `BIDS`, `AFNI_derivatives`, etc.
+:::
 
 To check multiple sessions at once, pass them comma-separated:
 
