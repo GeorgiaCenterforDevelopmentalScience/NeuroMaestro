@@ -97,16 +97,11 @@ tasks:
     censor_outliers: "0.05"
 
   cards_postprocess:
-    remove_TRs: 2
-    template: "HaskinsPeds_NL_template1.0_SSW.nii"
-    blur_size: 4.0
     environ: ["afni_24.3.06"]
-    censor_motion: "0.3"
-    censor_outliers: "0.05"
 
   kidvid_postprocess:
     environ: ["afni_24.3.06"]
-    contrasts: ["neg", "neut", "pos"]
+    contrasts: ["neg", "neut"]
     clustsim: "20"
     master_id: "027"
 

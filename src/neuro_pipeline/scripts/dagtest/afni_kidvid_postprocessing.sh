@@ -102,6 +102,7 @@ for contrast in "${CONTRASTS[@]}"; do
     fi
 
     # two-sample test: GroupA minus GroupB
+    # to control for nuisance variables, add e.g.: -covariates cov.1D -center DIFF
     if [ ! -f "$out_file" ]; then
         ( cd "$OUTPUT_DIR" || exit
           3dttest++                                                    \
