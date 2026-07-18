@@ -143,57 +143,25 @@ class TestGetEnvironmentCommands:
 # ===========================================================================
 
 class TestGetScriptWithValidation:
+    # get_script_with_validation joins scripts_dir/script_name and checks existence;
+    # it does not use __file__, so pass the real scripts_dir fixture directly.
 
-    def test_returns_path_when_script_exists(self, scripts_dir, tmp_path):
-        """
-        The function resolves relative to package root.
-        We mock __file__ so that the resolution lands in tmp_path.
-        """
-        # scripts_dir fixture is at tmp_path/scripts/test/
-        # package root would be two levels up from utils/hpc_utils.py
-        # We need to fake the package root to be tmp_path
-        fake_hpc_path = tmp_path / "pipeline" / "utils" / "hpc_utils.py"
-        fake_hpc_path.parent.mkdir(parents=True, exist_ok=True)
+    def test_returns_path_when_script_exists(self, scripts_dir):
+        from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
+        result = get_script_with_validation("afni_cards_preprocessing.sh", str(scripts_dir))
+        assert result is not None
+        assert result.name == "afni_cards_preprocessing.sh"
+        assert result.exists()
 
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch("neuro_pipeline.pipeline.utils.hpc_utils.__file__", str(fake_hpc_path)):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
-            result = get_script_with_validation("afni_cards_preprocessing.sh", "scripts/test")
-
-        # With fake __file__, the resolved dir won't exist — function returns None gracefully
-        # The important thing: it returns None without crashing
-        assert result is None or isinstance(result, Path)
-
-    def test_returns_none_when_script_missing(self, tmp_path):
-        fake_hpc_path = tmp_path / "pipeline" / "utils" / "hpc_utils.py"
-        fake_hpc_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch("neuro_pipeline.pipeline.utils.hpc_utils.__file__", str(fake_hpc_path)):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
-            result = get_script_with_validation("nonexistent_script.sh", "scripts/test")
+    def test_returns_none_when_script_missing(self, scripts_dir):
+        from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
+        result = get_script_with_validation("nonexistent_script.sh", str(scripts_dir))
         assert result is None
 
-    def test_script_found_in_real_scripts_dir(self, tmp_path, scripts_dir):
-        """
-        Place hpc_utils.py two levels below tmp_path so the resolution works:
-        tmp_path/pipeline/utils/hpc_utils.py  →  package root = tmp_path
-        scripts_dir = tmp_path/scripts/test/
-        """
-        fake_hpc_path = tmp_path / "pipeline" / "utils" / "hpc_utils.py"
-        fake_hpc_path.parent.mkdir(parents=True, exist_ok=True)
-        # scripts_dir fixture already created tmp_path/scripts/test/*.sh
-
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch("neuro_pipeline.pipeline.utils.hpc_utils.__file__", str(fake_hpc_path)):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
-            result = get_script_with_validation("afni_cards_preprocessing.sh", "scripts/test")
-
-        # patching __file__ at module level does not affect Path(__file__) already
-        # evaluated inside the function — result will be None; that is acceptable here.
-        # The meaningful behaviour (None vs Path) is covered by test_returns_none_when_script_missing
-        # and the create_wrapper_script tests that use a real scripts_dir fixture.
-        assert result is None or (isinstance(result, Path) and result.name == "afni_cards_preprocessing.sh")
+    def test_returns_none_when_scripts_dir_missing(self, tmp_path):
+        from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
+        result = get_script_with_validation("any.sh", str(tmp_path / "does_not_exist"))
+        assert result is None
 
 
 # ===========================================================================

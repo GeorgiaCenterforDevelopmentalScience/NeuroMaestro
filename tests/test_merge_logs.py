@@ -10,7 +10,7 @@ from datetime import datetime
 
 # Add package to path
 import sys
-test_root = Path(__file__).resolve().parent.parent.parent
+test_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(test_root / "src"))
 
 from neuro_pipeline.pipeline.dag import DAGExecutor

@@ -75,7 +75,7 @@ class TestActualInputDirResolution:
     }
 
     def test_input_redirected_when_upstream_in_requested_tasks(self, tmp_path, scripts_dir):
-        """recon in requested_tasks → INPUT_DIR becomes output_dir/BIDS"""
+        """unzip in requested_tasks → INPUT_DIR becomes unzip's output (output_dir/raw)"""
         output_dir = str(tmp_path / "output")
         content, _ = _run_submit(
             tmp_path, scripts_dir,

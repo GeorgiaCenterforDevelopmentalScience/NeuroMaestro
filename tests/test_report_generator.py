@@ -466,3 +466,23 @@ class TestGenerateReport:
             )
         assert out == out_path
         assert Path(out_path).exists()
+
+    def test_creates_html_file_in_output_directory(self, tmp_path):
+        db_path = _make_db(tmp_path)
+        csv_path = self._make_check_csv(tmp_path)
+        out_dir = tmp_path / "reports"
+        out_dir.mkdir()
+        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER), \
+             patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
+                   return_value="<html>mock</html>"):
+            out = generate_report(
+                db_path=db_path,
+                project_name="proj",
+                check_results_path=csv_path,
+                output_path=str(out_dir),
+                session="01",
+            )
+        assert Path(out).parent == out_dir
+        assert Path(out).name.startswith("pipeline_report_proj_")
+        assert Path(out).suffix == ".html"
+        assert Path(out).exists()
