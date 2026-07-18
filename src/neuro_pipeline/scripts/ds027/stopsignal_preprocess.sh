@@ -80,13 +80,9 @@ afni_proc.py \
 -gltsym 'SYM: go -succesful_stop' \
 -gltsym 'SYM: go -unsuccesful_stop' \
 -gltsym 'SYM: succesful_stop -unsuccesful_stop' \
--gltsym 'SYM: 0.5*pos +0.5*neg -neut' \
--glt_label 1 Pos-Neut \
--glt_label 2 Neg-Neut \
--glt_label 3 Pos-Neg \
--glt_label 4 PosNeg-Neut \
--glt_label 1 emotion-control \
-
+-glt_label 1 go-succesful_stop \
+-glt_label 2 go-unsuccesful_stop \
+-glt_label 3 succesful_stop-unsuccesful_stop \
 -regress_censor_motion "${CENSOR_MOTION}" \
 -regress_censor_outliers "${CENSOR_OUTLIERS}" \
 -regress_motion_per_run \

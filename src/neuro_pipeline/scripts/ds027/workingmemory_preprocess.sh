@@ -84,8 +84,6 @@ afni_proc.py \
 -glt_label 1 change-nochange \
 -glt_label 2 change-passive \
 -glt_label 3 nochange-nochange \
--glt_label 4 PosNeg-Neut \
-
 -regress_censor_motion "${CENSOR_MOTION}" \
 -regress_censor_outliers "${CENSOR_OUTLIERS}" \
 -regress_motion_per_run \

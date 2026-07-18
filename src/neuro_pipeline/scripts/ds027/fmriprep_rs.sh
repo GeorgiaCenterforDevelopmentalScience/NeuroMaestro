@@ -42,6 +42,6 @@ singularity run \
         --write-graph \
         --debug all \
         --notrack \
-        -t rest \
+        -t restingstate \
         --cifti-output 91k \
         --output-spaces T1w ${TEMPLATE}

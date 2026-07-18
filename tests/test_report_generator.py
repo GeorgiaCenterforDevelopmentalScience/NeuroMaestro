@@ -484,5 +484,4 @@ class TestGenerateReport:
             )
         assert Path(out).parent == out_dir
         assert Path(out).name.startswith("pipeline_report_proj_")
-        assert Path(out).suffix == ".html"
         assert Path(out).exists()

@@ -40,7 +40,7 @@ singularity run \
         -w /work \
         --mode ${REST_MODE} \
         --session-id ${SESSION} \
-        -t rest \
+        -t restingstate \
         --motion-filter-type ${MOTION_FILTER_TYPE} \
         --band-stop-min ${BAND_STOP_MIN} \
         --band-stop-max ${BAND_STOP_MAX} \
