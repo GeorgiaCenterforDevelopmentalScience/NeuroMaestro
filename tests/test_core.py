@@ -48,9 +48,9 @@ class TestResolveConfigDir:
         assert result == "/cli/path"
 
     def test_exits_when_neither_set(self, monkeypatch):
-        import click
+        import typer
         monkeypatch.delenv("NEUROPIPE_CONFIG_DIR", raising=False)
-        with pytest.raises(click.exceptions.Exit):
+        with pytest.raises(typer.Exit):
             self._fn()(None)
 
 

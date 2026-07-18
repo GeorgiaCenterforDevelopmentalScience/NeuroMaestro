@@ -141,6 +141,64 @@ ica_rest:
     scripts: [ica_rest_postprocess.sh]
     output_pattern: "{base_output}/postprocessing/ica_rest"
 
+emomatching:
+  - name: emomatching_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon
+    multi_stage: true
+    scripts: [emomatching_preprocess.sh]
+    output_pattern: "{base_output}/emomatching_derivatives"
+
+  - name: emomatching_postprocess
+    stage: post
+    profile: standard
+    array: true
+    input_from: emomatching_preprocess
+    multi_stage: true
+    scripts: [emomatching_postprocess.sh]
+    output_pattern: "{base_output}/postprocessing/emomatching"
+
+
+stopsignal:
+  - name: stopsignal_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon
+    multi_stage: true
+    scripts: [stopsignal_preprocess.sh]
+    output_pattern: "{base_output}/stopsignal_derivatives"
+
+  - name: stopsignal_postprocess
+    stage: post
+    profile: standard
+    array: true
+    input_from: stopsignal_preprocess
+    multi_stage: true
+    scripts: [stopsignal_postprocess.sh]
+    output_pattern: "{base_output}/postprocessing/stopsignal"
+
+workingmemory:
+  - name: workingmemory_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon
+    multi_stage: true
+    scripts: [workingmemory_preprocess.sh]
+    output_pattern: "{base_output}/workingmemory_derivatives"
+
+  - name: workingmemory_postprocess
+    stage: post
+    profile: standard
+    array: true
+    input_from: workingmemory_preprocess
+    multi_stage: true
+    scripts: [workingmemory_postprocess.sh]
+    output_pattern: "{base_output}/postprocessing/workingmemory"
+
 # Quality control
 qc:
   - name: mriqc_preprocess

@@ -1,0 +1,135 @@
+prefix: "sub-"
+
+# Scripts directory
+scripts_dir: "/scratch/qy49547/open_dataset/scripts"
+
+# Database configuration
+database:
+  db_path: "$WORK_DIR/database/pipeline_jobs.db"
+
+envir_dir:
+  container_dir: "/work/cglab/containers"
+  virtual_envir: "/work/cglab/conda_env"
+  template_dir: "/work/cglab/resources/atlases"
+  atlas_dir: "/work/cglab/resources/atlases"
+  freesurfer_dir: "/work/cglab/containers/.licenses/freesurfer"
+  config_dir: "/work/cglab/conda_env/config_for_BIDS"
+  stimulus_dir: "/scratch/qy49547/open_dataset/time_stimulus"
+
+# Global Python Environment
+global_python:
+  - ml Python/3.11.3-GCCcore-12.3.0
+  - . /work/cglab/conda_env/neuro_pipeline/bin/activate
+
+# Environment Modules
+modules:
+
+  afni_24.3.06:
+    - ml Flask/2.3.3-GCCcore-12.3.0
+    - ml netpbm/10.73.43-GCC-12.3.0
+    - ml AFNI/24.3.06-foss-2023a
+
+  fsl_6.0.7.14:
+    - ml FSL/6.0.7.14-foss-2023a
+    - '[ -n "$FSLDIR" ] && source ${FSLDIR}/etc/fslconf/fsl.sh'
+
+  freesurfer_7.4.1:
+    - ml FreeSurfer/7.4.1-GCCcore-12.3.0
+
+  data_manage_1:
+    - ml p7zip/17.05-GCCcore-13.3.0
+    - ml parallel/20240722-GCCcore-13.3.0
+
+# Task-specific configuration (keyed by task name)
+tasks:
+  unzip:
+    environ: ["data_manage_1", "afni_24.3.06"]
+
+  recon:
+    container: "dcm2bids_3.2.0.sif"
+    config: "branch_config.json"
+
+  volume:
+    environ: ["afni_24.3.06"]
+    template: "MNI152_2009_template_SSW.nii.gz"
+
+  rest_preprocess:
+    remove_TRs: 0
+    template: "MNI152NLin2009cAsym"
+    container: "fmriprep_25.1.3.sif"
+    license: "license.txt"
+
+  rest_post:
+    remove_TRs: 0
+    template: "MNI152NLin2009cAsym"
+    container: "xcp_d-0.11.0rc1.sif"
+    rest_mode: "linc"
+    motion_filter_type: "notch"
+    band_stop_min: "12"
+    band_stop_max: "28"
+    nuisance_regressors: "36P"
+    license: "license.txt"
+
+  emomatching_preprocess:
+    remove_TRs: 0
+    template: "MNI152_2009_template_SSW.nii.gz"
+    blur_size: 8.0
+    environ: ["afni_24.3.06"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
+
+  emomatching_postprocess:
+    remove_TRs: 0
+    template: "MNI152_2009_template_SSW.nii.gz"
+    blur_size: 8.0
+    environ: ["afni_24.3.06"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
+
+  stopsignal_preprocess:
+    remove_TRs: 0
+    template: "MNI152_2009_template_SSW.nii.gz"
+    blur_size: 8.0
+    environ: ["afni_24.3.06"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
+
+  stopsignal_postprocess:
+    remove_TRs: 0
+    template: "MNI152_2009_template_SSW.nii.gz"
+    blur_size: 8.0
+    environ: ["afni_24.3.06"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
+
+  workingmemory_preprocess:
+    remove_TRs: 0
+    template: "MNI152_2009_template_SSW.nii.gz"
+    blur_size: 8.0
+    environ: ["afni_24.3.06"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
+
+  workingmemory_postprocess:
+    remove_TRs: 0
+    template: "MNI152_2009_template_SSW.nii.gz"
+    blur_size: 8.0
+    environ: ["afni_24.3.06"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
+
+  dwi_preprocess:
+    container: "qsiprep-1.0.0.sif"
+    license: "license.txt"
+    template: "MNI152NLin2009cAsym"
+
+  dwi_post:
+    container: "qsiprep-1.0.0.sif"
+    license: "license.txt"
+    mode: "dsi_studio_autotrack"
+
+  mriqc_preprocess:
+    container: "mriqc_24.0.2.sif"
+
+  mriqc_post:
+    container: "mriqc_24.0.2.sif"
