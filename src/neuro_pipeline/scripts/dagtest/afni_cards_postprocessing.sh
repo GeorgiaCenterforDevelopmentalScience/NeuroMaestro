@@ -26,6 +26,10 @@ TABLE_FILE="${OUTPUT_DIR}/lme_datatable.txt"
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$RESAMPLE_DIR"
 
+# resampled datasets are read via sub-brick selectors in the data table; keep them
+# uncompressed so 3dLMEr doesn't pay the gzip decode cost on every read
+export AFNI_COMPRESSOR=NONE
+
 # skip if the group result already exists
 if [ -f "${OUTPUT_DIR}/cards_group_LMEr+tlrc.HEAD" ]; then
     echo "[skip] cards_group_LMEr already exists"

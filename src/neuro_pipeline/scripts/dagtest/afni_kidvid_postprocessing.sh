@@ -74,76 +74,50 @@ fi
 
 # ---------------------------------- Group comparison ---------------------------------
 
-# build_set(array_name, contrast): scan one group's subjects and, for each one that has a
-# valid coefficient, collect a "label dataset[idx]" pair for 3dttest++.
-# Results are returned via the globals $args (the pairs) and $count (number of subjects);
-# the caller must snapshot them before the next call overwrites them.
-build_set() {
-    local -n _ids=$1              # nameref: $1 is the caller's array name, not its value
-    local contrast=$2
-    args=()                       # accumulated "label dataset[idx]" pairs
-    count=0                       # number of subjects actually added
-    for sub in "${_ids[@]}"; do
-        # resampled stats dataset for this subject
-        f="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
-        if [ -f "${f}.HEAD" ]; then                 # skip subjects with no resampled file
-            # sub-brick index of this contrast's coefficient (position varies per subject)
-            idx=$(3dinfo -label2index "${contrast}#0_Coef" "${f}" 2>/dev/null)
-            if [ -n "$idx" ]; then                  # contrast present in this dataset
-                args+=( "${PREFIX}${sub}" "${f}[${idx}]" )   # label, then dataset[sub-brick]
-                ((count++))
-            fi
-        fi
-    done
-}
+# For each contrast, gen_group_command.py assembles the 3dttest++ command (it handles
+# -setA/-setB and the sub-brick selection), then we run the generated script.
 
 for contrast in "${CONTRASTS[@]}"; do
-    # resolve output paths; skip the contrast if both formats already exist
-    out_file="$OUTPUT_DIR/Stats_GroupA_vs_GroupB_${contrast}.nii.gz"
-    afni_head="$OUTPUT_DIR/Stats_GroupA_vs_GroupB_${contrast}+tlrc.HEAD"
-
+    out_prefix="Stats_GroupA_vs_GroupB_${contrast}"
     echo "processing: ${contrast}"
 
-    if [ -f "$out_file" ] && [ -f "$afni_head" ]; then
+    if [ -f "${OUTPUT_DIR}/${out_prefix}+tlrc.HEAD" ]; then
         echo "  [skip]"
         continue
     fi
 
-    # collect each group's datasets (snapshot right away; build_set reuses $args/$count)
-    build_set GroupA_IDS "$contrast"; setA_args=("${args[@]}"); count_a=$count
-    build_set GroupB_IDS "$contrast"; setB_args=("${args[@]}"); count_b=$count
+    # existing resampled datasets in each group
+    setA_dsets=()
+    for sub in "${GroupA_IDS[@]}"; do
+        f="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
+        [ -f "${f}.HEAD" ] && setA_dsets+=( "$f" )
+    done
+    setB_dsets=()
+    for sub in "${GroupB_IDS[@]}"; do
+        f="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
+        [ -f "${f}.HEAD" ] && setB_dsets+=( "$f" )
+    done
 
-    echo "  GroupA args: ${setA_args[@]}"
-    echo "  GroupB args: ${setB_args[@]}"
-
-    # both groups need at least one valid subject
-    if [ "$count_a" -eq 0 ] || [ "$count_b" -eq 0 ]; then
-        echo "  [skip] not enough subjects (GroupA: $count_a, GroupB: $count_b)"
+    if [ ${#setA_dsets[@]} -eq 0 ] || [ ${#setB_dsets[@]} -eq 0 ]; then
+        echo "  [skip] not enough subjects (GroupA: ${#setA_dsets[@]}, GroupB: ${#setB_dsets[@]})"
         continue
     fi
 
-    # two-sample test: GroupA minus GroupB
-    # to control for nuisance variables, add e.g.: -covariates cov.1D -center DIFF
-    if [ ! -f "$out_file" ]; then
-        ( cd "$OUTPUT_DIR" || exit
-          3dttest++                                                    \
-            -prefix  "Stats_GroupA_vs_GroupB_${contrast}.nii.gz"     \
-            $mask_opt                                                  \
-            -AminusB                                                   \
-            -setA GroupA "${setA_args[@]}"                            \
-            -setB GroupB "${setB_args[@]}"                            \
-            -Clustsim "$CLUSTSIM"
-        )
-    fi
+    # build the 3dttest++ command, then run it. -subs_betas picks the contrast's coef
+    # sub-brick; -options passes the rest through to 3dttest++.
+    # to control for nuisance variables, add to -options: -covariates cov.1D -center DIFF
+    cmd_script="${OUTPUT_DIR}/cmd.3dttest++.${contrast}"
+    gen_group_command.py -command 3dttest++            \
+        -write_script "$cmd_script"                    \
+        -prefix "${OUTPUT_DIR}/${out_prefix}"          \
+        -dsets "${setA_dsets[@]}"                       \
+        -dsets "${setB_dsets[@]}"                       \
+        -set_labels GroupA GroupB                                 \
+        -subs_betas "${contrast}#0_Coef" "${contrast}#0_Coef"     \
+        -options -AminusB $mask_opt -Clustsim "$CLUSTSIM"
 
-    # emit an AFNI +tlrc copy of the NIfTI result for downstream AFNI tools
-    if [ ! -f "$afni_head" ]; then
-        ( cd "$OUTPUT_DIR" || exit
-          3dcopy "Stats_GroupA_vs_GroupB_${contrast}.nii.gz" "Stats_GroupA_vs_GroupB_${contrast}+tlrc" >/dev/null 2>&1
-        )
-    fi
-
-    echo "  done (GroupA: $count_a, GroupB: $count_b)"
+    tcsh "$cmd_script"
+    echo "  done (GroupA: ${#setA_dsets[@]}, GroupB: ${#setB_dsets[@]})"
 done
 
 # TODO: cluster-level correction (3dClusterize) not implemented here yet.
