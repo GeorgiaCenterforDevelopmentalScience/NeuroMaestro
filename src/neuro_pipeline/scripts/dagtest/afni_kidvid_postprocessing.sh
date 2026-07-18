@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Group-level analysis: two-sample t-test (GroupA vs GroupB) per contrast.
-# Resamples each subject's REML stats onto a common grid, then runs 3dttest++.
+# Resamples each subject (stats + brain mask) onto a common grid, builds a group mask,
+# then runs 3dttest++ within that mask.
 
 # ---------------------------------- Setup ---------------------------------------------
 
@@ -37,8 +38,11 @@ ALL_IDS=("${GroupA_IDS[@]}" "${GroupB_IDS[@]}")
 # ---------------------------- Resample to common grid --------------------------------
 # 3dttest++ requires all inputs on the same grid; align each subject to MASTER_FILE
 for sub in "${ALL_IDS[@]}"; do
-    orig_file="${INPUT_DIR}/${PREFIX}${sub}/ses-${SESSION}/kidvid_output/${PREFIX}${sub}.results/stats.${PREFIX}${sub}_REML+tlrc"
+    results_dir="${INPUT_DIR}/${PREFIX}${sub}/ses-${SESSION}/kidvid_output/${PREFIX}${sub}.results"
+    orig_file="${results_dir}/stats.${PREFIX}${sub}_REML+tlrc"
+    orig_mask="${results_dir}/full_mask.${PREFIX}${sub}+tlrc"
     resamp_file="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
+    resamp_mask="${RESAMPLE_DIR}/full_mask.${PREFIX}${sub}+tlrc"
 
     if [ ! -f "${orig_file}.HEAD" ]; then
         echo "  [missing source, skipping]: ${PREFIX}${sub}"
@@ -48,8 +52,25 @@ for sub in "${ALL_IDS[@]}"; do
         echo "  resampling: ${PREFIX}${sub} ..."
         3dresample -master "$MASTER_FILE" -prefix "$resamp_file" -inset "$orig_file" >/dev/null 2>&1
     fi
+    if [ -f "${orig_mask}.HEAD" ] && [ ! -f "${resamp_mask}.HEAD" ]; then
+        3dresample -master "$MASTER_FILE" -rmode NN -prefix "$resamp_mask" -inset "$orig_mask" >/dev/null 2>&1
+    fi
 done
 echo "resampling done"
+
+# ------------------------------- Build the group mask --------------------------------
+# intersection of the resampled subject masks; restricts 3dttest++ (including its Clustsim)
+GROUP_MASK="${OUTPUT_DIR}/group_mask+tlrc"
+if [ ! -f "${GROUP_MASK}.HEAD" ]; then
+    3dmask_tool -input "${RESAMPLE_DIR}"/full_mask.*+tlrc.HEAD -frac 1.0 -prefix "$GROUP_MASK" >/dev/null 2>&1
+fi
+
+mask_opt=""
+if [ -f "${GROUP_MASK}.HEAD" ]; then
+    mask_opt="-mask ${GROUP_MASK}"
+else
+    echo "[warn] no group mask built; running without a mask"
+fi
 
 # ---------------------------------- Group comparison ---------------------------------
 
@@ -107,6 +128,7 @@ for contrast in "${CONTRASTS[@]}"; do
         ( cd "$OUTPUT_DIR" || exit
           3dttest++                                                    \
             -prefix  "Stats_GroupA_vs_GroupB_${contrast}.nii.gz"     \
+            $mask_opt                                                  \
             -AminusB                                                   \
             -setA GroupA "${setA_args[@]}"                            \
             -setB GroupB "${setB_args[@]}"                            \
@@ -123,3 +145,14 @@ for contrast in "${CONTRASTS[@]}"; do
 
     echo "  done (GroupA: $count_a, GroupB: $count_b)"
 done
+
+# TODO: cluster-level correction (3dClusterize) not implemented here yet.
+# 3dttest++ -Clustsim already packs cluster-size thresholds into the output header (via
+# 3drefit), so the third step should read those and run 3dClusterize per contrast, rather
+# than re-running 3dFWHMx/3dClustSim. Notes for whoever implements it:
+#   - -Clustsim auto-enables -toz, so the stat sub-brick is a z-score (label like
+#     "GroupA-GroupB_Zscr"), not a t-stat.
+#   - pull the cluster size from the embedded table with
+#     1d_tool.py -csim_pthr <p> -csim_alpha <a>  (or read the .1D that -Clustsim writes).
+# Align the extraction with the existing project script before implementing.
+# See afni_cards_postprocessing.sh for the 3dLMEr-side equivalent.

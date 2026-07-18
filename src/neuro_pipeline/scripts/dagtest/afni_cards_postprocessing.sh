@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Group-level analysis: single-group LME (3dLMEr) over the within-subject cond factor (BW/BL).
-# Resamples each subject to a common grid, builds a long-format data table, runs 3dLMEr,
-# then estimates a cluster-size threshold for multiple-comparison correction.
+# Group-level analysis: single-group LME (3dLMEr) over the within-subject cond factor.
+# Resamples each subject (stats + brain mask) to a common grid, builds a group mask and a
+# long-format data table, runs 3dLMEr, then estimates cluster-size thresholds within the mask.
 
 # ---------------------------------- Setup ---------------------------------------------
 
@@ -11,18 +11,20 @@ echo "Output directory: $OUTPUT_DIR"
 echo "Prefix: $PREFIX"
 echo "Session: $SESSION"
 echo "Subjects: $SUBJECTS"
+echo "Conditions: $CONDITIONS"
+echo "Master subject: $MASTER_ID"
+echo "Jobs: $JOBS"
 
-# within-subject conditions; the coef sub-brick is looked up as "<cond>#0_Coef"
-CONDITIONS=(BW BL)
-
+# split the space-joined env strings back into arrays
+IFS=' ' read -ra CONDITIONS <<< "$CONDITIONS"
 IFS=' ' read -ra SUB_IDS <<< "$SUBJECTS"
 
 RESAMPLE_DIR="${OUTPUT_DIR}/resampled"
+GROUP_MASK="${OUTPUT_DIR}/group_mask+tlrc"
+TABLE_FILE="${OUTPUT_DIR}/lme_datatable.txt"
 
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$RESAMPLE_DIR"
-
-TABLE_FILE="${OUTPUT_DIR}/lme_datatable.txt"
 
 # skip if the group result already exists
 if [ -f "${OUTPUT_DIR}/cards_group_LMEr+tlrc.HEAD" ]; then
@@ -31,23 +33,44 @@ if [ -f "${OUTPUT_DIR}/cards_group_LMEr+tlrc.HEAD" ]; then
 fi
 
 # ---------------------------- Resample to common grid --------------------------------
-# 3dLMEr requires all inputs on the same grid; align each subject to MASTER_FILE
+# 3dLMEr requires all inputs on the same grid; align each subject's stats and brain mask
+# to MASTER_FILE (stats: linear; mask: nearest-neighbour to stay 0/1)
 MASTER_FILE="${INPUT_DIR}/${PREFIX}${MASTER_ID}/ses-${SESSION}/cards_output/${PREFIX}${MASTER_ID}.results/stats.${PREFIX}${MASTER_ID}_REML+tlrc"
 
 for sub in "${SUB_IDS[@]}"; do
-    orig_file="${INPUT_DIR}/${PREFIX}${sub}/ses-${SESSION}/cards_output/${PREFIX}${sub}.results/stats.${PREFIX}${sub}_REML+tlrc"
-    resamp_file="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
+    subj="${PREFIX}${sub}"
+    results_dir="${INPUT_DIR}/${subj}/ses-${SESSION}/cards_output/${subj}.results"
+    orig_stats="${results_dir}/stats.${subj}_REML+tlrc"
+    orig_mask="${results_dir}/full_mask.${subj}+tlrc"
+    resamp_stats="${RESAMPLE_DIR}/stats.${subj}_REML+tlrc"
+    resamp_mask="${RESAMPLE_DIR}/full_mask.${subj}+tlrc"
 
-    if [ ! -f "${orig_file}.HEAD" ]; then
-        echo "  [missing source, skipping]: ${PREFIX}${sub}"
+    if [ ! -f "${orig_stats}.HEAD" ]; then
+        echo "  [missing source, skipping]: ${subj}"
         continue
     fi
-    if [ ! -f "${resamp_file}.HEAD" ]; then
-        echo "  resampling: ${PREFIX}${sub} ..."
-        3dresample -master "$MASTER_FILE" -prefix "$resamp_file" -inset "$orig_file" >/dev/null 2>&1
+    if [ ! -f "${resamp_stats}.HEAD" ]; then
+        echo "  resampling: ${subj} ..."
+        3dresample -master "$MASTER_FILE" -prefix "$resamp_stats" -inset "$orig_stats" >/dev/null 2>&1
+    fi
+    if [ -f "${orig_mask}.HEAD" ] && [ ! -f "${resamp_mask}.HEAD" ]; then
+        3dresample -master "$MASTER_FILE" -rmode NN -prefix "$resamp_mask" -inset "$orig_mask" >/dev/null 2>&1
     fi
 done
 echo "resampling done"
+
+# ------------------------------- Build the group mask --------------------------------
+# intersection of the resampled subject masks; restricts the LME and the correction step
+if [ ! -f "${GROUP_MASK}.HEAD" ]; then
+    3dmask_tool -input "${RESAMPLE_DIR}"/full_mask.*+tlrc.HEAD -frac 1.0 -prefix "$GROUP_MASK" >/dev/null 2>&1
+fi
+
+mask_opt=""
+if [ -f "${GROUP_MASK}.HEAD" ]; then
+    mask_opt="-mask ${GROUP_MASK}"
+else
+    echo "[warn] no group mask built; running without a mask"
+fi
 
 # ---------------------------- Build the data table -----------------------------------
 # long format: one row per subject x condition, pointing at that condition's coef sub-brick
@@ -77,30 +100,73 @@ if [ "$n_rows" -le 0 ]; then
     exit 1
 fi
 
+# ------------------------------ Assemble GLTs from conditions ------------------------
+# per-condition means, plus every pairwise contrast (covers custom weightings only if
+# added by hand; for those, append extra -gltCode entries below)
+glt_args=()
+glt_labels=()
+for c in "${CONDITIONS[@]}"; do
+    glt_args+=( -gltCode "$c" "cond : 1*$c" )
+    glt_labels+=( "$c" )
+done
+for ((i=0; i<${#CONDITIONS[@]}; i++)); do
+    for ((j=i+1; j<${#CONDITIONS[@]}; j++)); do
+        a=${CONDITIONS[i]}; b=${CONDITIONS[j]}
+        glt_args+=( -gltCode "${a}-${b}" "cond : 1*$a -1*$b" )
+        glt_labels+=( "${a}-${b}" )
+    done
+done
+
 # ---------------------------------- Run 3dLMEr ---------------------------------------
-# model: within-subject cond factor with a random intercept per subject
-# GLTs: each condition mean, plus the BW-BL contrast
-# -resid writes residuals, used below to estimate smoothness for the correction step
+# within-subject cond factor with a random intercept per subject; -resid feeds the correction
 
 ( cd "$OUTPUT_DIR" || exit
-  3dLMEr -prefix cards_group_LMEr -jobs 8              \
-    -resid cards_group_LMEr_resid                      \
-    -model 'cond+(1|Subj)'                             \
-    -gltCode BW    'cond : 1*BW'                       \
-    -gltCode BL    'cond : 1*BL'                       \
-    -gltCode BW-BL 'cond : 1*BW -1*BL'                 \
+  3dLMEr -prefix cards_group_LMEr -jobs "$JOBS" $mask_opt  \
+    -resid cards_group_LMEr_resid                          \
+    -model 'cond+(1|Subj)'                                 \
+    -SS_type 3                                             \
+    "${glt_args[@]}"                                       \
     -dataTable @"$TABLE_FILE"
 )
 
-# ---------------------- Multiple-comparison correction (sample step) ------------------
-# estimate ACF smoothness from the residuals, then derive cluster-size thresholds.
-# For real analyses, pass a group mask to both tools (-mask) and tune -jobs.
+# ---------------------- Multiple-comparison correction -------------------------------
+# 1) ACF smoothness from residuals  2) cluster-size threshold  3) apply to each GLT map
 
 ( cd "$OUTPUT_DIR" || exit
-  3dFWHMx -acf acf_curve.1D -input cards_group_LMEr_resid+tlrc > acf_params.txt
+  3dFWHMx -acf acf_curve.1D $mask_opt -input cards_group_LMEr_resid+tlrc > acf_params.txt
 
   # a b c are the ACF model parameters on the last line of the 3dFWHMx output
   read -r acf_a acf_b acf_c _ <<< "$(tail -n 1 acf_params.txt)"
 
-  3dClustSim -acf "$acf_a" "$acf_b" "$acf_c" -jobs 8 -prefix clustsim
+  # restrict the table to the requested pthr/athr so the size falls out as a single value
+  3dClustSim -acf "$acf_a" "$acf_b" "$acf_c" -jobs "$JOBS" $mask_opt \
+    -pthr "$PTHR" -athr "$ATHR" -prefix clustsim
 )
+
+# cluster-size threshold (voxels) for the requested NN/sidedness
+CLUST_1D="${OUTPUT_DIR}/clustsim.NN${NN}_bisided.1D"
+nvox=$(awk '!/^#/{print $2; exit}' "$CLUST_1D" 2>/dev/null)
+if [ -z "$nvox" ]; then
+    echo "[warn] could not read cluster size from $CLUST_1D; skipping 3dClusterize"
+    exit 0
+fi
+nvox=$(printf '%.0f' "$nvox")
+
+# apply the voxelwise pthr + cluster-size threshold to each GLT's statistic sub-brick
+LMER_OUT="${OUTPUT_DIR}/cards_group_LMEr+tlrc"
+for label in "${glt_labels[@]}"; do
+    # 3dLMEr names each GLT's z-statistic sub-brick "<label> Z"
+    ithr=$(3dinfo -label2index "${label} Z" "$LMER_OUT" 2>/dev/null)
+    if [ -z "$ithr" ]; then
+        echo "  [no '${label} Z' stat sub-brick, skipping]"
+        continue
+    fi
+    # voxelwise statistic threshold from pthr (p2dsetstat reads the stat type + df from the header)
+    tthr=$(p2dsetstat -inset "${LMER_OUT}[${ithr}]" -pval "$PTHR" -2sided -quiet)
+    ( cd "$OUTPUT_DIR" || exit
+      3dClusterize -inset "$LMER_OUT" -ithr "$ithr" $mask_opt -NN "$NN"  \
+        -bisided "-${tthr}" "${tthr}" -clust_nvox "$nvox"               \
+        -pref_map "clusters_${label}.nii.gz" >/dev/null 2>&1
+    )
+    echo "  clusterized ${label}: ithr=${ithr}, |stat|>=${tthr}, nvox>=${nvox}"
+done
