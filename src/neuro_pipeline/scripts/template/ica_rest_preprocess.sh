@@ -1,13 +1,8 @@
 #!/bin/bash
  
 # --------------------------------------------------------------------------------------
-# Author: Qiuyu Yu
-#  
-# Description: 
-# Preprocessing step by using AFNI before doing ICA.
-# 
 # Note:
-# Currently, there is no standardized preprocessing method. In general, scale is not recommended.
+# In general, scale is not recommended for ICA.
 # Here, `despike` is used instead of traditional fMRI data preprocessing. 
 # Since AFNI generates files for each step, if you only want the blur files, 
 # then find the last pb* file and convert it to a NIFTI file. 
@@ -17,8 +12,6 @@
 # Other parameters to consider:
 # -regress_apply_mot_types  demean deriv \ # Include both de-meaned and derivatives of motion parameters in the regression.
 # -regress_bandpass 0.01 999 \ # highpass band filter
-# 
-# Usage: Use it with slurm script.
 # --------------------------------------------------------------------------------------
 
 subject="$1"

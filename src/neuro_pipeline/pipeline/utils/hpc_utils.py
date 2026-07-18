@@ -604,6 +604,8 @@ def create_wrapper_script(
                 task_params.append(f'export {key.upper()}="{value}"')
             elif isinstance(value, list):
                 task_params.append(f'export {key.upper()}="{" ".join(map(str, value))}"')
+            else:
+                typer.echo(f"[WARN] Task parameter '{key}' has unsupported type {type(value).__name__} (nested dict/object); skipped. Config values must be scalars or flat lists.", err=True)
         task_params_str = "\n".join(task_params)
     
     # Get task name

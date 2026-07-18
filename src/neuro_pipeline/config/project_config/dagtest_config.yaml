@@ -105,12 +105,10 @@ tasks:
     censor_outliers: "0.05"
 
   kidvid_postprocess:
-    remove_TRs: 22
-    template: "HaskinsPeds_NL_template1.0_SSW.nii"
-    blur_size: 4.0
     environ: ["afni_24.3.06"]
-    censor_motion: "0.3"
-    censor_outliers: "0.05"
+    contrasts: ["neg", "neut", "pos"]
+    clustsim: "20"
+    master_id: "027"
 
   bfc:
     container: "sdcflows-mriqc-2.10.0.sif"
