@@ -32,6 +32,5 @@ singularity run \
         --nprocs 16 \
         --verbose-reports \
         --notrack \
-        --session-id ${SESSION} \
         --omp-nthreads 4 \
         --write-graph

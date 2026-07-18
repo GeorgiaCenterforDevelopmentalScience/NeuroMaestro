@@ -39,7 +39,6 @@ singularity run \
         participant --participant_label ${subject} \
         -w /work \
         --mode ${REST_MODE} \
-        --session-id ${SESSION} \
         -t restingstate \
         --motion-filter-type ${MOTION_FILTER_TYPE} \
         --band-stop-min ${BAND_STOP_MIN} \

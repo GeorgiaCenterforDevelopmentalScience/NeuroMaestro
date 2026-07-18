@@ -149,7 +149,7 @@ emomatching:
     input_from: recon
     multi_stage: true
     scripts: [emomatching_preprocess.sh]
-    output_pattern: "{base_output}/emomatching_derivatives"
+    output_pattern: "{base_output}/AFNI_derivatives"
 
   - name: emomatching_postprocess
     stage: post
@@ -169,7 +169,7 @@ stopsignal:
     input_from: recon
     multi_stage: true
     scripts: [stopsignal_preprocess.sh]
-    output_pattern: "{base_output}/stopsignal_derivatives"
+    output_pattern: "{base_output}/AFNI_derivatives"
 
   - name: stopsignal_postprocess
     stage: post
@@ -188,7 +188,7 @@ workingmemory:
     input_from: recon
     multi_stage: true
     scripts: [workingmemory_preprocess.sh]
-    output_pattern: "{base_output}/workingmemory_derivatives"
+    output_pattern: "{base_output}/AFNI_derivatives"
 
   - name: workingmemory_postprocess
     stage: post
