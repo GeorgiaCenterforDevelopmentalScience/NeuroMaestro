@@ -32,12 +32,12 @@ subj="${prefix}${subject}"
 echo "stimulus directory: ${STIMULUS_DIR}"
 stimulus_dir="${STIMULUS_DIR}/${subj}"
 
-t1_dir="${output_dir}/${subj}/ses-${session}/sswarp2"
+t1_dir="${output_dir}/${subj}/sswarp2"
 nifti_dir="${input_dir}/sub-${subject}/func"
 
 echo "find: "${nifti_dir}"/sub-"${subject}"_task-workingmemory_acq-seq_bold.nii.gz"
 
-workingmemory_output_dir="${output_dir}/${subj}/ses-${session}/workingmemory_output"
+workingmemory_output_dir="${output_dir}/${subj}/workingmemory_output"
 mkdir -p "${workingmemory_output_dir}"
 
 cd "${workingmemory_output_dir}"
@@ -80,10 +80,11 @@ afni_proc.py \
 -gltsym 'SYM: change -nochange' \
 -gltsym 'SYM: change -passive' \
 -gltsym 'SYM: nochange -passive' \
--gltsym 'SYM: 0.5*pos +0.5*neg -neut' \
+-gltsym 'SYM: 0.5*change +0.5*nochange -passive' \
 -glt_label 1 change-nochange \
 -glt_label 2 change-passive \
--glt_label 3 nochange-nochange \
+-glt_label 3 nochange-passive \
+-glt_label 4 active-passive \
 -regress_censor_motion "${CENSOR_MOTION}" \
 -regress_censor_outliers "${CENSOR_OUTLIERS}" \
 -regress_motion_per_run \

@@ -32,12 +32,12 @@ subj="${prefix}${subject}"
 echo "stimulus directory: ${STIMULUS_DIR}"
 stimulus_dir="${STIMULUS_DIR}/${subj}"
 
-t1_dir="${output_dir}/${subj}/ses-${session}/sswarp2"
+t1_dir="${output_dir}/${subj}/sswarp2"
 nifti_dir="${input_dir}/sub-${subject}/func"
 
 echo "find: "${nifti_dir}"/sub-"${subject}"_task-stopsignal_acq-seq_bold.nii.gz"
 
-stopsignal_output_dir="${output_dir}/${subj}/ses-${session}/stopsignal_output"
+stopsignal_output_dir="${output_dir}/${subj}/stopsignal_output"
 mkdir -p "${stopsignal_output_dir}"
 
 cd "${stopsignal_output_dir}"

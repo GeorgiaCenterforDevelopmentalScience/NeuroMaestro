@@ -23,7 +23,7 @@ echo "template: ${template}"
 # ---------------------------------- Run Processing -------------------------------------
 # 
 subj="${prefix}${subject}"
-t1_dir="${output_dir}/${subj}/ses-${session}/sswarp2"
+t1_dir="${output_dir}/${subj}/sswarp2"
 nifti_dir="${input_dir}/sub-${subject}/anat"
 
 export AFNI_NO_X11=1

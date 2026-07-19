@@ -32,12 +32,12 @@ subj="${prefix}${subject}"
 echo "stimulus directory: ${STIMULUS_DIR}"
 stimulus_dir="${STIMULUS_DIR}/${subj}"
 
-t1_dir="${output_dir}/${subj}/ses-${session}/sswarp2"
+t1_dir="${output_dir}/${subj}/sswarp2"
 nifti_dir="${input_dir}/sub-${subject}/func"
 
 echo "find: "${nifti_dir}"/sub-"${subject}"_task-emomatching_acq-seq_bold.nii.gz"
 
-emomatching_output_dir="${output_dir}/${subj}/ses-${session}/emomatching_output"
+emomatching_output_dir="${output_dir}/${subj}/emomatching_output"
 mkdir -p "${emomatching_output_dir}"
 
 cd "${emomatching_output_dir}"
