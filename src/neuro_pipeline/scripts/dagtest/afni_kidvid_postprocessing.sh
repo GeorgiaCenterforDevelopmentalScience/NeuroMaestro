@@ -18,6 +18,9 @@ echo "Session: $SESSION"
 echo "Contrasts: $CONTRASTS"
 echo "Master subject: $MASTER_ID"
 echo "Clustsim: $CLUSTSIM"
+echo "Pthr: $PTHR"
+echo "Athr: $ATHR"
+echo "NN: $NN"
 
 # Group membership (edit per project)
 GroupA_IDS=(
@@ -44,8 +47,10 @@ ALL_IDS=("${GroupA_IDS[@]}" "${GroupB_IDS[@]}")
 # 3dttest++ requires all inputs on the same grid; align each subject to MASTER_FILE
 for sub in "${ALL_IDS[@]}"; do
     results_dir="${INPUT_DIR}/${PREFIX}${sub}/ses-${SESSION}/kidvid_output/${PREFIX}${sub}.results"
+
     orig_file="${results_dir}/stats.${PREFIX}${sub}_REML+tlrc"
     orig_mask="${results_dir}/full_mask.${PREFIX}${sub}+tlrc"
+
     resamp_file="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
     resamp_mask="${RESAMPLE_DIR}/full_mask.${PREFIX}${sub}+tlrc"
 
@@ -53,10 +58,12 @@ for sub in "${ALL_IDS[@]}"; do
         echo "  [missing source, skipping]: ${PREFIX}${sub}"
         continue
     fi
+
     if [ ! -f "${resamp_file}.HEAD" ]; then
         echo "  resampling: ${PREFIX}${sub} ..."
         3dresample -master "$MASTER_FILE" -prefix "$resamp_file" -inset "$orig_file" >/dev/null 2>&1
     fi
+
     if [ -f "${orig_mask}.HEAD" ] && [ ! -f "${resamp_mask}.HEAD" ]; then
         3dresample -master "$MASTER_FILE" -rmode NN -prefix "$resamp_mask" -inset "$orig_mask" >/dev/null 2>&1
     fi
@@ -96,6 +103,7 @@ for contrast in "${CONTRASTS[@]}"; do
         f="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
         [ -f "${f}.HEAD" ] && setA_args+=( "${PREFIX}${sub}" "${f}[${contrast}#0_Coef]" )
     done
+
     setB_args=()
     for sub in "${GroupB_IDS[@]}"; do
         f="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
@@ -117,13 +125,48 @@ for contrast in "${CONTRASTS[@]}"; do
     echo "  done (GroupA: $(( ${#setA_args[@]} / 2 )), GroupB: $(( ${#setB_args[@]} / 2 )))"
 done
 
-# TODO: cluster-level correction (3dClusterize) not implemented here yet.
-# 3dttest++ -Clustsim already packs cluster-size thresholds into the output header (via
-# 3drefit), so the third step should read those and run 3dClusterize per contrast, rather
-# than re-running 3dFWHMx/3dClustSim. Notes for whoever implements it:
-#   - -Clustsim auto-enables -toz, so the stat sub-brick is a z-score (label like
-#     "GroupA-GroupB_Zscr"), not a t-stat.
-#   - pull the cluster size from the embedded table with
-#     1d_tool.py -csim_pthr <p> -csim_alpha <a>  (or read the .1D that -Clustsim writes).
-# Align the extraction with the existing project script before implementing.
-# See afni_cards_postprocessing.sh for the 3dLMEr-side equivalent.
+# ---------------------- Multiple-comparison correction -------------------------------
+# 3dttest++ -Clustsim already computed per-contrast cluster tables (.CSimA .1D + embedded
+# header attrs); look up the size for (PTHR, ATHR) and apply 3dClusterize to each stat
+# sub-brick. -Clustsim auto-enables -toz, so the stat is "<base>_Zscr" and the effect
+# estimate is "<base>_mean".
+for contrast in "${CONTRASTS[@]}"; do
+    out_prefix="Stats_GroupA_vs_GroupB_${contrast}"
+    dset="${OUTPUT_DIR}/${out_prefix}+tlrc"
+    csim_1d="${OUTPUT_DIR}/${out_prefix}.CSimA.NN${NN}_bisided.1D"
+
+    # skip contrasts with no result or no embedded clustsim table
+    [ -f "${dset}.HEAD" ] || continue
+    if [ ! -f "$csim_1d" ]; then
+        echo "  [no clustsim table for ${contrast}, skipping correction]"
+        continue
+    fi
+
+    # cluster-size threshold (voxels) for this (PTHR, ATHR) from the embedded table
+    nvox=$(1d_tool.py -infile "$csim_1d" -csim_pthr "$PTHR" -csim_alpha "$ATHR" \
+                      -csim_show_clustsize -verb 0 2>/dev/null | tail -n 1)
+    if [ -z "$nvox" ]; then
+        echo "  [could not read cluster size for ${contrast}, skipping]"
+        continue
+    fi
+
+    # threshold each stat sub-brick (between-group + each group) and keep surviving clusters
+    for base in GroupA-GroupB GroupA GroupB; do
+    
+        # ithr: z-stat sub-brick to threshold on; idat: matching effect (mean) to report
+        ithr=$(3dinfo -label2index "${base}_Zscr" "$dset" 2>/dev/null)
+        [ -z "$ithr" ] && { echo "  [no '${base}_Zscr' in ${contrast}, skipping]"; continue; }
+
+        idat=$(3dinfo -label2index "${base}_mean" "$dset" 2>/dev/null)
+        idat_opt=""
+        [ -n "$idat" ] && idat_opt="-idat $idat -pref_dat clusters_${contrast}_${base}_dat.nii.gz"
+
+        # voxelwise p=PTHR (bisided) + cluster size -> surviving-cluster map
+        ( cd "$OUTPUT_DIR" || exit
+          3dClusterize -inset "$dset" -ithr "$ithr" $idat_opt $mask_opt -NN "$NN" \
+            -bisided "p=$PTHR" -clust_nvox "$nvox"                                \
+            -pref_map "clusters_${contrast}_${base}.nii.gz" >/dev/null 2>&1
+        )
+        echo "  clusterized ${contrast}/${base}: ithr=${ithr}, p=${PTHR}, nvox>=${nvox}"
+    done
+done

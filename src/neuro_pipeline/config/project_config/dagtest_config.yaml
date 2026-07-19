@@ -112,6 +112,9 @@ tasks:
     contrasts: ["neg", "neut"]
     clustsim: "20"
     master_id: "027"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   bfc:
     container: "sdcflows-mriqc-2.10.0.sif"
