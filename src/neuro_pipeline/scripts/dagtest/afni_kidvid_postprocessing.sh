@@ -79,8 +79,7 @@ fi
 
 # ---------------------------------- Group comparison ---------------------------------
 
-# For each contrast, gen_group_command.py assembles the 3dttest++ command (it handles
-# -setA/-setB and the sub-brick selection), then we run the generated script.
+# For each contrast, assemble the two groups' "label dataset[coef]" pairs and run 3dttest++.
 
 for contrast in "${CONTRASTS[@]}"; do
     out_prefix="Stats_GroupA_vs_GroupB_${contrast}"
@@ -91,38 +90,31 @@ for contrast in "${CONTRASTS[@]}"; do
         continue
     fi
 
-    # existing resampled datasets in each group
-    setA_dsets=()
+    # "label dataset[coef]" pairs per group (label selector, no 3dinfo needed)
+    setA_args=()
     for sub in "${GroupA_IDS[@]}"; do
         f="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
-        [ -f "${f}.HEAD" ] && setA_dsets+=( "$f" )
+        [ -f "${f}.HEAD" ] && setA_args+=( "${PREFIX}${sub}" "${f}[${contrast}#0_Coef]" )
     done
-    setB_dsets=()
+    setB_args=()
     for sub in "${GroupB_IDS[@]}"; do
         f="${RESAMPLE_DIR}/stats.${PREFIX}${sub}_REML+tlrc"
-        [ -f "${f}.HEAD" ] && setB_dsets+=( "$f" )
+        [ -f "${f}.HEAD" ] && setB_args+=( "${PREFIX}${sub}" "${f}[${contrast}#0_Coef]" )
     done
 
-    if [ ${#setA_dsets[@]} -eq 0 ] || [ ${#setB_dsets[@]} -eq 0 ]; then
-        echo "  [skip] not enough subjects (GroupA: ${#setA_dsets[@]}, GroupB: ${#setB_dsets[@]})"
+    if [ ${#setA_args[@]} -eq 0 ] || [ ${#setB_args[@]} -eq 0 ]; then
+        echo "  [skip] not enough subjects (GroupA: $(( ${#setA_args[@]} / 2 )), GroupB: $(( ${#setB_args[@]} / 2 )))"
         continue
     fi
 
-    # build the 3dttest++ command, then run it. -subs_betas picks the contrast's coef
-    # sub-brick; -options passes the rest through to 3dttest++.
-    # to control for nuisance variables, add to -options: -covariates cov.1D -center DIFF
-    cmd_script="${OUTPUT_DIR}/cmd.3dttest++.${contrast}"
-    gen_group_command.py -command 3dttest++            \
-        -write_script "$cmd_script"                    \
-        -prefix "${OUTPUT_DIR}/${out_prefix}"          \
-        -dsets "${setA_dsets[@]}"                       \
-        -dsets "${setB_dsets[@]}"                       \
-        -set_labels GroupA GroupB                                 \
-        -subs_betas "${contrast}#0_Coef" "${contrast}#0_Coef"     \
-        -options $mask_opt -Clustsim "$CLUSTSIM"
+    # relative -prefix + cd: 3dttest++ -Clustsim rejects an absolute -prefix.
+    # to control for nuisance variables, add: -covariates cov.1D -center DIFF
+    ( cd "$OUTPUT_DIR" && 3dttest++ -prefix "$out_prefix" $mask_opt -AminusB \
+        -setA GroupA "${setA_args[@]}"                                       \
+        -setB GroupB "${setB_args[@]}"                                       \
+        -Clustsim "$CLUSTSIM" )
 
-    tcsh "$cmd_script"
-    echo "  done (GroupA: ${#setA_dsets[@]}, GroupB: ${#setB_dsets[@]})"
+    echo "  done (GroupA: $(( ${#setA_args[@]} / 2 )), GroupB: $(( ${#setB_args[@]} / 2 )))"
 done
 
 # TODO: cluster-level correction (3dClusterize) not implemented here yet.
