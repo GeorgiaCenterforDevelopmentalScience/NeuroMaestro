@@ -155,7 +155,7 @@ for contrast in "${CONTRASTS[@]}"; do
 
     # threshold each stat sub-brick (between-group + each group) and keep surviving clusters
     for base in GroupA-GroupB GroupA GroupB; do
-
+    
         # ithr: z-stat sub-brick to threshold on; idat: matching effect (mean) to report
         ithr=$(3dinfo -label2index "${base}_Zscr" "$dset" 2>/dev/null)
         [ -z "$ithr" ] && { echo "  [no '${base}_Zscr' in ${contrast}, skipping]"; continue; }

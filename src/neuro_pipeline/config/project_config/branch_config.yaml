@@ -86,6 +86,24 @@ tasks:
     censor_motion: "0.3"
     censor_outliers: "0.05"
 
+  cards_postprocess:
+    environ: ["afni_24.3.06"]
+    conditions: ["BW", "BL", "LW", "LL", "NeutralW", "AntLongBW"]
+    master_id: "027"
+    jobs: "8"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
+
+  kidvid_postprocess:
+    environ: ["afni_24.3.06"]
+    contrasts: ["neg", "neut", "pos"]
+    clustsim: "20"
+    master_id: "027"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
+
   dwi_preprocess:
     container: "qsiprep-1.0.0.sif"
     license: "license.txt"

@@ -99,14 +99,22 @@ tasks:
     censor_outliers: "0.05"
 
   cards_postprocess:
-    remove_TRs: 2
-    template: "HaskinsPeds_NL_template1.0_SSW.nii"
     environ: ["afni_24.3.06"]
+    conditions: ["BW", "BL"]
+    master_id: "027"
+    jobs: "8"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   kidvid_postprocess:
-    remove_TRs: 22
-    template: "HaskinsPeds_NL_template1.0_SSW.nii"
     environ: ["afni_24.3.06"]
+    contrasts: ["neg", "neut"]
+    clustsim: "20"
+    master_id: "027"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   bfc:
     container: "sdcflows-mriqc-2.10.0.sif"

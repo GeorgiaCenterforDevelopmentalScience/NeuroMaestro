@@ -103,12 +103,22 @@ tasks:
     censor_outliers: "0.05"
 
   cards_postprocess:
-    template: "HaskinsPeds_NL_template1.0_SSW.nii"
     environ: ["afni_24.3.06"]
+    conditions: ["BW", "BL", "LW", "LL", "NeutralW", "AntLongBW"]
+    master_id: "027"
+    jobs: "8"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   kidvid_postprocess:
-    template: "HaskinsPeds_NL_template1.0_SSW.nii"
     environ: ["afni_24.3.06"]
+    contrasts: ["neg", "neut", "pos"]
+    clustsim: "20"
+    master_id: "027"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   ica_task_preprocess:
     remove_TRs: 2
