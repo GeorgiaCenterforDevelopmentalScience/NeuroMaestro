@@ -41,5 +41,5 @@ singularity run \
         --anatomical-template ${TEMPLATE} \
         --output-resolution ${OUTPUT_RESOLUTION} \
         --use-syn-sdc warn \
-        --force syn-sdc \
+        --force-syn \
         --notrack

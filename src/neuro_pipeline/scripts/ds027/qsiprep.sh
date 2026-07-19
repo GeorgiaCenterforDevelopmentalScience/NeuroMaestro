@@ -38,5 +38,5 @@ singularity run \
         --output-resolution ${OUTPUT_RESOLUTION} \
         --unringing-method ${UNRINGING_METHOD} \
         --use-syn-sdc warn \
-        --force syn-sdc \
+        --force-syn \
         --notrack

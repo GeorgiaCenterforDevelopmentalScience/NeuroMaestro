@@ -119,7 +119,7 @@ for contrast in "${CONTRASTS[@]}"; do
         -dsets "${setB_dsets[@]}"                       \
         -set_labels GroupA GroupB                                 \
         -subs_betas "${contrast}#0_Coef" "${contrast}#0_Coef"     \
-        -options -AminusB $mask_opt -Clustsim "$CLUSTSIM"
+        -options $mask_opt -Clustsim "$CLUSTSIM"
 
     tcsh "$cmd_script"
     echo "  done (GroupA: ${#setA_dsets[@]}, GroupB: ${#setB_dsets[@]})"
