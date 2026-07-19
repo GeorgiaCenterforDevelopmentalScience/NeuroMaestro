@@ -77,7 +77,7 @@ echo "resampling done"
 # intersection of the resampled subject masks; restricts 3dttest++ (including its Clustsim)
 GROUP_MASK="${OUTPUT_DIR}/group_mask+tlrc"
 if [ ! -f "${GROUP_MASK}.HEAD" ]; then
-    3dmask_tool -input "${RESAMPLE_DIR}"/full_mask.*+tlrc.HEAD -frac 1.0 -prefix "$GROUP_MASK" >/dev/null 2>&1
+    3dmask_tool -input "${RESAMPLE_DIR}"/full_mask.*+tlrc.HEAD -frac "${MASK_FRAC}" -prefix "$GROUP_MASK" >/dev/null 2>&1
 fi
 
 mask_opt=""

@@ -88,6 +88,7 @@ tasks:
 
   cards_postprocess:
     environ: ["afni_24.3.06"]
+    mask_frac: "1.0"
     conditions: ["BW", "BL", "LW", "LL", "NeutralW", "AntLongBW"]
     master_id: "027"
     jobs: "8"
@@ -97,6 +98,7 @@ tasks:
 
   kidvid_postprocess:
     environ: ["afni_24.3.06"]
+    mask_frac: "1.0"
     contrasts: ["neg", "neut", "pos"]
     clustsim: "20"
     master_id: "027"
