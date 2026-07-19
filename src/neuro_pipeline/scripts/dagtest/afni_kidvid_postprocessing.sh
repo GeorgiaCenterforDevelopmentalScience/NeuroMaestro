@@ -4,6 +4,11 @@
 # Resamples each subject (stats + brain mask) onto a common grid, builds a group mask,
 # then runs 3dttest++ within that mask.
 
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/gen_group_command.py_sphx.html#ahelp-gen-group-command-py
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/3dttest%2B%2B_sphx.html#ahelp-3dttest
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/3dClustSim_sphx.html#ahelp-3dclustsim
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/3dClusterize_sphx.html#ahelp-3dclusterize
+
 # ---------------------------------- Setup ---------------------------------------------
 
 echo "Input directory: $INPUT_DIR"

@@ -4,6 +4,8 @@
 # Resamples each subject (stats + brain mask) to a common grid, builds a group mask and a
 # long-format data table, runs 3dLMEr, then estimates cluster-size thresholds within the mask.
 
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/3dLMEr_sphx.html#ahelp-3dlmer
+
 # ---------------------------------- Setup ---------------------------------------------
 
 echo "Input directory: $INPUT_DIR"
@@ -29,6 +31,8 @@ mkdir -p "$RESAMPLE_DIR"
 # resampled datasets are read via sub-brick selectors in the data table; keep them
 # uncompressed so 3dLMEr doesn't pay the gzip decode cost on every read
 export AFNI_COMPRESSOR=NONE
+# 3dFWHMx / 3dClustSim parallelize via OpenMP, not a -jobs flag
+export OMP_NUM_THREADS="$JOBS"
 
 # skip if the group result already exists
 if [ -f "${OUTPUT_DIR}/cards_group_LMEr+tlrc.HEAD" ]; then
@@ -142,35 +146,35 @@ done
   # a b c are the ACF model parameters on the last line of the 3dFWHMx output
   read -r acf_a acf_b acf_c _ <<< "$(tail -n 1 acf_params.txt)"
 
-  # restrict the table to the requested pthr/athr so the size falls out as a single value
-  3dClustSim -acf "$acf_a" "$acf_b" "$acf_c" -jobs "$JOBS" $mask_opt \
-    -pthr "$PTHR" -athr "$ATHR" -prefix clustsim
+  # single pthr/athr -> the size comes out as one value; -nodec rounds it up to an integer
+  3dClustSim -acf "$acf_a" "$acf_b" "$acf_c" $mask_opt \
+    -pthr "$PTHR" -athr "$ATHR" -nodec -prefix clustsim
 )
 
-# cluster-size threshold (voxels) for the requested NN/sidedness
+# cluster-size threshold (voxels) for the requested NN, bisided
 CLUST_1D="${OUTPUT_DIR}/clustsim.NN${NN}_bisided.1D"
 nvox=$(awk '!/^#/{print $2; exit}' "$CLUST_1D" 2>/dev/null)
 if [ -z "$nvox" ]; then
     echo "[warn] could not read cluster size from $CLUST_1D; skipping 3dClusterize"
     exit 0
 fi
-nvox=$(printf '%.0f' "$nvox")
 
-# apply the voxelwise pthr + cluster-size threshold to each GLT's statistic sub-brick
+# apply the voxelwise pthr (3dClusterize converts p->stat) + cluster size to each GLT
 LMER_OUT="${OUTPUT_DIR}/cards_group_LMEr+tlrc"
 for label in "${glt_labels[@]}"; do
-    # 3dLMEr names each GLT's z-statistic sub-brick "<label> Z"
+    # 3dLMEr stores the effect in "<label>" and its z-statistic in "<label> Z"
     ithr=$(3dinfo -label2index "${label} Z" "$LMER_OUT" 2>/dev/null)
     if [ -z "$ithr" ]; then
         echo "  [no '${label} Z' stat sub-brick, skipping]"
         continue
     fi
-    # voxelwise statistic threshold from pthr (p2dsetstat reads the stat type + df from the header)
-    tthr=$(p2dsetstat -inset "${LMER_OUT}[${ithr}]" -pval "$PTHR" -2sided -quiet)
+    idat=$(3dinfo -label2index "${label}" "$LMER_OUT" 2>/dev/null)
+    idat_opt=""
+    [ -n "$idat" ] && idat_opt="-idat $idat -pref_dat clusters_${label}_dat.nii.gz"
     ( cd "$OUTPUT_DIR" || exit
-      3dClusterize -inset "$LMER_OUT" -ithr "$ithr" $mask_opt -NN "$NN"  \
-        -bisided "-${tthr}" "${tthr}" -clust_nvox "$nvox"               \
+      3dClusterize -inset "$LMER_OUT" -ithr "$ithr" $idat_opt $mask_opt -NN "$NN" \
+        -bisided "p=$PTHR" -clust_nvox "$nvox"                                    \
         -pref_map "clusters_${label}.nii.gz" >/dev/null 2>&1
     )
-    echo "  clusterized ${label}: ithr=${ithr}, |stat|>=${tthr}, nvox>=${nvox}"
+    echo "  clusterized ${label}: ithr=${ithr}, p=${PTHR}, nvox>=${nvox}"
 done
