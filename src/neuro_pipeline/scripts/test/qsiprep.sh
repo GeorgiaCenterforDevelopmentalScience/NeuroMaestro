@@ -39,5 +39,5 @@ singularity run \
         --session-id ${SESSION} \
         --sloppy \
         --anatomical-template ${TEMPLATE} \
-        --output-resolution 2.0 \
+        --output-resolution ${OUTPUT_RESOLUTION} \
         --notrack

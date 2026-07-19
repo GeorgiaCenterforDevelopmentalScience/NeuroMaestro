@@ -34,7 +34,7 @@ singularity run \
         --fs-license-file /freesurfer/${LICENSE} \
         --session-id ${SESSION} \
         --input-type qsiprep \
-        --atlases Gordon333Ext \
+        --atlases ${ATLASES} \
         --sloppy \
         --recon-spec ${MODE} \
         --notrack \

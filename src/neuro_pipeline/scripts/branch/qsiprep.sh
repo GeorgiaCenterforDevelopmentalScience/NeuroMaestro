@@ -38,6 +38,7 @@ singularity run \
         --skip-bids-validation \
         --session-id ${SESSION} \
         --anatomical-template ${TEMPLATE} \
-        --output-resolution 2.0 \
-        --use-syn-sdc \
+        --output-resolution ${OUTPUT_RESOLUTION} \
+        --use-syn-sdc warn \
+        --force syn-sdc \
         --notrack

@@ -39,7 +39,7 @@ singularity run \
         --sloppy \
         --boilerplate \
         --anatomical-template ${TEMPLATE} \
-        --output-resolution 2.0 \
+        --output-resolution ${OUTPUT_RESOLUTION} \
         --use-syn-sdc warn \
         --force syn-sdc \
         --notrack
