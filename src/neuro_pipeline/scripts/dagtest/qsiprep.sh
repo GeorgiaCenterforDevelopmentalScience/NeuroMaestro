@@ -40,5 +40,6 @@ singularity run \
         --boilerplate \
         --anatomical-template ${TEMPLATE} \
         --output-resolution 2.0 \
-        --use-syn-sdc \
+        --use-syn-sdc warn \
+        --force syn-sdc \
         --notrack

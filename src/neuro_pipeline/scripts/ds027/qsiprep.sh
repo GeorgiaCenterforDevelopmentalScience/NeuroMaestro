@@ -21,8 +21,6 @@ echo "container: ${CONTAINER_DIR}/${CONTAINER}"
 # ---------------------------------- Run Processing -------------------------------------
 # https://qsiprep.readthedocs.io/en/latest/quickstart.html
 
-# --output-resolution 1.2
-
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \
                 -B ${INPUT_DIR}:/data \
@@ -36,8 +34,9 @@ singularity run \
         --omp-nthreads 8 \
         --fs-license-file /freesurfer/${LICENSE} \
         --skip-bids-validation \
-        --boilerplate \
         --anatomical-template ${TEMPLATE} \
-        --output-resolution 2.0 \
-        --use-syn-sdc \
+        --output-resolution ${OUTPUT_RESOLUTION} \
+        --unringing-method ${UNRINGING_METHOD} \
+        --use-syn-sdc warn \
+        --force syn-sdc \
         --notrack

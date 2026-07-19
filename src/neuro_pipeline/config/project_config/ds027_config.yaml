@@ -122,11 +122,14 @@ tasks:
     container: "qsiprep-1.0.0.sif"
     license: "license.txt"
     template: "MNI152NLin2009cAsym"
+    output_resolution: 2.0
+    unringing_method: "mrdegibbs"
 
   dwi_post:
-    container: "qsiprep-1.0.0.sif"
+    container: "qsirecon-1.2.0.sif"
     license: "license.txt"
-    mode: "dsi_studio_autotrack"
+    mode: "dsi_studio_gqi"
+    atlases: "Gordon333Ext"
 
   mriqc_preprocess:
     container: "mriqc_24.0.2.sif"

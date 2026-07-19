@@ -33,8 +33,7 @@ singularity run \
         --omp-nthreads 8 \
         --fs-license-file /freesurfer/${LICENSE} \
         --input-type qsiprep \
-        --atlases Gordon333Ext \
-        --boilerplate\
+        --atlases ${ATLASES} \
         --recon-spec ${MODE} \
         --notrack \
         -v

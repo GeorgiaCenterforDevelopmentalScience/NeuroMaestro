@@ -92,7 +92,7 @@ tasks:
     template: "MNI152NLin2009cAsym"
 
   dwi_post:
-    container: "qsiprep-1.0.0.sif"
+    container: "qsirecon-1.2.0.sif"
     license: "license.txt"
     mode: "dsi_studio_autotrack"
 
