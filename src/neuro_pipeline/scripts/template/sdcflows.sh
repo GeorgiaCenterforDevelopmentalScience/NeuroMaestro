@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Fieldmap / susceptibility-distortion estimation via SDCFlows.
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"

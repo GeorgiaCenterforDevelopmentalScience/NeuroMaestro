@@ -2,7 +2,8 @@
 
 # Group-level analysis: two-sample t-test (GroupA vs GroupB) per contrast.
 # Resamples each subject (stats + brain mask) onto a common grid, builds a group mask,
-# then runs 3dttest++ within that mask.
+# runs 3dttest++ (with -Clustsim) within that mask, then applies cluster-level correction
+# (3dClusterize) to each stat sub-brick.
 
 # https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/gen_group_command.py_sphx.html#ahelp-gen-group-command-py
 # https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/3dttest%2B%2B_sphx.html#ahelp-3dttest

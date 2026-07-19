@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Single-subject ICA task preprocessing via afni_proc.py.
+
+# Note:
+# In general, scale is not recommended for ICA; `despike` is used here instead of the
+# traditional scaling step. AFNI writes a dataset per step: for blur-only output take the
+# last pb* file and convert to NIfTI; for high-pass + motion-regressed output take the
+# errts* file.
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"

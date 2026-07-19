@@ -2,7 +2,8 @@
 
 # Group-level analysis: single-group LME (3dLMEr) over the within-subject cond factor.
 # Resamples each subject (stats + brain mask) to a common grid, builds a group mask and a
-# long-format data table, runs 3dLMEr, then estimates cluster-size thresholds within the mask.
+# long-format data table, runs 3dLMEr, then applies cluster-level correction
+# (3dFWHMx -> 3dClustSim -> 3dClusterize) within the mask.
 
 # https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/3dLMEr_sphx.html#ahelp-3dlmer
 

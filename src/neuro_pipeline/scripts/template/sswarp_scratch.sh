@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Skull-strip + nonlinear-warp the T1 to template via sswarper2.
+# -deoblique_refitly: purge obliquity via 3drefit -deoblique (header only) before warping.
+# -giant_move: allow a large initial angle between input and template during alignment.
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"

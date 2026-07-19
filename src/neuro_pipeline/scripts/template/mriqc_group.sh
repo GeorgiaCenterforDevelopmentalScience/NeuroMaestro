@@ -1,5 +1,7 @@
 #!/bin/bash
  
+# Group-level MRIQC report aggregation.
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"

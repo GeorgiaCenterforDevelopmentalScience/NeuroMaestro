@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Single-subject kidvid task preprocessing via afni_proc.py.
+# Depends on sswarper2 output (anatSS/anatQQ under sswarp2/T1_results); run that first.
+
 # ---------------------------------- Setup ---------------------------------------------
 
 # echo "PATH: $PATH"

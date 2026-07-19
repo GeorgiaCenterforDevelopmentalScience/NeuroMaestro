@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Unzip raw DICOM .zip archives (7z, in parallel), read each series' DICOM header to
+# extract the Patient ID, derive a numeric subject ID, log a CSV summary, then rename the
+# e* folders to <prefix><id>.
+
 echo "=== unzip_rename.sh ==="
 echo "current path: $(pwd)"
 echo "SCRIPT_DIR: $SCRIPT_DIR"

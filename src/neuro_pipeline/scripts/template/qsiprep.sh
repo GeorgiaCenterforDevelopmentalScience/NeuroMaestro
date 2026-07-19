@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# DWI preprocessing via QSIPrep.
+# Needs a FreeSurfer license. --use-syn-sdc / --force-syn force fieldmap-less SyN
+# distortion correction (SDC).
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"

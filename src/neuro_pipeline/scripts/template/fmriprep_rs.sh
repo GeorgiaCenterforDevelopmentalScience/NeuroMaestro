@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Resting-state preprocessing via fMRIPrep.
+# Needs a FreeSurfer license (uses FreeSurfer). Notes on the flags below:
+#   --dummy-scans: only flags non-steady-state TRs (does NOT drop them; XCP-D does);
+#     set it to `auto` to estimate the count automatically.
+#   -t rest: restrict to the BIDS "rest" task; omit to process all tasks, or set another.
+#   --use-syn-sdc / --force syn-sdc: force fieldmap-less SyN distortion correction (SDC).
+
 # ---------------------------------- Setup ---------------------------------------------
 
 

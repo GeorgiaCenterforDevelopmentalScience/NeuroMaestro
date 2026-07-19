@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Convert a subject's DICOMs to BIDS via dcm2bids (needs config.json).
+
 # ---------------------------------- Setup ---------------------------------------------
 
 # You need a folder with a file name that includes the subject ID. The program cannot extract ID for you.
@@ -43,6 +45,8 @@ singularity run \
   # --bids_validate \
 
 # ---------------------------------- BIDS Metadata -------------------------------------
+# Generate the BIDS metadata (dataset_description.json + participants.tsv) that downstream
+# BIDS apps require; comment this section out if you already provide your own.
 
 # Create dataset_description.json only if it doesn't exist
 if [ ! -f "$output_dir/dataset_description.json" ]; then

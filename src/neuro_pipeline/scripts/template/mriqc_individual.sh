@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Per-subject image-quality metrics via MRIQC.
+# Task not restricted here (add `-t <task>` to limit); AFNI-based options like --deoblique
+# are available (currently commented out).
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"

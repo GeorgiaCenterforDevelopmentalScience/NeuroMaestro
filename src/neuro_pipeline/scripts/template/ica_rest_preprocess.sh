@@ -1,5 +1,7 @@
 #!/bin/bash
- 
+
+# Single-subject ICA rest preprocessing via afni_proc.py (despike, no scaling).
+
 # --------------------------------------------------------------------------------------
 # Note:
 # In general, scale is not recommended for ICA.

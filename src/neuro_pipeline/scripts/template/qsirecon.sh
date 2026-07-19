@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# DWI reconstruction (tractography/connectivity) via QSIRecon.
+# --atlases is selectable; --recon-spec uses dsi_studio_autotrack here, which is slow.
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"

@@ -123,6 +123,7 @@ tasks:
   ica_task_postprocess:
     afni_dset: "all_runs"
     environ: ["afni_24.3.06","fsl_6.0.7.14"]
+    mmthresh: "0.5"
 
   ica_rest_preprocess:
     remove_TRs: 6
@@ -137,6 +138,7 @@ tasks:
   ica_rest_postprocess:
     afni_dset: "all_runs"
     environ: ["afni_24.3.06","fsl_6.0.7.14"]
+    mmthresh: "0.5"
 
   mriqc_preprocess:
     container: "mriqc_24.0.2.sif"

@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Resting-state denoising / postprocessing via XCP-D.
+# --mode abcd here (adolescent cohort; interpolates censored volumes); other pipelines exist.
+# --band-stop-min/-max: notch band, adjust by age. --nuisance-regressors 36P is aggressive
+# (clean); XCP-D offers other denoising strategies.
+# --dummy-scans: XCP-D actually drops the first REMOVE_TRS volumes (fMRIPrep only flags them);
+#   set it to `auto` to auto-detect and drop the non-steady-state volumes instead.
+
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"
