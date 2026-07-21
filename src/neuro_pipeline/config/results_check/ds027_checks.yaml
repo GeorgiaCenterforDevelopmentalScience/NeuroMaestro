@@ -1,0 +1,142 @@
+# ds027_checks.yaml
+# Per-project output check configuration for resume / check-outputs.
+#
+# Each key is a task name (must match the task names in ds027_config.yaml).
+# Two check types are supported and can be combined freely:
+#
+#   required_files:
+#     - pattern: "glob pattern relative to output_path"
+#       min_size_kb: 500          # optional - omit to skip size check
+#
+#   count_check:
+#     <data_type_label>:
+#       pattern: "glob pattern relative to output_path"
+#       expected_count: 2
+#       tolerance: 1              # abs(actual - expected) <= tolerance -> PASS
+#
+# Path variables available in output_path:
+#   {work_dir}  - the project work/output directory
+#   {subject}   - subject ID without prefix, e.g. "0008"
+#   {session}   - session label, e.g. "01"
+#   {prefix}    - subject prefix, e.g. "sub-"
+
+# Prep
+
+recon:
+  output_path: "{work_dir}/BIDS/{prefix}{subject}/"
+  count_check:
+    anat:
+      pattern: "anat/*T1w.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    fmap:
+      pattern: "fmap/*.nii.gz"
+      expected_count: 2
+      tolerance: 0
+    emomatching:
+      pattern: "func/*emomatching*bold.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    stopsignal:
+      pattern: "func/*stopsignal*bold.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    workingmemory:
+      pattern: "func/*workingmemory*bold.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    rest:
+      pattern: "func/*restingstate*bold.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    dwi:
+      pattern: "dwi/*dwi.nii.gz"
+      expected_count: 1
+      tolerance: 0
+
+# Intermed
+
+volume:
+  output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/sswarp2/T1_results"
+  required_files:
+    - pattern: "QC_anatSS.{prefix}{subject}.jpg"
+      min_size_kb: 50
+
+# Resting-state fMRI
+
+rest_preprocess:
+  output_path: "{work_dir}/BIDS_derivatives/fmriprep/"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 50
+
+rest_post:
+  output_path: "{work_dir}/BIDS_derivatives/xcpd/sub-{subject}"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 50
+
+# Task fMRI - AFNI preprocess
+
+emomatching_preprocess:
+  output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/emomatching_output/{prefix}{subject}.results/QC_{prefix}{subject}"
+  required_files:
+    - pattern: "index.html"
+      min_size_kb: 50
+
+stopsignal_preprocess:
+  output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/stopsignal_output/{prefix}{subject}.results/QC_{prefix}{subject}"
+  required_files:
+    - pattern: "index.html"
+      min_size_kb: 50
+
+workingmemory_preprocess:
+  output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/workingmemory_output/{prefix}{subject}.results/QC_{prefix}{subject}"
+  required_files:
+    - pattern: "index.html"
+      min_size_kb: 50
+
+# Task fMRI - AFNI postprocess (group-level; one result set, not per-subject)
+
+emomatching_postprocess:
+  output_path: "{work_dir}/postprocessing/emomatching"
+  required_files:
+    - pattern: "emomatching_group_LMEr+tlrc.HEAD"
+
+stopsignal_postprocess:
+  output_path: "{work_dir}/postprocessing/stopsignal"
+  required_files:
+    - pattern: "Stats_GroupA_vs_GroupB_*+tlrc.HEAD"
+
+workingmemory_postprocess:
+  output_path: "{work_dir}/postprocessing/workingmemory"
+  required_files:
+    - pattern: "Stats_GroupA_vs_GroupB_*+tlrc.HEAD"
+
+# DWI
+
+dwi_preprocess:
+  output_path: "{work_dir}/BIDS_derivatives/qsiprep"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 50
+
+dwi_post:
+  output_path: "{work_dir}/BIDS_derivatives/qsirecon"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 50
+
+# Quality Control
+
+mriqc_preprocess:
+  output_path: "{work_dir}/quality_control/mriqc"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 30
+
+mriqc_post:
+  output_path: "{work_dir}/quality_control/mriqc"
+  required_files:
+    - pattern: "group_*.html"
+      min_size_kb: 30

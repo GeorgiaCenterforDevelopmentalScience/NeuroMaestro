@@ -154,7 +154,6 @@ emomatching:
   - name: emomatching_postprocess
     stage: post
     profile: standard
-    array: true
     input_from: emomatching_preprocess
     multi_stage: true
     scripts: [emomatching_postprocess.sh]
@@ -174,7 +173,6 @@ stopsignal:
   - name: stopsignal_postprocess
     stage: post
     profile: standard
-    array: true
     input_from: stopsignal_preprocess
     multi_stage: true
     scripts: [stopsignal_postprocess.sh]
@@ -193,7 +191,6 @@ workingmemory:
   - name: workingmemory_postprocess
     stage: post
     profile: standard
-    array: true
     input_from: workingmemory_preprocess
     multi_stage: true
     scripts: [workingmemory_postprocess.sh]

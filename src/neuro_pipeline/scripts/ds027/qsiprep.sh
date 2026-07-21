@@ -20,6 +20,7 @@ echo "container: ${CONTAINER_DIR}/${CONTAINER}"
 
 # ---------------------------------- Run Processing -------------------------------------
 # https://qsiprep.readthedocs.io/en/latest/quickstart.html
+# NOTE: dwi/*.json in INPUT_DIR must have TotalReadoutTime, or gather_inputs crashes (no CLI override)
 
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \

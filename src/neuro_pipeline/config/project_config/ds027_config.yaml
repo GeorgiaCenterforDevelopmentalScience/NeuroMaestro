@@ -79,12 +79,14 @@ tasks:
     censor_outliers: "0.05"
 
   emomatching_postprocess:
-    remove_TRs: 0
-    template: "MNI152_2009_template_SSW.nii.gz"
-    blur_size: 8.0
     environ: ["afni_24.3.06"]
-    censor_motion: "0.3"
-    censor_outliers: "0.05"
+    conditions: ["control", "emotion"]
+    master_id: "0008"
+    jobs: "8"
+    mask_frac: "1.0"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   stopsignal_preprocess:
     remove_TRs: 0
@@ -95,12 +97,14 @@ tasks:
     censor_outliers: "0.05"
 
   stopsignal_postprocess:
-    remove_TRs: 0
-    template: "MNI152_2009_template_SSW.nii.gz"
-    blur_size: 8.0
     environ: ["afni_24.3.06"]
-    censor_motion: "0.3"
-    censor_outliers: "0.05"
+    contrasts: ["go", "succesful_stop", "unsuccesful_stop"]
+    clustsim: "8"
+    master_id: "0008"
+    mask_frac: "1.0"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   workingmemory_preprocess:
     remove_TRs: 0
@@ -111,12 +115,14 @@ tasks:
     censor_outliers: "0.05"
 
   workingmemory_postprocess:
-    remove_TRs: 0
-    template: "MNI152_2009_template_SSW.nii.gz"
-    blur_size: 8.0
     environ: ["afni_24.3.06"]
-    censor_motion: "0.3"
-    censor_outliers: "0.05"
+    contrasts: ["change", "nochange", "passive"]
+    clustsim: "8"
+    master_id: "0008"
+    mask_frac: "1.0"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
 
   dwi_preprocess:
     container: "qsiprep-1.0.0.sif"

@@ -44,7 +44,6 @@ singularity run \
         --band-stop-min ${BAND_STOP_MIN} \
         --band-stop-max ${BAND_STOP_MAX} \
         --nuisance-regressors ${NUISANCE_REGRESSORS} \
-        --create-matrices all \
         --dummy-scans ${REMOVE_TRS} \
         --nprocs 4 \
         --omp-nthreads 4 \
