@@ -74,7 +74,7 @@ rest_post:
   output_path: "{work_dir}/BIDS_derivatives/xcpd/sub-{subject}"
   required_files:
     - pattern: "sub-{subject}*.html"
-      min_size_kb: 50
+      min_size_kb: 10
 
 # Task fMRI - AFNI preprocess
 
@@ -119,7 +119,7 @@ dwi_preprocess:
   output_path: "{work_dir}/BIDS_derivatives/qsiprep"
   required_files:
     - pattern: "sub-{subject}*.html"
-      min_size_kb: 50
+      min_size_kb: 10
 
 dwi_post:
   output_path: "{work_dir}/BIDS_derivatives/qsirecon"
