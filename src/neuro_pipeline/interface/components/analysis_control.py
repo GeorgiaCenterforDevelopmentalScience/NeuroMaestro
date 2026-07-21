@@ -29,6 +29,8 @@ def create_analysis_control_layout():
                                     type="text",
                                     placeholder="/path/to/your/study/config",
                                     value=os.environ.get("CONFIG_DIR", ""),
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ]),
                             dbc.Col([
@@ -58,7 +60,9 @@ def create_analysis_control_layout():
                                     type="text",
                                     placeholder="e.g., sub-",
                                     value="sub-",
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=2),
                             dbc.Col([
@@ -67,7 +71,9 @@ def create_analysis_control_layout():
                                     id="current-dir",
                                     type="text",
                                     value=os.getcwd(),
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=7),
                             dbc.Col([
@@ -84,7 +90,9 @@ def create_analysis_control_layout():
                                     id="manual-subjects",
                                     type="text",
                                     placeholder="e.g., 001,002,003 or sub-001,sub-002",
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=12)
                         ]),
@@ -109,7 +117,9 @@ def create_analysis_control_layout():
                                     id="input-dir",
                                     type="text",
                                     placeholder="/path/to/input",
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=4),
                             dbc.Col([
@@ -118,7 +128,9 @@ def create_analysis_control_layout():
                                     id="output-dir",
                                     type="text",
                                     placeholder="/path/to/output",
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=4),
                             dbc.Col([
@@ -127,7 +139,9 @@ def create_analysis_control_layout():
                                     id="work-dir",
                                     type="text",
                                     placeholder="/path/to/work",
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=4)
                         ]),
@@ -140,7 +154,9 @@ def create_analysis_control_layout():
                                     id="project-name",
                                     type="text",
                                     placeholder="e.g., branch, study1",
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=6),
                             dbc.Col([
@@ -149,7 +165,9 @@ def create_analysis_control_layout():
                                     id="session-id",
                                     type="text",
                                     value="01",
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=6)
                         ]),
@@ -176,7 +194,9 @@ def create_analysis_control_layout():
                                     id="dry-run-checkbox",
                                     options=[{"label": "Dry Run (Show commands without execution)", "value": "dry_run"}],
                                     value=["dry_run"],
-                                    className="mb-2"
+                                    className="mb-2",
+                                    persistence=True,
+                                    persistence_type="session",
                                 ),
                                 dbc.Checklist(
                                     id="resume-checkbox",
@@ -188,19 +208,25 @@ def create_analysis_control_layout():
                                         "value": "resume"
                                     }],
                                     value=[],
-                                    className="mb-2"
+                                    className="mb-2",
+                                    persistence=True,
+                                    persistence_type="session",
                                 ),
                                 dbc.Checklist(
                                     id="skip-preflight-checkbox",
                                     options=[{"label": "Skip Preflight Checks", "value": "skip_preflight"}],
                                     value=[],
-                                    className="mb-2"
+                                    className="mb-2",
+                                    persistence=True,
+                                    persistence_type="session",
                                 ),
                                 dbc.Checklist(
                                     id="skip-bids-validation-checkbox",
                                     options=[{"label": "Skip BIDS Validation", "value": "skip_bids_validation"}],
                                     value=[],
-                                    className="mb-3"
+                                    className="mb-3",
+                                    persistence=True,
+                                    persistence_type="session",
                                 )
                             ], width=4),
                             dbc.Col([
@@ -282,7 +308,9 @@ def create_pipeline_modules_section():
                             {"label": "Unzip + Recon", "value": "unzip_recon"}
                         ],
                         value="none",
-                        inline=True
+                        inline=True,
+                        persistence=True,
+                        persistence_type="session",
                     )
                 ])
             ], className="mb-3"),
@@ -295,7 +323,9 @@ def create_pipeline_modules_section():
                         id="intermed-checklist",
                         options=intermed_options,
                         value=[],
-                        inline=True
+                        inline=True,
+                        persistence=True,
+                        persistence_type="session",
                     )
                 ])
             ], className="mb-3"),
@@ -311,7 +341,9 @@ def create_pipeline_modules_section():
                                 id="bids-prep-checklist",
                                 options=bids_options,
                                 value=[],
-                                inline=True
+                                inline=True,
+                                persistence=True,
+                                persistence_type="session",
                             )
                         ], width=6),
                         dbc.Col([
@@ -320,7 +352,9 @@ def create_pipeline_modules_section():
                                 id="bids-post-checklist",
                                 options=bids_options,
                                 value=[],
-                                inline=True
+                                inline=True,
+                                persistence=True,
+                                persistence_type="session",
                             )
                         ], width=6)
                     ])
@@ -338,7 +372,9 @@ def create_pipeline_modules_section():
                                 id="staged-prep-checklist",
                                 options=staged_options,
                                 value=[],
-                                inline=True
+                                inline=True,
+                                persistence=True,
+                                persistence_type="session",
                             )
                         ], width=6),
                         dbc.Col([
@@ -347,7 +383,9 @@ def create_pipeline_modules_section():
                                 id="staged-post-checklist",
                                 options=staged_options,
                                 value=[],
-                                inline=True
+                                inline=True,
+                                persistence=True,
+                                persistence_type="session",
                             )
                         ], width=6)
                     ])
@@ -367,7 +405,9 @@ def create_pipeline_modules_section():
                             {"label": "All", "value": "all"}
                         ],
                         value="none",
-                        inline=True
+                        inline=True,
+                        persistence=True,
+                        persistence_type="session",
                     )
                 ])
             ])

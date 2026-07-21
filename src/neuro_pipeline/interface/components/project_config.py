@@ -32,7 +32,9 @@ def create_project_config_page():
                                             dbc.Col([
                                                 dbc.Label("Project Name:", html_for="new-project-name"),
                                                 dbc.Input(id="new-project-name", type="text",
-                                                          placeholder="e.g., branch, study1")
+                                                          placeholder="e.g., branch, study1",
+                                                          persistence=True,
+                                                          persistence_type="session")
                                             ]),
                                             dbc.Col([
                                                 dbc.Button("Generate Template",
@@ -102,7 +104,9 @@ def create_project_config_page():
                                             dbc.Col([
                                                 dbc.Label("Project Name:", html_for="checks-project-name"),
                                                 dbc.Input(id="checks-project-name", type="text",
-                                                          placeholder="e.g., test, branch")
+                                                          placeholder="e.g., test, branch",
+                                                          persistence=True,
+                                                          persistence_type="session")
                                             ]),
                                             dbc.Col([
                                                 dbc.Button("Load", id="load-checks-btn",
