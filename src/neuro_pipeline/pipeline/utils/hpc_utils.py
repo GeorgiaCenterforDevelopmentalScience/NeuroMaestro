@@ -99,6 +99,9 @@ class SLURMBackend(HPCBackend):
         else:
             args.append(self._fmt("mem", resources.memory))
 
+        if resources.gres and "gres" in self._flags:
+            args.append(self._fmt("gres", resources.gres))
+
         if array_param:
             array_flag = self._cfg["array_flag"].format(array=array_param)
             args.append(array_flag)
@@ -216,6 +219,11 @@ class PBSBackend(HPCBackend):
         if mem_flag:
             args.append(mem_flag)
 
+        if resources.gres:
+            gres_flag = self._fmt("gres", resources.gres)
+            if gres_flag:
+                args.append(gres_flag)
+
         if array_param:
             args.append(self._cfg["array_flag"].format(array=array_param))
 
@@ -315,6 +323,7 @@ class HPCResources:
     memory: str
     time: str
     memory_per_cpu: Optional[str] = None
+    gres: Optional[str] = None
     array: Optional[str] = None
     additional_args: Optional[List[str]] = None
     
@@ -348,6 +357,7 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
         cpus_per_task=merged_config['cpus_per_task'],
         memory=merged_config['memory'],
         memory_per_cpu=merged_config.get('memory_per_cpu'),
+        gres=merged_config.get('gres'),
         time=merged_config['time'],
         array=array_param,
         additional_args=merged_config.get('additional_args', [])

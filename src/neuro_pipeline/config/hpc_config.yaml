@@ -47,6 +47,15 @@ resource_profiles:
     ntasks: 1
     cpus_per_task: 16
 
+  # GPU example — uncomment and reference from a task's `profile` to request a GPU.
+  # gpu_standard:
+  #   memory: "32gb"
+  #   time: "12:00:00"
+  #   nodes: 1
+  #   ntasks: 1
+  #   cpus_per_task: 8
+  #   gres: "gpu:1"
+
 slurm:
   # Submission
   submit_cmd: sbatch
@@ -55,6 +64,11 @@ slurm:
   job_id_parse: last_word
 
   # Dependency between jobs (use {jobs} as placeholder for colon-joined ids)
+  # afterany: downstream runs once upstream finishes, regardless of result.
+  #           Individual subject failures stay isolated; the whole batch is not
+  #           blocked. Failed subjects are caught by output checks / --resume.
+  # afterok:  downstream needs the ENTIRE upstream array to succeed; a single
+  #           failed subject blocks downstream for everyone. Avoid for batches.
   dependency_flag: "--dependency=afterany:{jobs}"
 
   # Array jobs (use {array} as placeholder for the expanded pattern)
@@ -69,6 +83,7 @@ slurm:
     time:         "--time={value}"
     mem:          "--mem={value}"
     mem_per_cpu:  "--mem-per-cpu={value}"
+    gres:         "--gres={value}"
     job_name:     "--job-name={value}"
     output:       "--output={value}"
     error:        "--error={value}"
@@ -97,6 +112,7 @@ slurm:
 #     time:          "-l walltime={value}"
 #     mem:           "-l mem={value}"
 #     mem_per_cpu:   ""
+#     gres:          "-l ngpus={value}"
 #     job_name:      "-N {value}"
 #     output:        "-o {value}"
 #     error:         "-e {value}"

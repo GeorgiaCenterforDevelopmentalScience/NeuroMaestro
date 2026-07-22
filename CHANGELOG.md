@@ -1,6 +1,18 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
+## [0.15.0-alpha] – 2026-07-21
+
+### Added
+- Config and processing scripts for the AOMIC dataset (Snoek et al., 2021).
+- Group-level postprocessing scripts (t-test, LMER).
+- Optional GPU support via a `gres` key in HPC resource profiles.
+
+### Changed
+- Improved container handling: local caching and refactored staging to avoid squashfuse mount timeouts.
+- GUI input fields now persist across sessions.
+
+---
 ## [0.14.2-alpha] – 2026-05-02
 
 ### Added

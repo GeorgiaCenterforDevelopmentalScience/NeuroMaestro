@@ -207,5 +207,5 @@ work_directory/
 
 ---
 
-**Version**: 0.14.2-alpha | **Updated**: May 2026  
+**Version**: 0.15.0-alpha | **Updated**: July 2026  
 For questions or issues, contact [QiuyuYu](https://github.com/QiuyuYu3) or open a repository issue.
