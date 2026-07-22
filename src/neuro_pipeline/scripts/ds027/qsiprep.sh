@@ -30,16 +30,27 @@ export APPTAINER_CACHEDIR="${apptainer_tmp}"
 export SINGULARITY_TMPDIR="${apptainer_tmp}"
 export SINGULARITY_CACHEDIR="${apptainer_tmp}"
 
-# Stage container image to node-local disk (copied once per node, then reused)
-node_cache="/tmp/${USER}_sif"
-mkdir -p "${node_cache}"
+# Stage container image to node-local disk to avoid squashfuse mount timeout.
+# Per-node lock: only one job copies, others wait then reuse. Fall back to the
+# network image if staging fails (e.g. local disk full).
 src_container="${CONTAINER_DIR}/${CONTAINER}"
-local_container="${node_cache}/${CONTAINER}"
-if [ ! -s "${local_container}" ] || \
-   [ "$(stat -c%s "${local_container}" 2>/dev/null)" != "$(stat -c%s "${src_container}")" ]; then
-    tmp_copy="${local_container}.tmp.$$"
-    cp "${src_container}" "${tmp_copy}" && mv -f "${tmp_copy}" "${local_container}"
+node_cache="/tmp/${USER}_sif"
+staged="${node_cache}/${CONTAINER}"
+local_container="${src_container}"
+mkdir -p "${node_cache}" 2>/dev/null
+(
+    flock 9
+    if [ ! -s "${staged}" ] || [ "$(stat -c%s "${staged}" 2>/dev/null)" != "$(stat -c%s "${src_container}")" ]; then
+        tmp_copy="${staged}.tmp.$$"
+        cp "${src_container}" "${tmp_copy}" 2>/dev/null && mv -f "${tmp_copy}" "${staged}" || rm -f "${tmp_copy}"
+    fi
+) 9>"${node_cache}/${CONTAINER}.lock"
+if [ -s "${staged}" ] && [ "$(stat -c%s "${staged}" 2>/dev/null)" = "$(stat -c%s "${src_container}")" ]; then
+    local_container="${staged}"
+else
+    echo "WARNING: staging to ${node_cache} failed (disk full?), using network image"
 fi
+echo "run_container: ${local_container}"
 
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \

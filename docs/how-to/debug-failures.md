@@ -156,6 +156,67 @@ neuropipe force-rebuild /data/work/my_study
 - Check resource limits: `sacctmgr show assoc user=$USER`
 - Reduce concurrent array jobs: lower `%15` in the `array_config.pattern` field in `config.yaml`
 
+### Container Mounting (Apptainer / Singularity)
+
+**`FATAL: container creation failed: ... squashfuse_ll failed to mount ... in 10s`**
+
+Apptainer mounts a `.sif` image with squashfuse (a userspace FUSE mount) and gives up if the mount is not ready within a hard 10 second limit. The image lives on the shared network filesystem (`container_dir`, e.g. `/work`). When many jobs mount the same large image at the same time (a job array releasing a batch at once), they all read the image over the network and contend for storage bandwidth, so individual mounts exceed 10s and fail.
+
+This is probabilistic, not deterministic. It is far more likely with:
+- Large images (fMRIPrep, QSIPrep, QSIRecon, MRIQC are 10 to 20 GB)
+- High concurrency (many array tasks starting in the same window)
+- Peak cluster hours (Monday morning, weekday daytime) and shared (non-dedicated) nodes
+
+The processing scripts avoid this by staging the image to node-local disk before running:
+- The image is copied once to `/tmp/${USER}_sif/` on the compute node, and the container runs from that local copy. A local squashfuse mount completes in well under a second, so the 10s timeout never triggers.
+- A per-node `flock` guarantees only one job on a node copies the image; other jobs wait and then reuse the same copy, so a burst of same-node jobs does not each copy in parallel.
+- If staging fails (see disk-full below), the script prints a warning and falls back to the network image, so the job still runs.
+- `APPTAINER_TMPDIR` / `SINGULARITY_TMPDIR` are also pointed at node-local disk for session scratch.
+
+This is the block near the top of each processing script (before `singularity run`). Copy it into any new container script, then run `singularity run ... ${local_container} ...` instead of `${CONTAINER_DIR}/${CONTAINER}`:
+
+```bash
+# Point Apptainer session/cache to node-local disk to avoid squashfuse mount timeout
+apptainer_tmp="${SLURM_TMPDIR:-${TMPDIR:-/tmp}}/apptainer_${SLURM_JOB_ID:-$$}"
+mkdir -p "${apptainer_tmp}"
+export APPTAINER_TMPDIR="${apptainer_tmp}"
+export APPTAINER_CACHEDIR="${apptainer_tmp}"
+export SINGULARITY_TMPDIR="${apptainer_tmp}"
+export SINGULARITY_CACHEDIR="${apptainer_tmp}"
+
+# Stage container image to node-local disk to avoid squashfuse mount timeout.
+# Per-node lock: only one job copies, others wait then reuse. Fall back to the
+# network image if staging fails (e.g. local disk full).
+src_container="${CONTAINER_DIR}/${CONTAINER}"
+node_cache="/tmp/${USER}_sif"
+staged="${node_cache}/${CONTAINER}"
+local_container="${src_container}"
+mkdir -p "${node_cache}" 2>/dev/null
+(
+    flock 9
+    if [ ! -s "${staged}" ] || [ "$(stat -c%s "${staged}" 2>/dev/null)" != "$(stat -c%s "${src_container}")" ]; then
+        tmp_copy="${staged}.tmp.$$"
+        cp "${src_container}" "${tmp_copy}" 2>/dev/null && mv -f "${tmp_copy}" "${staged}" || rm -f "${tmp_copy}"
+    fi
+) 9>"${node_cache}/${CONTAINER}.lock"
+if [ -s "${staged}" ] && [ "$(stat -c%s "${staged}" 2>/dev/null)" = "$(stat -c%s "${src_container}")" ]; then
+    local_container="${staged}"
+else
+    echo "WARNING: staging to ${node_cache} failed (disk full?), using network image"
+fi
+```
+
+If mount timeouts still appear (staging fell back to the network image), also:
+- Lower concurrency via `%15` in `array_config.pattern` in `config.yaml`
+- Submit off-peak, or use dedicated nodes when available
+
+**`cp: ... No space left on device` when staging the image**
+
+Node-local `/tmp` filled up. On shared nodes `/tmp` is shared with other users' jobs, so it can be nearly full before your copy starts. The scripts handle this gracefully (fall back to the network image), so the job does not hard-fail, but that job loses the staging benefit.
+- Inspect a compute node: `srun --pty bash -c 'df -h -T /tmp; du -sh /tmp/${USER}_sif'`
+- Clear your own leftovers on a node: `srun -w <node> bash -c 'rm -rf /tmp/${USER}_sif'`
+- Most clusters reap `/tmp` automatically (epilog or tmpwatch); only your own files (`/tmp/${USER}_sif`, `/tmp/apptainer_*`) are yours to remove
+
 ### Python Environment
 
 **`ModuleNotFoundError: No module named 'typer'`**
