@@ -56,7 +56,7 @@ tasks:
   rest_preprocess:
     remove_TRs: 0
     template: "MNI152NLin2009cAsym"
-    container: "fmriprep_25.1.3.sif"
+    container: "fmriprep_25.2.5.sif"
     license: "license.txt"
 
   rest_post:

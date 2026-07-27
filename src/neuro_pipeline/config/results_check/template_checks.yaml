@@ -97,7 +97,7 @@ dwi_preprocess:
 dwi_post:
   output_path: "{work_dir}/BIDS_derivatives/qsirecon"
   required_files:
-    - pattern: "sub-{subject}*.html"
+    - pattern: "derivatives/qsirecon-*/sub-{subject}*.html"
       min_size_kb: 50
 
 # Quality Control
