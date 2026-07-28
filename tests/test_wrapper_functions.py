@@ -5,27 +5,19 @@ Only the units that can run without a scheduler are covered:
   - execute_wrapper array-index guard (exits cleanly when the array range is
     wider than the subject list)
   - warn_if_failed (logging failures were masked by the tee pipeline)
-
-Requires bash; skipped otherwise.
 """
 
-import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
-
-BASH = shutil.which("bash")
 WRAPPER = (Path(__file__).resolve().parent.parent
            / "src" / "neuro_pipeline" / "pipeline" / "utils" / "wrapper_functions.sh")
-
-pytestmark = pytest.mark.skipif(BASH is None, reason="bash not available")
 
 
 def run_bash(script: str, env: dict = None) -> subprocess.CompletedProcess:
     body = f'source "{WRAPPER.as_posix()}"\n{script}\n'
     return subprocess.run(
-        [BASH, "-c", body],
+        ["bash", "-c", body],
         capture_output=True, text=True, env={**(env or {}), "PATH": "/usr/bin:/bin"},
     )
 

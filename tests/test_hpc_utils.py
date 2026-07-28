@@ -764,19 +764,15 @@ class TestShellQuoting:
         assert BACKSLASH + "''" in line
         assert '"' not in line
 
-    @pytest.mark.skipif(not os.environ.get("PATH"), reason="needs a shell")
     def test_values_survive_a_real_bash_round_trip(self):
-        import shutil, subprocess
-        bash = shutil.which("bash")
-        if not bash:
-            pytest.skip("bash not available")
+        import subprocess
         script = "\n".join([
             self._export("A", "$HOME/x"),
             self._export("B", "run `date`"),
             self._export("C", "it's"),
             'printf "%s|%s|%s" "$A" "$B" "$C"',
         ])
-        out = subprocess.run([bash, "-c", script], capture_output=True, text=True).stdout
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout
         assert out == "$HOME/x|run `date`|it's"
 
 
