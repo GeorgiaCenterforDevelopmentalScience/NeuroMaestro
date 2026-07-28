@@ -51,14 +51,14 @@ The wrapper is executable (`chmod 755`) and embeds all configuration as shell va
 #!/bin/bash
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-export SUBJECTS="001 002 003"
-export INPUT_DIR="/data/BIDS"
-export OUTPUT_DIR="/data/processed/my_study"
-export WORK_DIR="/data/work/my_study"
-export LOG_DIR="/data/work/my_study/log"
-export DB_PATH="/data/work/my_study/database/pipeline_jobs.db"
-export TASK_NAME="flanker_preprocess"
-export SCRIPT_DIR="/home/user/GCDS_Neuro_Pipeline/src/neuro_pipeline/pipeline"
+export SUBJECTS='001 002 003'
+export INPUT_DIR='/data/BIDS'
+export OUTPUT_DIR='/data/processed/my_study'
+export WORK_DIR='/data/work/my_study'
+export LOG_DIR='/data/work/my_study/log'
+export DB_PATH='/data/work/my_study/database/pipeline_jobs.db'
+export TASK_NAME='flanker_preprocess'
+export SCRIPT_DIR='/home/user/GCDS_Neuro_Pipeline/src/neuro_pipeline/pipeline'
 
 # ── Global Python environment (from global_python in project config) ──────────
 export GLOBAL_PYTHON_COMMANDS=$(cat << "PYTHON_EOF"
@@ -76,22 +76,22 @@ ENV_EOF
 
 # ── Global variables (prefix, project, envir_dir.*) ──────────────────────────
 export GLOBAL_ENV_VARS=$(cat << "GENV_EOF"
-export PREFIX="sub-"
-export PROJECT="my_study"
-export SESSION="01"
-export TEMPLATE_DIR="/work/cglab/projects/my_study/templates"
-export CONTAINER_DIR="/work/cglab/containers"
-export FREESURFER_DIR="/work/cglab/freesurfer"
+export PREFIX='sub-'
+export PROJECT='my_study'
+export SESSION='01'
+export TEMPLATE_DIR='/work/cglab/projects/my_study/templates'
+export CONTAINER_DIR='/work/cglab/containers'
+export FREESURFER_DIR='/work/cglab/freesurfer'
 GENV_EOF
 )
 
 # ── Task-specific parameters (from tasks.flanker_preprocess) ──────────────────
 export TASK_PARAMS=$(cat << "TASK_EOF"
-export REMOVE_TRS="4"
-export TEMPLATE="HaskinsPeds_NL_template1.0_SSW.nii"
-export BLUR_SIZE="4.0"
-export CENSOR_MOTION="0.3"
-export CENSOR_OUTLIERS="0.05"
+export REMOVE_TRS='4'
+export TEMPLATE='HaskinsPeds_NL_template1.0_SSW.nii'
+export BLUR_SIZE='4.0'
+export CENSOR_MOTION='0.3'
+export CENSOR_OUTLIERS='0.05'
 TASK_EOF
 )
 
@@ -166,15 +166,15 @@ The environment is assembled in this order:
 
 2. ml AFNI/25.1.01-foss-2023a         ← from $ENV_COMMANDS (modules.environ)
 
-3. export PREFIX="sub-"               ← from $GLOBAL_ENV_VARS
-   export TEMPLATE_DIR="..."
+3. export PREFIX='sub-'               ← from $GLOBAL_ENV_VARS
+   export TEMPLATE_DIR='...'
    ...
 
-4. export REMOVE_TRS="4"              ← from $TASK_PARAMS
-   export BLUR_SIZE="4.0"
+4. export REMOVE_TRS='4'              ← from $TASK_PARAMS
+   export BLUR_SIZE='4.0'
    ...
 
-5. export SUBJECT_ID="001"            ← computed at runtime from array index
+5. export SUBJECT_ID='001'            ← computed at runtime from array index
    export SLURM_ARRAY_TASK_ID=...
    export LOG_PATH="{work_dir}/log/{task}/sub-{subject}/{task}_{job_id}_{array_task_id}_{timestamp}.log"
 ```

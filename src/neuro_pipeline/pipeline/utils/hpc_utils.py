@@ -13,10 +13,11 @@ from .config_utils import get_config, get_config_dir
 hpc_config: Optional[dict] = None
 
 # Config keys are upper-cased into shell variables, so a key named e.g. "path"
-# would overwrite $PATH inside the job and break every command in it.
+# would overwrite $PATH inside the job and break every command in it. Only the
+# variables that cannot survive being replaced are listed; ones a task might
+# legitimately want to set (LANG, LC_ALL, PYTHONPATH, ...) are left alone.
 RESERVED_ENV_NAMES = {
-    "PATH", "HOME", "USER", "SHELL", "PWD", "OLDPWD", "LANG", "LC_ALL", "TERM",
-    "LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONPATH", "PYTHONHOME", "IFS",
+    "PATH", "HOME", "SHELL", "PWD", "OLDPWD", "IFS",
 }
 
 

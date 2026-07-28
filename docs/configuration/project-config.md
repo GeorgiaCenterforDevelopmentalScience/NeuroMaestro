@@ -233,14 +233,14 @@ The pipeline writes a temporary wrapper in `$WORK_DIR/log/wrapper/` before calli
 # sbatch --partition=general ... cards_preprocess_1234567890_wrapper.sh
 
 # Standard paths (always present)
-export SUBJECTS="001 002 003 ..."
-export INPUT_DIR="/work/cglab/BRANCH/BIDS"
-export OUTPUT_DIR="/work/cglab/BRANCH/derivatives"
-export WORK_DIR="/work/cglab/BRANCH"
-export CONTAINER_DIR="/work/cglab/containers"
-export LOG_DIR="/work/cglab/BRANCH/log"
-export DB_PATH="/work/cglab/BRANCH/log/pipeline_jobs.db"
-export TASK_NAME="cards_preprocess"
+export SUBJECTS='001 002 003 ...'
+export INPUT_DIR='/work/cglab/BRANCH/BIDS'
+export OUTPUT_DIR='/work/cglab/BRANCH/derivatives'
+export WORK_DIR='/work/cglab/BRANCH'
+export CONTAINER_DIR='/work/cglab/containers'
+export LOG_DIR='/work/cglab/BRANCH/log'
+export DB_PATH='/work/cglab/BRANCH/database/pipeline_jobs.db'
+export TASK_NAME='cards_preprocess'
 
 # Global Python (for database logging)
 export GLOBAL_PYTHON_COMMANDS=$(cat << "PYTHON_EOF"
@@ -259,19 +259,19 @@ ENV_EOF
 
 # envir_dir paths
 export GLOBAL_ENV_VARS=$(cat << "GENV_EOF"
-export CONTAINER_DIR="/work/cglab/containers"
-export TEMPLATE_DIR="/work/cglab/projects/BRANCH/all_data/for_AFNI/"
+export CONTAINER_DIR='/work/cglab/containers'
+export TEMPLATE_DIR='/work/cglab/projects/BRANCH/all_data/for_AFNI/'
 ...
 GENV_EOF
 )
 
 # Task parameters (every tasks.cards_preprocess key becomes $UPPERCASE)
 export TASK_PARAMS=$(cat << "TASK_EOF"
-export REMOVE_TRS="2"
-export TEMPLATE="HaskinsPeds_NL_template1.0_SSW.nii"
-export BLUR_SIZE="4.0"
-export CENSOR_MOTION="0.3"
-export CENSOR_OUTLIERS="0.05"
+export REMOVE_TRS='2'
+export TEMPLATE='HaskinsPeds_NL_template1.0_SSW.nii'
+export BLUR_SIZE='4.0'
+export CENSOR_MOTION='0.3'
+export CENSOR_OUTLIERS='0.05'
 TASK_EOF
 )
 
@@ -279,6 +279,23 @@ TASK_EOF
 source "$SCRIPT_DIR/utils/wrapper_functions.sh"
 execute_wrapper "/path/to/scripts/branch/cards_preprocess.sh"
 ```
+:::
+
+:::{warning}
+**Two rules for `envir_dir` and `tasks` values.**
+
+*Values are passed through literally.* They are written into the wrapper in
+single quotes, so a value containing `$VAR`, a backtick or `$(...)` reaches your
+script exactly as written rather than being expanded on the compute node. If you
+need something evaluated at run time, put it in `global_python` or `modules`
+instead: those are command lists and still expand normally.
+
+*A few key names are reserved.* Every key is upper-cased, so a key named `path`
+would become `export PATH=...` and leave the job unable to find any command.
+Submission fails with an error if a key maps to `PATH`, `HOME`, `SHELL`, `PWD`,
+`OLDPWD` or `IFS`. Rename it, for example to `tool_path`. Other environment
+variables are yours to set: a key named `lc_all` or `pythonpath` is accepted,
+since a task may legitimately need to override those.
 :::
 
 ### 3. Your analysis script uses those variables

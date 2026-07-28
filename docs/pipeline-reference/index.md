@@ -167,7 +167,7 @@ Each task is submitted as a **wrapper script** that the pipeline generates autom
 So when you set `blur_size: 4.0` in your project config, that value travels through:
 
 ```
-project_config.yaml  →  wrapper script (export BLUR_SIZE="4.0")  →  your .sh script ($BLUR_SIZE)
+project_config.yaml  →  wrapper script (export BLUR_SIZE='4.0')  →  your .sh script ($BLUR_SIZE)
 ```
 
 You never need to hard-code paths or parameters inside your analysis scripts.

@@ -121,6 +121,11 @@ neuropipe generate-config branch --config-dir /data/config \
 | `PROJECT_NAME` | Project name — determines the output filename |
 | `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
 | `--output-dir` / `-o` | Output directory (default: `<config-dir>/project_config/`) |
+| `--force` | Overwrite an existing config file |
+
+The command refuses to overwrite an existing `{project}_config.yaml` and exits with
+code 1, so regenerating a template cannot silently discard settings you have already
+filled in. Pass `--force` when you really do want to start over.
 
 The generated file is a fully-commented YAML template. Open it in the GUI editor or any text editor and fill in paths, modules, and task parameters.
 
@@ -145,5 +150,9 @@ neuropipe generate-checks branch --config-dir /data/config \
 | `PROJECT_NAME` | Project name — determines the output filename |
 | `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
 | `--output-dir` / `-o` | Output directory (default: `<config-dir>/results_check/`) |
+| `--force` | Overwrite an existing checks file |
+
+As with `generate-config`, an existing `{project}_checks.yaml` is never overwritten
+unless `--force` is given.
 
 The generated file contains commented examples for both `required_files` and `count_check` block types. See [Output Checks Configuration](../configuration/output-checks.md) for the full reference.

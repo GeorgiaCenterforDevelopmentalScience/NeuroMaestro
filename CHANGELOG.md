@@ -13,7 +13,7 @@
 ### Changed
 - `check-outputs --session` is now required. Its value is recorded in every result row, which is what keeps a failure attributable to a session. Projects without sessions may pass any value. The GUI enforces the same rule.
 - Output checks moved to a shared function used by both the CLI and the GUI, so the two cannot drift apart.
-- A config key that maps to a reserved shell variable (`PATH`, `LD_LIBRARY_PATH`, and similar) is now rejected instead of silently overwriting it in the job environment.
+- A config key that maps to a shell variable the job cannot survive losing (`PATH`, `HOME`, `SHELL`, `PWD`, `OLDPWD`, `IFS`) is now rejected instead of silently overwriting it. Other variables, such as `LC_ALL` or `PYTHONPATH`, can still be set from a task.
 
 ### Removed
 - Leftover machinery for the `merge_logs` task, which has not been defined in `config.yaml` since the task-name refactor, plus a few unused parameters and helpers. The `merge-logs` command itself is unaffected.

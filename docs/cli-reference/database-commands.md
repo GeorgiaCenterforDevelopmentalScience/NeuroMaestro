@@ -97,6 +97,18 @@ neuropipe merge-logs /data/work/my_study \
 
 JSONL logs are stored in `{work_dir}/database/json/{task_name}/` and `{work_dir}/database/json/_pipeline/`. After merging, processed JSON files are archived.
 
+Only logs containing both a start and an end event are merged. A job killed before
+the wrapper could write its end event (SIGKILL, an out-of-memory kill, or a node
+failure) leaves an incomplete log, which stays in place and is reported at the end
+of the run:
+
+```
+Skipped 7 incomplete log(s) with no end event: recon (2), rest_preprocess (5)
+```
+
+Those jobs are absent from the database entirely rather than recorded as failed, so
+use `check-outputs` to see whether their outputs are complete.
+
 ---
 
 ## `neuropipe force-rebuild`

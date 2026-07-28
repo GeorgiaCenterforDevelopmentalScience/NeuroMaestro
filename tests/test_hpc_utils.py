@@ -798,11 +798,26 @@ class TestReservedEnvNames:
                 self._build(tmp_path, scripts_dir,
                             {"name": "t", "profile": "standard", "path": "/opt/tool"})
 
-    def test_task_param_named_ld_library_path_is_rejected(self, tmp_path, scripts_dir):
+    def test_task_param_named_ifs_is_rejected(self, tmp_path, scripts_dir):
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
-            with pytest.raises(ValueError, match="LD_LIBRARY_PATH"):
+            with pytest.raises(ValueError, match="IFS"):
                 self._build(tmp_path, scripts_dir,
-                            {"name": "t", "profile": "standard", "ld_library_path": "/opt/lib"})
+                            {"name": "t", "profile": "standard", "ifs": ","})
+
+    def test_locale_params_are_allowed(self, tmp_path, scripts_dir):
+        # LC_ALL=C is a normal thing to want for reproducible tool output
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            _wrapper, sections = self._build(
+                tmp_path, scripts_dir,
+                {"name": "t", "profile": "standard", "lc_all": "C"})
+        assert "export LC_ALL='C'" in sections["task_params"]
+
+    def test_pythonpath_param_is_allowed(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            _wrapper, sections = self._build(
+                tmp_path, scripts_dir,
+                {"name": "t", "profile": "standard", "pythonpath": "/opt/lib"})
+        assert "export PYTHONPATH='/opt/lib'" in sections["task_params"]
 
     def test_ordinary_task_param_still_allowed(self, tmp_path, scripts_dir):
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):

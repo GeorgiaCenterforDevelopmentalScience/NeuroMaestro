@@ -103,7 +103,7 @@ Every key in the `tasks` entry (except reserved fields like `name`, `environ`, `
 ```
 Config:  blur_size: 4.0
             ↓
-Wrapper: export BLUR_SIZE="4.0"
+Wrapper: export BLUR_SIZE='4.0'
             ↓
 Script:  afni_proc.py -blur_size "$BLUR_SIZE" ...
 ```
