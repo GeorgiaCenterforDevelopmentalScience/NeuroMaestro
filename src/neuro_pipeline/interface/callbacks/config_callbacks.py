@@ -113,6 +113,16 @@ def generate_new_config_callback(_n_clicks, project_name):
             ])
         ], color="success")
 
+    except FileExistsError:
+        # The CLI wording mentions --force, which means nothing in the GUI.
+        return dbc.Alert([
+            html.I(className="fas fa-exclamation-triangle me-2"),
+            html.Div([
+                f"A config for '{project_name}' already exists.",
+                html.Br(),
+                "Click 'Load' to edit it, or delete the file first to start over.",
+            ])
+        ], color="warning")
     except Exception as e:
         return dbc.Alert([
             html.I(className="fas fa-exclamation-triangle me-2"),

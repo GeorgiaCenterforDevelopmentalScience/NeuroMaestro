@@ -5,7 +5,8 @@ import yaml
 from pathlib import Path
 from .config_utils import get_config_dir
 
-def generate_project_config(project_name: str, output_dir: str = None):
+def generate_project_config(project_name: str, output_dir: str = None,
+                            force: bool = False):
     config_template = {
         "prefix": "sub-",
 
@@ -13,7 +14,6 @@ def generate_project_config(project_name: str, output_dir: str = None):
 
         "database": {
             "db_path": "$WORK_DIR/database/pipeline_jobs.db",
-            "include_project_name": True
         },
         
         "envir_dir": {
@@ -54,7 +54,13 @@ def generate_project_config(project_name: str, output_dir: str = None):
     out = Path(output_dir) if output_dir else get_config_dir() / "project_config"
     out.mkdir(parents=True, exist_ok=True)
     config_file = out / f"{project_name}_config.yaml"
-    
+
+    if config_file.exists() and not force:
+        raise FileExistsError(
+            f"{config_file} already exists. Overwriting it would discard the "
+            "settings you have filled in for this project. Pass --force to replace it."
+        )
+
     with open(config_file, 'w', encoding='utf-8') as f:
         yaml.dump(config_template, f, default_flow_style=False, indent=2, sort_keys=False)
     

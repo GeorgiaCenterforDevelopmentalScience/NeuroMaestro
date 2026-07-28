@@ -606,7 +606,7 @@ def create_wrapper_script(
     
     if option_env:
         for key, value in option_env.items():
-            if value is not None and not key.startswith('envir_dir_'):
+            if value is not None:
                 global_env_vars[key] = value
     
     global_env_str = ""

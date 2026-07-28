@@ -463,3 +463,69 @@ class TestGeneratedProjectConfigTemplate:
         cfg = self._generate(tmp_path)
         resolved = cfg["database"]["db_path"].replace("$WORK_DIR", "/work")
         assert "$WORK_DIR" not in resolved
+
+
+class TestGeneratorsDoNotOverwrite:
+    """Regenerating over a tuned config used to silently discard it."""
+
+    @staticmethod
+    def _gen_config(tmp_path, **kw):
+        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
+        return generate_project_config("proj", str(tmp_path), **kw)
+
+    @staticmethod
+    def _gen_checks(tmp_path, **kw):
+        from neuro_pipeline.pipeline.utils.generate_results_check import generate_results_check
+        return generate_results_check("proj", str(tmp_path), **kw)
+
+    def test_project_config_refuses_to_overwrite(self, tmp_path):
+        self._gen_config(tmp_path)
+        with pytest.raises(FileExistsError, match="already exists"):
+            self._gen_config(tmp_path)
+
+    def test_project_config_force_overwrites(self, tmp_path):
+        self._gen_config(tmp_path)
+        (tmp_path / "proj_config.yaml").write_text("edited: true\n", encoding="utf-8")
+        self._gen_config(tmp_path, force=True)
+        assert "edited" not in (tmp_path / "proj_config.yaml").read_text(encoding="utf-8")
+
+    def test_project_config_content_preserved_when_refused(self, tmp_path):
+        self._gen_config(tmp_path)
+        (tmp_path / "proj_config.yaml").write_text("edited: true\n", encoding="utf-8")
+        with pytest.raises(FileExistsError):
+            self._gen_config(tmp_path)
+        assert (tmp_path / "proj_config.yaml").read_text(encoding="utf-8") == "edited: true\n"
+
+    def test_checks_refuses_to_overwrite(self, tmp_path):
+        self._gen_checks(tmp_path)
+        with pytest.raises(FileExistsError, match="already exists"):
+            self._gen_checks(tmp_path)
+
+    def test_checks_force_overwrites(self, tmp_path):
+        self._gen_checks(tmp_path)
+        (tmp_path / "proj_checks.yaml").write_text("edited: true\n", encoding="utf-8")
+        self._gen_checks(tmp_path, force=True)
+        assert "edited" not in (tmp_path / "proj_checks.yaml").read_text(encoding="utf-8")
+
+    def test_cli_generate_config_exits_1_on_existing(self, tmp_path):
+        runner, app = _runner()
+        self._gen_config(tmp_path)
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+            result = runner.invoke(app, [
+                "generate-config", "proj",
+                "--output-dir", str(tmp_path),
+                "--config-dir", str(tmp_path),
+            ])
+        assert result.exit_code == 1
+
+    def test_cli_generate_config_force_succeeds(self, tmp_path):
+        runner, app = _runner()
+        self._gen_config(tmp_path)
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+            result = runner.invoke(app, [
+                "generate-config", "proj",
+                "--output-dir", str(tmp_path),
+                "--config-dir", str(tmp_path),
+                "--force",
+            ])
+        assert result.exit_code == 0

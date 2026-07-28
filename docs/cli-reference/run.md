@@ -28,6 +28,12 @@ neuropipe run [OPTIONS]
 - Actual work directory: `{--work}/{--project}/`
 
 So `--output /data/processed --project my_study` stores data under `/data/processed/my_study/`.
+
+The database path is resolved differently: `$WORK_DIR` in the project config's
+`database.db_path` expands to `--work` **without** the project name. With the default
+`$WORK_DIR/database/pipeline_jobs.db`, projects sharing a `--work` also share one
+database and one JSON log directory. Use a separate `--work` per project to keep
+them apart.
 :::
 
 ---

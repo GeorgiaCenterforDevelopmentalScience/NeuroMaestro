@@ -42,25 +42,27 @@ def _offer_export_env_var(config_path: str) -> None:
 
 @dataclass
 class TaskOptions:
+    """Task selections for one run. CLI flags and help text live on run()."""
+
     # Preprocessing
-    prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps")
-    
+    prep: Optional[PrepChoice] = None
+
     # intermed
-    intermed: Optional[List[str]] = typer.Option(None, "--intermed", help="Intermed tasks (e.g. volume,bfc)")
+    intermed: Optional[List[str]] = None
 
     # Quality Control
-    mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing")
+    mriqc: Optional[MRIQCChoice] = None
 
     # Session
-    session: Optional[str] = typer.Option('01', help="Session ID")
+    session: Optional[str] = '01'
 
     # BIDS pipelines: --bids-prep rest,dwi
-    bids_prep: Optional[List[str]] = typer.Option(None, help="BIDS pipeline preprocessing")
-    bids_post: Optional[List[str]] = typer.Option(None, help="BIDS pipeline postprocessing")
+    bids_prep: Optional[List[str]] = None
+    bids_post: Optional[List[str]] = None
 
     # Staged pipelines: --staged-prep cards,kidvid
-    staged_prep: Optional[List[str]] = typer.Option(None, help="Staged pipeline preprocessing")
-    staged_post: Optional[List[str]] = typer.Option(None, help="Staged pipeline postprocessing")
+    staged_prep: Optional[List[str]] = None
+    staged_post: Optional[List[str]] = None
 
 def collect_and_expand_tasks(registry, options: TaskOptions):
     """Collect and expand tasks"""
@@ -209,15 +211,13 @@ def run(
         typer.echo(f"Subjects: {user_subjects}")
 
         # Setup environment
+        # envir_dir is read straight from project_config when the wrapper is
+        # written, so it does not belong here.
         option_env = {
             "session": options.session,
             "prefix": prefix,
             "project": project,
         }
-        
-        for key, value in envir_dir.items():
-            option_env[f"envir_dir_{key}"] = value
-        
         option_env = {k: v for k, v in option_env.items() if v is not None}
 
         # Setup database
@@ -337,7 +337,7 @@ def run(
                 error_msg=str(e),
                 db_path=db_path
             )
-        raise e
+        raise
 
 @app.command("list-tasks")
 def list_tasks(
@@ -619,8 +619,11 @@ def generate_config_cmd(
         help="Output directory (default: <config-dir>/project_config/)"),
     config_dir: Optional[str] = typer.Option(None, "--config-dir",
         help="Path to config directory (sets default output location). Defaults to $NEUROPIPE_CONFIG_DIR."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing config file"),
 ):
     """Generate a blank project config template.
+
+    Refuses to overwrite an existing file unless --force is given.
 
     Example:
       neuropipe generate-config branch --config-dir /scratch/my_study/config
@@ -628,7 +631,11 @@ def generate_config_cmd(
     """
     set_config_dir(_resolve_config_dir(config_dir))
     from .utils.generate_project_config import generate_project_config
-    generate_project_config(project_name, output_dir)
+    try:
+        generate_project_config(project_name, output_dir, force=force)
+    except FileExistsError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
 
 
 @app.command("generate-checks")
@@ -638,8 +645,11 @@ def generate_checks_cmd(
         help="Output directory (default: <config-dir>/results_check/)"),
     config_dir: Optional[str] = typer.Option(None, "--config-dir",
         help="Path to config directory (sets default output location). Defaults to $NEUROPIPE_CONFIG_DIR."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing checks file"),
 ):
     """Generate a blank results-check config template.
+
+    Refuses to overwrite an existing file unless --force is given.
 
     Example:
       neuropipe generate-checks branch --config-dir /scratch/my_study/config
@@ -647,4 +657,8 @@ def generate_checks_cmd(
     """
     set_config_dir(_resolve_config_dir(config_dir))
     from .utils.generate_results_check import generate_results_check
-    generate_results_check(project_name, output_dir)
+    try:
+        generate_results_check(project_name, output_dir, force=force)
+    except FileExistsError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)

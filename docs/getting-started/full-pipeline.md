@@ -30,7 +30,14 @@ See [Project Config Guide](../configuration/project-config.md) and [Output Check
 :::{note}
 **Project name is automatically appended to output and work paths.**
 `--output /data/processed --project my_study` → data goes under `/data/processed/my_study/`.
-`--work /data/work --project my_study` → logs and database go under `/data/work/my_study/`.
+`--work /data/work --project my_study` → job logs go under `/data/work/my_study/log/`.
+
+The database is the exception: `$WORK_DIR` in the project config's `database.db_path`
+expands to `--work` **without** the project name, so the default
+`$WORK_DIR/database/pipeline_jobs.db` resolves to `/data/work/database/pipeline_jobs.db`.
+Two projects given the same `--work` therefore share one database and one JSON log
+directory, while their job logs stay separate. Give each project its own `--work`
+if you want them fully isolated.
 :::
 
 ---
