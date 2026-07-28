@@ -261,10 +261,13 @@ neuropipe check-outputs \
   --project my_study \
   --work /data/processed/my_study \
   --config-dir /data/config \
+  --session 01 \
   --subjects 001,002,003,004,005
 ```
 
 `--work` is the base for `{work_dir}` in the checks YAML: it must be the folder that directly contains `BIDS/`, `AFNI_derivatives/`, etc. (your `run` `--output` directory with the project name appended), not the `run` `--work` log/database directory.
+
+`--session` is required. It is written into every CSV row, which is what lets you attribute a failure to a session later. Pass several at once with a comma (`--session 01,02`); each is checked in turn and the results go into a single CSV. If your checks YAML has no `{session}` placeholder (a project without sessions), pass any value: it is accepted and simply unused when the paths are built.
 
 ### Optional filters
 
@@ -274,6 +277,7 @@ neuropipe check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
+  --session 01 \
   --subjects 001,002,003 \
   --task rest_preprocess
 
@@ -282,6 +286,7 @@ neuropipe check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
+  --session 01 \
   --subjects 001,002,003 \
   --checks-dir /path/to/custom/checks/
 ```

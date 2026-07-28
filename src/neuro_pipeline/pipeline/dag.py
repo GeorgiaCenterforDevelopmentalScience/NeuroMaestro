@@ -55,6 +55,7 @@ class DAGExecutor:
         self._apply_recon_dependencies(requested_tasks)
         self._apply_intermed_dependencies(requested_tasks)
         self._apply_section_dependencies(requested_tasks)
+        self._prune_dangling_dependencies()
 
         return self._topological_sort()
 
@@ -64,13 +65,25 @@ class DAGExecutor:
         from .utils.config_utils import find_task_config_by_name_with_project
         task_config = find_task_config_by_name_with_project(task_name, getattr(self, 'project_config', None))
         if not task_config:
-            typer.echo(f"Warning: No configuration found for {task_name}")
-            return
+            raise ValueError(
+                f"Task '{task_name}' has no configuration in config.yaml. "
+                "Check the task name, or add it to the global config."
+            )
         self.add_task(task_name, task_config)
+
+    def _prune_dangling_dependencies(self):
+        """Drop dependencies on tasks that were never registered.
+
+        Without this a dangling edge keeps in_degree above zero forever and
+        _topological_sort reports a circular dependency that does not exist.
+        """
+        valid = set(self.nodes)
+        for node in self.nodes.values():
+            node.dependencies &= valid
 
     def _apply_prep_sequence(self, requested_tasks: List[str]):
         """unzip -> recon if both requested"""
-        if 'unzip' in requested_tasks and 'recon' in requested_tasks:
+        if 'unzip' in self.nodes and 'recon' in self.nodes:
             self.nodes['recon'].add_dependency('unzip')
 
     def _apply_recon_dependencies(self, requested_tasks: List[str]):

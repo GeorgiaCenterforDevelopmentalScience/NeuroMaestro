@@ -401,6 +401,38 @@ def _section_failed_jobs(failed_jobs: list) -> str:
     return '\n'.join(parts)
 
 
+def _section_suspicious(suspicious: list) -> str:
+    """Jobs that exited 0 but whose output checks failed."""
+    if not suspicious:
+        return ('<p class="empty">None. Every job reported as SUCCESS also '
+                'passed its output checks.</p>')
+
+    rows = []
+    for r in suspicious:
+        rows.append(
+            f'<tr>'
+            f'<td>{_e(r["task"])}</td>'
+            f'<td>{_e(r["subject"])}</td>'
+            f'<td>{_e(r["check_type"])}</td>'
+            f'<td style="font-size:12px;font-family:monospace">{_e(r["pattern"])}</td>'
+            f'<td class="fail">{_e(r["reason"])}</td>'
+            f'</tr>'
+        )
+
+    n_subj = len({r["subject"] for r in suspicious})
+    return (
+        f'<p style="font-size:12px;color:#555;margin-bottom:8px">'
+        f'<span class="fail">{len(suspicious)} check(s) across {n_subj} subject(s)</span>'
+        f' reported SUCCESS but failed output validation. '
+        f'A job\'s status is its script exit code, which does not guarantee '
+        f'the outputs were written.</p>'
+        '<table><thead><tr>'
+        '<th>Task</th><th>Subject</th><th>Check Type</th>'
+        '<th>Pattern</th><th>Failure</th>'
+        '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+    )
+
+
 def _section_environment(wrapper_scripts: list) -> str:
     if not wrapper_scripts:
         return '<p class="empty">No wrapper script records found.</p>'
@@ -510,6 +542,8 @@ def render_html(
     {history_html}
     <h3>Failed Jobs</h3>
     {_section_failed_jobs(sd["failed_jobs"])}
+    <h3>Reported SUCCESS but Output Check Failed</h3>
+    {_section_suspicious(sd.get("suspicious") or [])}
     <h3>Output Validation</h3>
     {_section_check_results(sd.get("check_df"))}
     <details style="margin-top:20px" class="appendix">

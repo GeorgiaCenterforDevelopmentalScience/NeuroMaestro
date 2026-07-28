@@ -12,7 +12,7 @@ def generate_project_config(project_name: str, output_dir: str = None):
         "scripts_dir": f"scripts/{project_name}",
 
         "database": {
-            "db_path": "$WORK_DIR/log/pipeline_jobs.db",
+            "db_path": "$WORK_DIR/database/pipeline_jobs.db",
             "include_project_name": True
         },
         

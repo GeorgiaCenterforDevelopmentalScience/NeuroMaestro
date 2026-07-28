@@ -446,6 +446,10 @@ def generate_report_cmd(
     check_results: str = typer.Option(..., "--check-results",
         help="Path to a check_results_*.csv produced by check-outputs."
     ),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir",
+        help="Path to config directory. Used to order report tasks by pipeline order. "
+             "Defaults to $NEUROPIPE_CONFIG_DIR; falls back to alphabetical order if unset."
+    ),
 ):
     """
     Generate a standalone HTML pipeline report for a project.
@@ -453,6 +457,18 @@ def generate_report_cmd(
       neuropipe generate-report --db-path /scratch/log/database/pipeline_jobs.db \\
           --project GCDS --session 01 --check-results /data/work/check_results_20260421.csv
     """
+    # Optional: without it the report still renders, just in alphabetical task order
+    resolved_config_dir = config_dir or os.environ.get("NEUROPIPE_CONFIG_DIR")
+    if resolved_config_dir:
+        try:
+            set_config_dir(resolved_config_dir)
+        except OSError as e:
+            typer.echo(f"Warning: could not load config from {resolved_config_dir} ({e}); "
+                       "report tasks will be listed alphabetically.", err=True)
+    else:
+        typer.echo("Warning: no --config-dir or $NEUROPIPE_CONFIG_DIR; "
+                   "report tasks will be listed alphabetically.", err=True)
+
     from .utils.report_generator import generate_report
     try:
         out = generate_report(
@@ -474,7 +490,7 @@ def check_outputs_cmd(
     work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
     config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROPIPE_CONFIG_DIR."),
     subjects: Optional[str] = typer.Option(None, help="Subject list or file path (auto-detected from work_dir if omitted)"),
-    session: Optional[str] = typer.Option(None, help="Session ID(s), comma-separated (e.g. 01,02). Checks all sessions if omitted."),
+    session: str = typer.Option(..., help="Session ID(s), comma-separated (e.g. 01,02). Required so each result row is attributable to a session; projects without sessions may pass any value."),
     tasks: Optional[List[str]] = typer.Option(None, "--task",
         help="Task(s) to check (repeatable). Defaults to all configured tasks."),
     checks_dir: Optional[str] = typer.Option(None,
@@ -486,13 +502,16 @@ def check_outputs_cmd(
     Prints a summary of problematic subjects to the terminal and saves
     a full CSV report to <work_dir>/check_results_<timestamp>.csv.
 
-    Without --subjects or --session, scans all subjects in work_dir across
-    all sessions and saves a single CSV.
+    --session is required: it is recorded in every CSV row, so omitting it
+    would leave failures unattributable in multi-session studies. Projects
+    whose checks config has no {session} placeholder may pass any value.
+
+    Without --subjects, scans all subjects found in work_dir.
 
     Examples:
-      neuropipe check-outputs --project test --work /data/processed
+      neuropipe check-outputs --project test --work /data/processed --session 01
       neuropipe check-outputs --project test --work /data/processed \\
-          --subjects 001,002 --session 01
+          --subjects 001,002 --session 01,02
     """
     set_config_dir(_resolve_config_dir(config_dir))
 
@@ -525,12 +544,11 @@ def check_outputs_cmd(
             raise typer.Exit(1)
         typer.echo(f"Auto-detected {len(subject_list)} subjects from {scan_dir}")
 
-    if session:
-        sessions = [s.strip() for s in session.split(',') if s.strip()]
-        typer.echo(f"Sessions: {', '.join(sessions)}")
-    else:
-        sessions = ["*"]
-        typer.echo("No --session specified: checking all sessions")
+    sessions = [s.strip() for s in session.split(',') if s.strip()]
+    if not sessions:
+        typer.echo("Error: --session must contain at least one session ID", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Sessions: {', '.join(sessions)}")
 
     # Load config and resolve task list using the first session
     ref_checker = OutputChecker(

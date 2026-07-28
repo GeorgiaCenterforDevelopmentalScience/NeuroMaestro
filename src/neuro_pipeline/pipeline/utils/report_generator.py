@@ -11,8 +11,6 @@ import pandas as pd
 from .report_html import render_html
 from .config_utils import get_all_task_names
 
-TASK_ORDER = get_all_task_names()
-
 
 def _rows(conn: sqlite3.Connection, sql: str, params=()):
     conn.row_factory = sqlite3.Row
@@ -156,8 +154,11 @@ def compute_task_summary(job_status: list, all_subjects: list) -> list:
           if job_status
           else pd.DataFrame(columns=['subject', 'task_name', 'status', 'duration_hours', 'start_time']))
 
+    # Resolved per call: config is only populated after set_config_dir()
+    task_order = get_all_task_names()
+
     data_tasks = set(df['task_name'].unique()) if not df.empty else set()
-    ordered = [t for t in TASK_ORDER if t in data_tasks]
+    ordered = [t for t in task_order if t in data_tasks]
     extras  = sorted(data_tasks - set(ordered))
     all_tasks = ordered + extras
 
@@ -202,6 +203,45 @@ def ordered_tasks_from_summary(summary: list) -> list:
     return [r['task'] for r in summary]
 
 
+def compute_suspicious_jobs(job_status: list, check_df=None) -> list:
+    """Jobs recorded as SUCCESS whose output checks nevertheless failed.
+
+    A job's status comes from the script's exit code, which is only the exit
+    code of its last command: none of the analysis scripts set -e, so a
+    mid-script failure still exits 0. Cross-referencing against the
+    filesystem checks is what catches those.
+    """
+    if check_df is None or getattr(check_df, "empty", True):
+        return []
+    if not {"task", "subject", "status"} <= set(check_df.columns):
+        return []
+
+    succeeded = {
+        (str(j.get("subject")), str(j.get("task_name")))
+        for j in job_status
+        if str(j.get("status") or "").upper() == "SUCCESS"
+    }
+    if not succeeded:
+        return []
+
+    failed = check_df[
+        check_df["status"].astype(str).str.upper().str.startswith("FAIL")
+    ]
+
+    rows = []
+    for _, r in failed.iterrows():
+        key = (str(r["subject"]), str(r["task"]))
+        if key in succeeded:
+            rows.append({
+                "subject":    str(r["subject"]),
+                "task":       str(r["task"]),
+                "check_type": str(r.get("check_type", "")),
+                "pattern":    str(r.get("pattern", "")),
+                "reason":     str(r.get("status", "")),
+            })
+    return sorted(rows, key=lambda x: (x["task"], x["subject"]))
+
+
 def _build_sessions_data(
     job_status: list,
     failed_jobs: list,
@@ -225,7 +265,10 @@ def _build_sessions_data(
             sess_runs = [r for r in sess_runs if r['jobs']]
             if (check_df is not None and not check_df.empty
                     and 'session' in check_df.columns):
-                sess_check_df = check_df[check_df['session'].astype(str) == str(sess)]
+                # '*' rows come from check-outputs run without --session; they
+                # were globbed across sessions, so they apply to every session.
+                sess_col = check_df['session'].astype(str)
+                sess_check_df = check_df[(sess_col == str(sess)) | (sess_col == '*')]
             else:
                 sess_check_df = check_df
         else:
@@ -248,6 +291,7 @@ def _build_sessions_data(
             'failed_jobs':    sess_failed,
             'all_runs':       sess_runs,
             'check_df':       sess_check_df,
+            'suspicious':     compute_suspicious_jobs(sess_jobs, sess_check_df),
             'wrapper_scripts': wrapper_scripts or [],
         })
     return sessions_data
@@ -279,7 +323,11 @@ def generate_report(
 
     if not os.path.isfile(check_results_path):
         raise FileNotFoundError(f"check-results file not found: {check_results_path}")
-    check_df: Optional[pd.DataFrame] = pd.read_csv(check_results_path)
+    # dtype: subject/session must stay strings, otherwise "001" is parsed as
+    # int 1 and no longer matches the job_status rows or renders correctly.
+    check_df: Optional[pd.DataFrame] = pd.read_csv(
+        check_results_path, dtype={"subject": str, "session": str}
+    )
     print(f"  Loaded check-results: {len(check_df)} rows")
 
     sessions_data = _build_sessions_data(

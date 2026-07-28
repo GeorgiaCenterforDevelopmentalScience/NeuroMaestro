@@ -30,7 +30,7 @@ After a run it is tempting to just query `job_status` and look for `FAILED` reco
 
 | Status in `job_status` | What it means | What it misses |
 |------------------------|---------------|----------------|
-| `SUCCESS` | The analysis script exited with code 0 | Output files may still be empty, truncated, or missing — exit 0 only means the script did not crash |
+| `SUCCESS` | The analysis script exited with code 0 | Output files may still be empty, truncated, or missing. The analysis scripts do not use `set -e`, so a script's exit code is only the exit code of its **last** command: a tool that fails midway still yields exit 0 if a later line succeeds |
 | `FAILED` | The script exited with a non-zero code | Nothing missed here — this is a real crash |
 | `CANCELLED` | SLURM killed the job via SIGTERM/SIGINT/SIGHUP (timeout, node failure, user cancel) | The script may have been mid-run; outputs are likely incomplete |
 | *(no record)* | The job was SLURM-cancelled before the wrapper even started (upstream dependency failed), or the wrapper itself crashed before writing its first log line | No information at all |
@@ -42,6 +42,8 @@ After a run it is tempting to just query `job_status` and look for `FAILED` reco
 - Database status tells you *how the job ended* — use it to find crashes and cancellations.
 - `check-outputs` tells you *whether the science succeeded* — use it to confirm outputs are present and plausible.
 - A subject needs to pass both: no `FAILED`/`CANCELLED` in the database **and** all check-outputs checks passing.
+
+You do not have to cross-reference the two by hand. When you pass `--check-results` to `generate-report`, the report includes a **Reported SUCCESS but Output Check Failed** section that lists exactly the jobs where the two layers disagree.
 
 ---
 
@@ -235,6 +237,7 @@ The report is organised by session. Each session gets its own section in the nav
 | **Subject × Task Status** *(per session)* | Colour-coded table — green = SUCCESS, red = FAILED, grey = not run |
 | **Run History** *(per session)* | Collapsed. Task × Run colour-block matrix (worst-case status per task per run). Only shown when more than one run exists |
 | **Failed Jobs** *(per session)* | Collapsed per task: subject, exit code, start time, stdout snippet |
+| **Reported SUCCESS but Output Check Failed** *(per session)* | Cross-references the two verification layers: jobs the database records as `SUCCESS` whose output checks nevertheless failed. This is the silent-failure list described above. Lists task, subject, check type, pattern, and the failure reason |
 | **Output Validation** *(per session)* | Compact colour-block matrix (rows = check type grouped by task, columns = subjects). Only shown when check-results data is available. Failed checks expandable in a detail table below |
 | **Environment & Reproducibility** *(per session)* | Collapsed. The SLURM command, modules, env vars, and execute command from the latest wrapper script for each task |
 
@@ -345,6 +348,7 @@ neuropipe check-outputs \
   --work /data/work \
   --config-dir /data/config \
   --subjects subjects.txt \
+  --session 01 \
   --task rest_preprocess \
   --task volume
 ```

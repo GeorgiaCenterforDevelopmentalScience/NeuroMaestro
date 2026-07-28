@@ -450,8 +450,8 @@ def submit_slurm_job(
 
     # Setup database path
     if not db_path:
-        db_path = str(Path(work_dir) / "log" / "pipeline_jobs.db")
-    
+        db_path = str(Path(work_dir) / "database" / "pipeline_jobs.db")
+
     # Handle output pattern
     if task_config and 'output_pattern' in task_config:
         output_pattern = task_config['output_pattern']
@@ -459,11 +459,11 @@ def submit_slurm_job(
     else:
         actual_output_dir = output_dir
     
-    # Parse subjects
-    subjects_list = []
-    subjects_path = Path(subjects)
-    if subjects_path.is_file():
-        with open(subjects_path, 'r') as f:
+    # os.path.isfile, not Path.is_file: subjects is usually a comma-joined list,
+    # and past ~64 IDs it exceeds NAME_MAX, where Path.stat() propagates
+    # ENAMETOOLONG on Python < 3.13. os.path.isfile returns False instead.
+    if os.path.isfile(subjects):
+        with open(subjects, 'r') as f:
             subjects_list = [line.strip() for line in f if line.strip()]
     else:
         subjects_list = [s.strip() for s in subjects.split(',') if s.strip()]
@@ -623,8 +623,8 @@ def create_wrapper_script(
     
     # Setup database path
     if not db_path:
-        db_path = str(Path(work_dir) / "log" / "pipeline_jobs.db")
-    
+        db_path = str(Path(work_dir) / "database" / "pipeline_jobs.db")
+
     # pipeline/ dir: used by bash wrapper to locate utils/wrapper_functions.sh
     pipeline_root = Path(__file__).parent.parent
     

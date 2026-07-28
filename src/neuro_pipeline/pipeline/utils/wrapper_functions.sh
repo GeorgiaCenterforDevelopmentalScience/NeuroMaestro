@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Report a failed logging call. Needed because these calls are piped into tee,
+# so $? reflects tee rather than the command; callers pass ${PIPESTATUS[0]}.
+warn_if_failed() {
+    local status="$1"
+    local what="$2"
+    if [ "${status:-0}" -ne 0 ]; then
+        echo "WARNING: Failed to $what (exit $status)" | tee -a "$LOG_PATH"
+    fi
+}
+
 # Global cleanup handler for signals
 cleanup_on_signal() {
     local signal_name="$1"
@@ -74,7 +84,14 @@ execute_wrapper() {
     
     # Select subject based on array task ID
     if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "$NUM_SUBJECTS" -gt 0 ] && [ "${subjects_array[0]}" != "dummy" ]; then
-        subject="${subjects_array[$((SLURM_ARRAY_TASK_ID - 1))]}"
+        local idx=$((SLURM_ARRAY_TASK_ID - 1))
+        # Guard against an array range wider than the subject list (e.g. a
+        # hard-coded array_config pattern): bash would silently yield "".
+        if [ "$idx" -lt 0 ] || [ "$idx" -ge "$NUM_SUBJECTS" ]; then
+            echo "Array task $SLURM_ARRAY_TASK_ID has no matching subject (only $NUM_SUBJECTS provided); exiting."
+            return 0
+        fi
+        subject="${subjects_array[$idx]}"
     else
         subject="${subjects_array[0]}"
     fi
@@ -114,7 +131,7 @@ execute_wrapper() {
 
     # Setup database path
     if [ -z "$DB_PATH" ]; then
-        DB_PATH="$LOG_DIR/pipeline_jobs.db"
+        DB_PATH="$WORK_DIR/database/pipeline_jobs.db"
     fi
     export DB_PATH
     export EXECUTION_ID="${EXECUTION_ID:-}"
@@ -245,9 +262,9 @@ execute_script_with_logging() {
         --node-list "$SLURM_JOB_NODELIST" \
         --session "${SESSION:-}" \
         --execution-id "${EXECUTION_ID:-}" \
-        --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
-    echo "WARNING: Failed to log job start" | tee -a "$LOG_PATH"
-    
+        --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
+    warn_if_failed "${PIPESTATUS[0]}" "log job start"
+
     # Execute the script
     if [[ "$script_path" == *.py ]]; then
         python "$script_path" "$subject" >> "$LOG_PATH" 2>&1
@@ -297,8 +314,8 @@ execute_script_with_logging() {
             --job-id "$full_job_id" \
             --session "${SESSION:-}" \
             --execution-id "${EXECUTION_ID:-}" \
-            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
-        echo "WARNING: Failed to log command output" | tee -a "$LOG_PATH"
+            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
+        warn_if_failed "${PIPESTATUS[0]}" "log command output"
     fi
     
     # Log end to JSON with job_id
@@ -309,8 +326,8 @@ execute_script_with_logging() {
             --duration-seconds "$final_duration" \
             --session "${SESSION:-}" \
             --job-id "$full_job_id" \
-            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
-        echo "WARNING: Failed to log job end" | tee -a "$LOG_PATH"
+            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
+        warn_if_failed "${PIPESTATUS[0]}" "log job end"
     else
         python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
             "$subject" "$task_name" "FAILED" \
@@ -319,9 +336,9 @@ execute_script_with_logging() {
             --duration-seconds "$final_duration" \
             --session "${SESSION:-}" \
             --job-id "$full_job_id" \
-            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
-        echo "WARNING: Failed to log job end" | tee -a "$LOG_PATH"
+            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
+        warn_if_failed "${PIPESTATUS[0]}" "log job end"
     fi
-    
+
     return $script_status
 }

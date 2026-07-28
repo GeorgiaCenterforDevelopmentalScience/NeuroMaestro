@@ -13,17 +13,23 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.conftest import MOCK_CONFIG
 from neuro_pipeline.pipeline.utils.job_db import get_db_connection
 from neuro_pipeline.pipeline.utils.report_generator import (
     compute_task_summary,
+    compute_suspicious_jobs,
     get_report_data,
     ordered_tasks_from_summary,
     generate_report,
     _build_sessions_data,
 )
 
-TASK_ORDER_PATH = "neuro_pipeline.pipeline.utils.report_generator.TASK_ORDER"
+TASK_ORDER_PATH = "neuro_pipeline.pipeline.utils.report_generator.get_all_task_names"
 MOCK_TASK_ORDER = ["recon", "volume", "rest_preprocess", "rest_post"]
+
+
+def _mock_task_order():
+    return list(MOCK_TASK_ORDER)
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +98,7 @@ class TestComputeTaskSummary:
     def _run(self, job_status=None, subjects=None):
         js = job_status if job_status is not None else self.JOB_STATUS
         subj = subjects if subjects is not None else self.SUBJECTS
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             return compute_task_summary(js, subj)
 
     # --- counts ---
@@ -171,7 +177,7 @@ class TestComputeTaskSummary:
     # --- empty input ---
 
     def test_empty_job_status_returns_empty_list(self):
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             summary = compute_task_summary([], ["001", "002"])
         assert summary == []
 
@@ -186,7 +192,7 @@ class TestComputeTaskSummary:
             {"subject": "002", "task_name": "recon", "session": "01",
              "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01"},
         ]
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             summary = compute_task_summary(js_sess01, ["001", "002"])
         recon = next(r for r in summary if r["task"] == "recon")
         assert recon["ok"] <= recon["total"]
@@ -221,7 +227,7 @@ class TestBuildSessionsData:
         assert set(sess02["all_subjects"]) == {"001"}
 
     def test_task_summary_total_matches_session_subjects(self):
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             sessions_data = _build_sessions_data(self._make_jobs(), [], [])
         sess01 = next(sd for sd in sessions_data if sd["session"] == "01")
         recon = next(r for r in sess01["task_summary"] if r["task"] == "recon")
@@ -271,33 +277,33 @@ class TestGetReportData:
 
     def test_collects_all_subjects_across_executions(self, tmp_path):
         db_path = _make_db(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         # Execution 1 has 001,002; execution 2 has 001,002,003 → union = {001,002,003}
         assert set(data["all_subjects"]) == {"001", "002", "003"}
 
     def test_subjects_sorted_alphabetically(self, tmp_path):
         db_path = _make_db(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         assert data["all_subjects"] == sorted(data["all_subjects"], key=str.lower)
 
     def test_metadata_is_latest_execution(self, tmp_path):
         db_path = _make_db(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         # execution_id 1002 is more recent (2024-01-02 > 2024-01-01)
         assert data["metadata"].get("execution_id") == 1002
 
     def test_job_status_returns_records(self, tmp_path):
         db_path = _make_db(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         assert len(data["job_status"]) > 0
 
     def test_failed_jobs_only_contains_failed_records(self, tmp_path):
         db_path = _make_db(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         for job in data["failed_jobs"]:
             assert job["status"] == "FAILED"
@@ -314,7 +320,7 @@ class TestGetReportData:
         conn.commit()
         conn.close()
 
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         assert "099" not in data["all_subjects"]
 
@@ -329,7 +335,7 @@ class TestGetReportData:
         conn.commit()
         conn.close()
 
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", session=None)
         assert "099" in data["all_subjects"]
 
@@ -344,7 +350,7 @@ class TestGetReportData:
         conn.commit()
         conn.close()
 
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01,02")
         assert "099" in data["all_subjects"]
         assert "001" in data["all_subjects"]
@@ -360,7 +366,7 @@ class TestGetReportData:
         conn.commit()
         conn.close()
 
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         assert "077" not in data["all_subjects"]
 
@@ -375,7 +381,7 @@ class TestGetReportData:
         conn.commit()
         conn.close()
 
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01, 02")  # space after comma
         assert "088" in data["all_subjects"]
         assert "001" in data["all_subjects"]
@@ -383,7 +389,7 @@ class TestGetReportData:
     def test_empty_db_returns_empty_subjects(self, tmp_path):
         db_path = str(tmp_path / "empty.db")
         get_db_connection(db_path).close()
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
         assert data["all_subjects"] == []
         assert data["job_status"] == []
@@ -415,7 +421,7 @@ class TestGenerateReport:
 
     def test_raises_if_check_results_not_found(self, tmp_path):
         db_path = _make_db(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             with pytest.raises(FileNotFoundError, match="check-results file not found"):
                 generate_report(
                     db_path=db_path,
@@ -427,7 +433,7 @@ class TestGenerateReport:
         db_path = str(tmp_path / "empty.db")
         get_db_connection(db_path).close()
         csv_path = self._make_check_csv(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+        with patch(TASK_ORDER_PATH, _mock_task_order):
             with pytest.raises(ValueError, match="No records found"):
                 generate_report(
                     db_path=db_path,
@@ -438,7 +444,7 @@ class TestGenerateReport:
     def test_creates_html_file_at_default_path(self, tmp_path):
         db_path = _make_db(tmp_path)
         csv_path = self._make_check_csv(tmp_path)
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER), \
+        with patch(TASK_ORDER_PATH, _mock_task_order), \
              patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
                    return_value="<html>mock</html>"):
             out = generate_report(
@@ -454,7 +460,7 @@ class TestGenerateReport:
         db_path = _make_db(tmp_path)
         csv_path = self._make_check_csv(tmp_path)
         out_path = str(tmp_path / "my_report.html")
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER), \
+        with patch(TASK_ORDER_PATH, _mock_task_order), \
              patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
                    return_value="<html>mock</html>"):
             out = generate_report(
@@ -472,7 +478,7 @@ class TestGenerateReport:
         csv_path = self._make_check_csv(tmp_path)
         out_dir = tmp_path / "reports"
         out_dir.mkdir()
-        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER), \
+        with patch(TASK_ORDER_PATH, _mock_task_order), \
              patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
                    return_value="<html>mock</html>"):
             out = generate_report(
@@ -485,3 +491,221 @@ class TestGenerateReport:
         assert Path(out).parent == out_dir
         assert Path(out).name.startswith("pipeline_report_proj_")
         assert Path(out).exists()
+
+
+# ---------------------------------------------------------------------------
+# Regression: task order was resolved at import time
+# ---------------------------------------------------------------------------
+
+class TestTaskOrderResolvedAtCallTime:
+    """report_generator used to bind TASK_ORDER = get_all_task_names() at import
+    time, before set_config_dir() had populated config_utils.config. Every test
+    above patches the lookup, so the empty-config case went unnoticed and the
+    CLI silently fell back to alphabetical order.
+    """
+
+    CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
+
+    # volume precedes bfc in config order but follows it alphabetically
+    JOB_STATUS = [
+        {"subject": "001", "task_name": "bfc", "status": "SUCCESS",
+         "duration_hours": 1.0, "start_time": "2024-01-01T10:00:00"},
+        {"subject": "001", "task_name": "volume", "status": "SUCCESS",
+         "duration_hours": 1.0, "start_time": "2024-01-01T10:00:00"},
+    ]
+
+    def test_follows_config_order_when_config_loaded(self):
+        with patch(self.CONFIG_PATH, MOCK_CONFIG):
+            summary = compute_task_summary(self.JOB_STATUS, ["001"])
+        assert [r["task"] for r in summary] == ["volume", "bfc"]
+
+    def test_falls_back_to_alphabetical_when_config_empty(self):
+        with patch(self.CONFIG_PATH, {}):
+            summary = compute_task_summary(self.JOB_STATUS, ["001"])
+        assert [r["task"] for r in summary] == ["bfc", "volume"]
+
+    def test_config_loaded_after_import_is_still_picked_up(self):
+        # The real failure mode: module imported first, config set afterwards.
+        with patch(self.CONFIG_PATH, {}):
+            compute_task_summary(self.JOB_STATUS, ["001"])
+        with patch(self.CONFIG_PATH, MOCK_CONFIG):
+            summary = compute_task_summary(self.JOB_STATUS, ["001"])
+        assert [r["task"] for r in summary] == ["volume", "bfc"]
+
+
+# ---------------------------------------------------------------------------
+# Regression: check-outputs without --session writes session="*"
+# ---------------------------------------------------------------------------
+
+class TestWildcardSessionCheckRows:
+    """check-outputs run without --session globs across sessions and records
+    the literal '*' in the session column. The per-session filter compared it
+    for equality, so those rows vanished from the report.
+    """
+
+    JOB_STATUS = [
+        {"subject": "001", "task_name": "recon", "session": "01",
+         "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01T10:00:00"},
+    ]
+
+    @staticmethod
+    def _check_df(session):
+        return pd.DataFrame([{
+            "task": "recon", "subject": "001", "session": session,
+            "check_type": "required_files", "pattern": "*.nii.gz",
+            "expected": "exists", "actual": 1, "status": "PASS",
+        }])
+
+    def test_wildcard_rows_kept_for_every_session(self):
+        sessions = _build_sessions_data(
+            self.JOB_STATUS, [], [], check_df=self._check_df("*"),
+        )
+        assert len(sessions) == 1
+        assert sessions[0]["session"] == "01"
+        assert not sessions[0]["check_df"].empty
+
+    def test_matching_session_rows_still_kept(self):
+        sessions = _build_sessions_data(
+            self.JOB_STATUS, [], [], check_df=self._check_df("01"),
+        )
+        assert not sessions[0]["check_df"].empty
+
+    def test_other_session_rows_still_excluded(self):
+        sessions = _build_sessions_data(
+            self.JOB_STATUS, [], [], check_df=self._check_df("02"),
+        )
+        assert sessions[0]["check_df"].empty
+
+
+# ---------------------------------------------------------------------------
+# Reported SUCCESS but output check failed
+# ---------------------------------------------------------------------------
+
+class TestSuspiciousJobs:
+    """Analysis scripts do not set -e, so a script whose last command succeeds
+    exits 0 and is recorded as SUCCESS even when the real work failed. The
+    cross-check against filesystem results is what surfaces those.
+    """
+
+    JOB_STATUS = [
+        {"subject": "001", "task_name": "recon", "session": "01",
+         "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01T10:00:00"},
+        {"subject": "002", "task_name": "recon", "session": "01",
+         "status": "FAILED", "duration_hours": None, "start_time": "2024-01-01T10:00:00"},
+    ]
+
+    @staticmethod
+    def _checks(rows):
+        return pd.DataFrame(rows)
+
+    def test_success_with_failed_check_is_flagged(self):
+        df = self._checks([
+            {"task": "recon", "subject": "001", "session": "01",
+             "check_type": "required_files", "pattern": "*.nii.gz",
+             "status": "FAIL - file not found (*.nii.gz)"},
+        ])
+        out = compute_suspicious_jobs(self.JOB_STATUS, df)
+        assert len(out) == 1
+        assert out[0]["subject"] == "001"
+        assert out[0]["task"] == "recon"
+        assert "file not found" in out[0]["reason"]
+
+    def test_success_with_passing_check_is_not_flagged(self):
+        df = self._checks([
+            {"task": "recon", "subject": "001", "session": "01",
+             "check_type": "required_files", "pattern": "*.nii.gz", "status": "PASS"},
+        ])
+        assert compute_suspicious_jobs(self.JOB_STATUS, df) == []
+
+    def test_already_failed_job_is_not_flagged(self):
+        # 002 is FAILED, so a failing check is expected, not suspicious
+        df = self._checks([
+            {"task": "recon", "subject": "002", "session": "01",
+             "check_type": "required_files", "pattern": "*.nii.gz",
+             "status": "FAIL - file not found"},
+        ])
+        assert compute_suspicious_jobs(self.JOB_STATUS, df) == []
+
+    def test_check_for_task_never_run_is_not_flagged(self):
+        df = self._checks([
+            {"task": "volume", "subject": "001", "session": "01",
+             "check_type": "required_files", "pattern": "*.nii.gz",
+             "status": "FAIL - file not found"},
+        ])
+        assert compute_suspicious_jobs(self.JOB_STATUS, df) == []
+
+    def test_empty_check_df_returns_empty(self):
+        assert compute_suspicious_jobs(self.JOB_STATUS, pd.DataFrame()) == []
+
+    def test_none_check_df_returns_empty(self):
+        assert compute_suspicious_jobs(self.JOB_STATUS, None) == []
+
+    def test_results_sorted_by_task_then_subject(self):
+        js = self.JOB_STATUS + [
+            {"subject": "003", "task_name": "volume", "session": "01",
+             "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01T10:00:00"},
+        ]
+        df = self._checks([
+            {"task": "volume", "subject": "003", "session": "01",
+             "check_type": "c", "pattern": "p", "status": "FAIL - x"},
+            {"task": "recon", "subject": "001", "session": "01",
+             "check_type": "c", "pattern": "p", "status": "FAIL - x"},
+        ])
+        out = compute_suspicious_jobs(js, df)
+        assert [(r["task"], r["subject"]) for r in out] == [("recon", "001"), ("volume", "003")]
+
+    def test_exposed_through_build_sessions_data(self):
+        df = self._checks([
+            {"task": "recon", "subject": "001", "session": "01",
+             "check_type": "required_files", "pattern": "*.nii.gz",
+             "status": "FAIL - file not found"},
+        ])
+        sessions = _build_sessions_data(self.JOB_STATUS, [], [], check_df=df)
+        assert len(sessions[0]["suspicious"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# check-results CSV must keep subject IDs as strings
+# ---------------------------------------------------------------------------
+
+class TestCheckCsvSubjectDtype:
+    """pandas parses a subject column of 001/010 as int64, turning "001" into
+    1. That breaks both the rendered labels and the join against job_status.
+    """
+
+    def _write_csv(self, tmp_path):
+        csv_path = tmp_path / "check_results.csv"
+        pd.DataFrame({
+            "task":     ["recon", "recon"],
+            "subject":  ["001", "010"],
+            "session":  ["01", "01"],
+            "status":   ["PASS", "FAIL - file not found"],
+        }).to_csv(csv_path, index=False)
+        return str(csv_path)
+
+    def test_leading_zeros_preserved_after_round_trip(self, tmp_path):
+        db_path = _make_db(tmp_path)
+        csv_path = self._write_csv(tmp_path)
+        captured = {}
+
+        def fake_render(**kwargs):
+            captured.update(kwargs)
+            return "<html>mock</html>"
+
+        with patch(TASK_ORDER_PATH, _mock_task_order), \
+             patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
+                   side_effect=fake_render):
+            generate_report(
+                db_path=db_path, project_name="proj",
+                check_results_path=csv_path,
+                output_path=str(tmp_path / "r.html"), session="01",
+            )
+
+        check_df = captured["sessions_data"][0]["check_df"]
+        assert set(check_df["subject"]) == {"001", "010"}
+
+    def test_naive_read_csv_would_lose_them(self, tmp_path):
+        # Documents the failure mode the dtype= argument prevents.
+        csv_path = self._write_csv(tmp_path)
+        naive = pd.read_csv(csv_path)
+        assert set(naive["subject"].astype(str)) == {"1", "10"}

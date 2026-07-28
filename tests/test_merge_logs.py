@@ -743,5 +743,126 @@ class TestMergeOnceEdgeCases:
         assert count == 1
 
 
+class TestJobStatusRowTargeting:
+    """The end event used to be applied with
+    WHERE subject=? AND task_name=? AND session=? AND status='RUNNING',
+    which can touch rows from earlier runs. It now targets lastrowid.
+    """
+
+    def test_rerun_of_same_subject_task_session_creates_two_rows(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345", status="FAILED")
+        merge_json_to_db(json_dir, mock_db)
+        create_mock_json_log(json_dir, "sub001", "task1", "12346", status="SUCCESS")
+        merge_json_to_db(json_dir, mock_db)
+
+        conn = sqlite3.connect(mock_db)
+        rows = conn.execute(
+            "SELECT job_id, status FROM job_status "
+            "WHERE subject='sub001' AND task_name='task1' ORDER BY id"
+        ).fetchall()
+        conn.close()
+        assert rows == [("12345", "FAILED"), ("12346", "SUCCESS")]
+
+    def test_rerun_does_not_overwrite_earlier_run_status(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345", status="FAILED")
+        merge_json_to_db(json_dir, mock_db)
+        create_mock_json_log(json_dir, "sub001", "task1", "12346", status="SUCCESS")
+        merge_json_to_db(json_dir, mock_db)
+
+        conn = sqlite3.connect(mock_db)
+        failed = conn.execute(
+            "SELECT COUNT(*) FROM job_status WHERE job_id='12345' AND status='FAILED'"
+        ).fetchone()[0]
+        conn.close()
+        assert failed == 1
+
+    def test_no_row_left_in_running_state(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+        create_mock_json_log(json_dir, "sub002", "task1", "12346")
+        merge_json_to_db(json_dir, mock_db)
+
+        conn = sqlite3.connect(mock_db)
+        running = conn.execute(
+            "SELECT COUNT(*) FROM job_status WHERE status='RUNNING'"
+        ).fetchone()[0]
+        conn.close()
+        assert running == 0
+
+    def test_failed_update_rolls_back_the_insert(self, temp_workspace, mock_db):
+        """A mid-file failure must not leave an uncommitted INSERT that the
+        next file's commit() would sweep in.
+
+        sqlite3.Connection.execute is read-only, so the failure is injected
+        through a proxy rather than patch.object.
+        """
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+
+        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+
+        class FlakyConn:
+            def __init__(self, conn, fail_prefix):
+                self._conn = conn
+                self._fail_prefix = fail_prefix
+                self.failures = 0
+                self.rolled_back = False
+
+            def execute(self, sql, *args):
+                if sql.strip().upper().startswith(self._fail_prefix):
+                    self.failures += 1
+                    raise sqlite3.OperationalError("boom")
+                return self._conn.execute(sql, *args)
+
+            def commit(self):
+                return self._conn.commit()
+
+            def rollback(self):
+                self.rolled_back = True
+                return self._conn.rollback()
+
+        conn = sqlite3.connect(mock_db)
+        flaky = FlakyConn(conn, "UPDATE JOB_STATUS")
+        mod._merge_jobs(Path(json_dir) / "task1", flaky, archive=False)
+
+        assert flaky.failures == 1
+        assert flaky.rolled_back
+        leftover = conn.execute(
+            "SELECT COUNT(*) FROM job_status WHERE job_id='12345'"
+        ).fetchone()[0]
+        conn.close()
+        assert leftover == 0
+
+    def test_file_not_archived_when_merge_fails(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        log_file = create_mock_json_log(json_dir, "sub001", "task1", "12345")
+
+        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+
+        class FailingConn:
+            def __init__(self, conn):
+                self._conn = conn
+
+            def execute(self, sql, *args):
+                if sql.strip().upper().startswith("UPDATE JOB_STATUS"):
+                    raise sqlite3.OperationalError("boom")
+                return self._conn.execute(sql, *args)
+
+            def commit(self):
+                return self._conn.commit()
+
+            def rollback(self):
+                return self._conn.rollback()
+
+        conn = sqlite3.connect(mock_db)
+        count = mod._merge_jobs(Path(json_dir) / "task1", FailingConn(conn), archive=True)
+        conn.close()
+
+        assert count == 0
+        assert Path(log_file).exists()
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '-s'])

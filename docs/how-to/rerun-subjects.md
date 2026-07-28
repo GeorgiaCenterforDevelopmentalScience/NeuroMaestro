@@ -43,6 +43,7 @@ neuropipe check-outputs \
   --work /data/work \
   --config-dir /data/config \
   --subjects $(cat all_subjects.txt | tr '\n' ',') \
+  --session 01 \
   --task rest_preprocess
 ```
 

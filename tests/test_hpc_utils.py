@@ -652,6 +652,40 @@ class TestSubmitSlurmJobExtras:
                               {"subjects": str(subjects_file)})
         assert job_id is not None and "dry_run" in job_id
 
+    def test_subjects_file_contents_land_in_wrapper(self, tmp_path, scripts_dir):
+        subjects_file = tmp_path / "subjects.txt"
+        subjects_file.write_text("001\n002\n003\n")
+        task_config = {"name": "cards_preprocess", "profile": "standard",
+                       "array": True, "scripts": ["afni_cards_preprocessing.sh"]}
+        self._invoke(tmp_path, scripts_dir, task_config,
+                     {"subjects": str(subjects_file)})
+        wrapper = list((tmp_path / "work" / "log" / "wrapper").glob("*.sh"))[0]
+        assert 'export SUBJECTS="001 002 003"' in wrapper.read_text()
+
+    def test_long_subject_list_does_not_raise(self, tmp_path, scripts_dir):
+        # Guards a latent crash, not an active one. Callers always expand
+        # --subjects (including a txt file) into a comma-joined string, so past
+        # 64 three-digit IDs it exceeds NAME_MAX as a single path component.
+        # Path().is_file() propagates ENAMETOOLONG there on Python < 3.13;
+        # os.path.isfile() swallows it. Typical runs stay well under the limit.
+        subjects = ",".join(f"{i:03d}" for i in range(1, 400))
+        assert len(subjects) > 255
+        task_config = {"name": "cards_preprocess", "profile": "standard",
+                       "array": True, "scripts": ["afni_cards_preprocessing.sh"]}
+        job_id = self._invoke(tmp_path, scripts_dir, task_config,
+                              {"subjects": subjects})
+        assert job_id is not None and "dry_run" in job_id
+
+    def test_long_subject_list_parsed_as_list_not_path(self, tmp_path, scripts_dir):
+        subjects = ",".join(f"{i:03d}" for i in range(1, 400))
+        task_config = {"name": "cards_preprocess", "profile": "standard",
+                       "array": True, "scripts": ["afni_cards_preprocessing.sh"]}
+        self._invoke(tmp_path, scripts_dir, task_config, {"subjects": subjects})
+        wrapper = list((tmp_path / "work" / "log" / "wrapper").glob("*.sh"))[0]
+        content = wrapper.read_text()
+        assert "# Number of subjects: 399" in content
+        assert "--array=1-399%15" in content
+
     def test_output_pattern_applied_in_wrapper(self, tmp_path, scripts_dir):
         task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
                        "scripts": ["afni_cards_preprocessing.sh"],

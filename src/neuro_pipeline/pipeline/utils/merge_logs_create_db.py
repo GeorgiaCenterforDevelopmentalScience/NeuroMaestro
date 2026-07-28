@@ -82,6 +82,7 @@ def _merge_pipeline(task_dir, conn, job_ids=None, archive=True):
                     shutil.move(str(json_file), str(archived / json_file.name))
                 count += 1
         except Exception as e:
+            conn.rollback()
             print(f"Error: {json_file}: {e}")
     return count
 
@@ -127,23 +128,24 @@ def _merge_jobs(task_dir, conn, job_ids=None, archive=True):
 
             # Insert job start
             r = records["start"]
-            conn.execute('''
+            cur = conn.execute('''
                 INSERT INTO job_status
                 (execution_id, subject, task_name, session, start_time, status, log_path, job_id, node_name)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (r.get("execution_id"), r.get("subject"), r.get("task_name"), r.get("session"),
                   r.get("timestamp"), "RUNNING", r.get("log_path"),
                   r.get("job_id"), r.get("node_name")))
+            row_id = cur.lastrowid
 
-            # Update job end
+            # Update job end. Targets the row just inserted; matching on
+            # subject/task/session would also hit rows from earlier runs.
             r = records["end"]
             conn.execute('''
                 UPDATE job_status
                 SET end_time=?, status=?, error_msg=?, duration_hours=?, exit_code=?
-                WHERE subject=? AND task_name=? AND session=? AND status='RUNNING'
+                WHERE id=?
             ''', (r.get("timestamp"), r.get("status"), r.get("error_msg"),
-                  r.get("duration_hours"), r.get("exit_code"),
-                  r.get("subject"), r.get("task_name"), r.get("session")))
+                  r.get("duration_hours"), r.get("exit_code"), row_id))
 
             # Insert command output if available
             if "command_output" in records:
@@ -167,6 +169,7 @@ def _merge_jobs(task_dir, conn, job_ids=None, archive=True):
                 shutil.move(str(json_file), str(archived / json_file.name))
             count += 1
         except Exception as e:
+            conn.rollback()
             print(f"Error: {json_file}: {e}")
     return count
 
@@ -218,6 +221,7 @@ def _merge_wrappers(task_dir, conn, archive=True):
                 shutil.move(str(json_file), str(archived / json_file.name))
             count += 1
         except Exception as e:
+            conn.rollback()
             print(f"Error merging wrapper log {json_file}: {e}")
     return count
 

@@ -8,6 +8,7 @@ Tests for pipeline/core.py helper logic:
 """
 
 import pytest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from tests.conftest import MOCK_CONFIG
@@ -297,6 +298,7 @@ class TestCheckOutputsCmd:
                 "--project", "no_such_project_xyz",
                 "--work", str(tmp_path),
                 "--config-dir", str(tmp_path),
+                "--session", "01",
             ])
         assert result.exit_code == 1
 
@@ -315,6 +317,38 @@ class TestCheckOutputsCmd:
                 "--project", "proj",
                 "--work", str(tmp_path),
                 "--config-dir", str(tmp_path),
+                "--session", "01",
+            ])
+        assert result.exit_code == 1
+
+    def test_missing_session_exits_2(self, tmp_path):
+        # --session is required: typer reports a usage error, not our exit(1)
+        runner, app = _runner()
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+            result = runner.invoke(app, [
+                "check-outputs",
+                "--project", "proj",
+                "--work", str(tmp_path),
+                "--config-dir", str(tmp_path),
+            ])
+        assert result.exit_code == 2
+
+    def test_blank_session_exits_1(self, tmp_path):
+        runner, app = _runner()
+        yaml_path = tmp_path / "proj_checks.yaml"
+        yaml_path.write_text(
+            "task1:\n  output_path: '{work_dir}'\n"
+            "  required_files:\n    - 'file.txt'\n"
+        )
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
+             patch("neuro_pipeline.pipeline.utils.output_checker.load_checks_config",
+                   return_value=str(yaml_path)):
+            result = runner.invoke(app, [
+                "check-outputs",
+                "--project", "proj",
+                "--work", str(tmp_path),
+                "--config-dir", str(tmp_path),
+                "--session", " , ",
             ])
         assert result.exit_code == 1
 
@@ -395,3 +429,37 @@ class TestInitCmd:
         assert result.exit_code == 0
         assert "NEUROPIPE_CONFIG_DIR" in result.output
 
+
+
+# ---------------------------------------------------------------------------
+# generate-config template must agree with the merge/rebuild auto-detect path
+# ---------------------------------------------------------------------------
+
+class TestGeneratedProjectConfigTemplate:
+    """The template shipped db_path under log/ while every real project config
+    and the merge-logs / force-rebuild auto-detect use database/. A freshly
+    generated project could not be found by `neuropipe merge-logs <work_dir>`.
+    """
+
+    @staticmethod
+    def _generate(tmp_path):
+        import yaml
+        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
+        generate_project_config("proj", str(tmp_path))
+        return yaml.safe_load((tmp_path / "proj_config.yaml").read_text(encoding="utf-8"))
+
+    def test_db_path_uses_database_subdir(self, tmp_path):
+        cfg = self._generate(tmp_path)
+        assert cfg["database"]["db_path"] == "$WORK_DIR/database/pipeline_jobs.db"
+
+    def test_db_path_matches_merge_once_autodetect(self, tmp_path):
+        import os
+        cfg = self._generate(tmp_path)
+        generated = cfg["database"]["db_path"].replace("$WORK_DIR", "/work")
+        autodetected = os.path.join("/work", "database", "pipeline_jobs.db")
+        assert Path(generated) == Path(autodetected)
+
+    def test_db_path_placeholder_is_resolvable(self, tmp_path):
+        cfg = self._generate(tmp_path)
+        resolved = cfg["database"]["db_path"].replace("$WORK_DIR", "/work")
+        assert "$WORK_DIR" not in resolved

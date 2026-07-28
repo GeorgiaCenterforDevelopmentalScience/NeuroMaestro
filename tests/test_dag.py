@@ -397,3 +397,49 @@ class TestTaskRegistry:
     def test_no_args_returns_empty(self):
         result = expand(self.registry)
         assert result == []
+
+
+# ===========================================================================
+# Missing task config / dangling dependencies
+# ===========================================================================
+
+class TestMissingTaskConfig:
+    """_register_task used to warn and return, leaving the task out of
+    self.nodes while other rules still pointed dependencies at it. That
+    produced either a KeyError or a bogus "Circular dependency detected".
+    """
+
+    def test_unknown_task_raises_with_task_name(self):
+        with pytest.raises(ValueError, match="nonexistent_task"):
+            build(["nonexistent_task"])
+
+    def test_unknown_task_error_is_not_reported_as_a_cycle(self):
+        with pytest.raises(ValueError) as exc:
+            build(["recon", "nonexistent_task"])
+        assert "Circular" not in str(exc.value)
+
+    def test_unzip_recon_pair_survives_when_only_recon_registered(self):
+        # recon requested without unzip must not raise a KeyError
+        executor, order = build(["recon"])
+        assert "unzip" not in deps(executor, "recon")
+
+    def test_dangling_dependency_is_pruned(self):
+        executor = make_executor()
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.dag import TaskNode
+            executor.nodes = {"A": TaskNode("A", {}, dependencies={"ghost"})}
+            executor._prune_dangling_dependencies()
+            assert executor.nodes["A"].dependencies == set()
+            assert executor._topological_sort() == ["A"]
+
+    def test_real_cycle_still_detected_after_pruning(self):
+        executor = make_executor()
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.dag import TaskNode
+            executor.nodes = {
+                "X": TaskNode("X", {}, dependencies={"Y"}),
+                "Y": TaskNode("Y", {}, dependencies={"X"}),
+            }
+            executor._prune_dangling_dependencies()
+            with pytest.raises(ValueError, match="Circular dependency"):
+                executor._topological_sort()

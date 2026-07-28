@@ -12,23 +12,19 @@ Commands for verifying outputs, managing the job log database, and generating re
 
 Verifies task outputs for a set of subjects without submitting any jobs.
 
-By default (no `--subjects` or `--session`), subjects are auto-detected from `--work` and all sessions are checked. The output CSV always includes a `session` column.
+`--session` is required. Its value is written into every row of the output CSV, so requiring it keeps each result attributable to a session; without it, failures in a multi-session study could not be traced back to the session they came from. Projects whose checks config contains no `{session}` placeholder may pass any value.
+
+Subjects are auto-detected from `--work` when `--subjects` is omitted.
 
 ```bash
-# One-click: auto-detect subjects, check all sessions
-neuropipe check-outputs \
-  --project my_study \
-  --work /data/work \
-  --config-dir /data/config
-
-# Filter to specific session
+# Auto-detect subjects, check one session
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
   --session 01
 
-# Filter to multiple sessions
+# Check multiple sessions in one run
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
@@ -45,11 +41,19 @@ neuropipe check-outputs \
   --task rest_preprocess \
   --task volume
 
+# Project without sessions: pass any value, it is unused by the path templates
+neuropipe check-outputs \
+  --project ds027 \
+  --work /data/work \
+  --config-dir /data/config \
+  --session 01
+
 # Use a custom checks directory
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
+  --session 01 \
   --checks-dir /path/to/custom/checks/
 ```
 
@@ -61,7 +65,7 @@ neuropipe check-outputs \
 | `--work` | Work/output base directory (required) |
 | `--config-dir` | Path to config directory (required) |
 | `--subjects` | Subject list or file path — auto-detected from `--work` if omitted |
-| `--session` | Session ID(s), comma-separated (e.g. `01,02`). Checks all sessions if omitted. |
+| `--session` | Session ID(s), comma-separated (e.g. `01,02`) (required). Recorded in every CSV row. Projects without sessions may pass any value. |
 | `--task` | Specific task(s) to check; repeatable; defaults to all configured |
 | `--checks-dir` | Override the directory searched for `{project}_checks.yaml` |
 
@@ -136,6 +140,13 @@ neuropipe generate-report \
   --project my_study \
   --check-results /data/work/my_study/check_results_20260401_120000.csv
 
+# With --config-dir so tasks are listed in pipeline order
+neuropipe generate-report \
+  --db-path /data/work/my_study/database/pipeline_jobs.db \
+  --project my_study \
+  --config-dir /data/config \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv
+
 # Filter by session
 neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
@@ -161,6 +172,7 @@ neuropipe generate-report \
 | `--session` | Filter by session ID (recommended when multiple projects share a database) |
 | `--output` / `-o` | Output HTML file, or a directory (the `pipeline_report_{project}_{timestamp}.html` name is added inside it). Defaults to that name next to the database |
 | `--check-results` | Path to a `check_results_*.csv` from `check-outputs` (required). Run `check-outputs` first to generate this file. |
+| `--config-dir` | Path to config directory. Used to list report tasks in pipeline order instead of alphabetically. Defaults to `$NEUROPIPE_CONFIG_DIR`; the report still renders without it. |
 
 → See [Post-Run Verification](../how-to/post-run-verification.md) for a full workflow and report contents description.
 
