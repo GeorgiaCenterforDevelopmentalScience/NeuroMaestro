@@ -3,6 +3,7 @@ import shutil
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Dict
 import typer
 
 app = typer.Typer()
@@ -22,7 +23,8 @@ def merge_json_to_db(json_base_dir: str, db_path: str, job_ids: list = None):
     
     conn = get_db_connection(db_path)
     merged_count = 0
-    
+    incomplete: Dict[str, int] = {}
+
     for task_dir in Path(json_base_dir).glob("*"):
         if not task_dir.is_dir():
             continue
@@ -32,9 +34,48 @@ def merge_json_to_db(json_base_dir: str, db_path: str, job_ids: list = None):
             merged_count += _merge_wrappers(task_dir, conn, archive=True)
         else:
             merged_count += _merge_jobs(task_dir, conn, job_ids, archive=True)
-    
+            n = _count_incomplete(task_dir)
+            if n:
+                incomplete[task_dir.name] = n
+
     conn.close()
+    _report_incomplete(incomplete)
     return merged_count
+
+
+def _count_incomplete(task_dir) -> int:
+    """Count logs with a start event but no end event.
+
+    These are jobs the wrapper could not finish logging: SIGKILL, an OOM kill,
+    or a dead node. They are never merged, so they are invisible in the
+    database unless they are counted here.
+    """
+    count = 0
+    for json_file in task_dir.glob("*.jsonl"):
+        try:
+            events = set()
+            with open(json_file) as f:
+                for line in f:
+                    if line.strip():
+                        events.add(json.loads(line).get("event"))
+            if "start" in events and "end" not in events:
+                count += 1
+        except Exception:
+            continue
+    return count
+
+
+def _report_incomplete(incomplete: Dict[str, int]) -> None:
+    if not incomplete:
+        return
+    total = sum(incomplete.values())
+    detail = ", ".join(f"{task} ({n})" for task, n in sorted(incomplete.items()))
+    print(
+        f"Skipped {total} incomplete log(s) with no end event: {detail}\n"
+        "  These jobs were killed before the wrapper could finish logging "
+        "(SIGKILL, out-of-memory, or node failure) and are absent from the "
+        "database. Use check-outputs to see whether their outputs are complete."
+    )
 
 def _merge_pipeline(task_dir, conn, job_ids=None, archive=True):
     """Merge pipeline executions.

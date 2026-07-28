@@ -7,7 +7,6 @@ DAG dependency rules:
   5. Within each config section: post -> prep
 """
 
-import os
 from typing import List, Optional, Dict, Any, Set
 from dataclasses import dataclass, field
 from collections import deque
@@ -196,12 +195,10 @@ class DAGExecutor:
                 if dep_name in all_job_ids:
                     wait_jobs.extend(all_job_ids[dep_name])
             
-            # Prepare execution parameters
-            is_merge_task = (task_name == 'merge_logs')
             all_subjects = context.get('subjects', [])
 
             # Resume: filter already-completed subjects
-            if checker and not is_merge_task and not dry_run:
+            if checker and not dry_run:
                 pending = checker.get_pending_subjects(task_name, all_subjects)
                 if len(pending) < len(all_subjects):
                     skipped = sorted(set(all_subjects) - set(pending))
@@ -216,15 +213,15 @@ class DAGExecutor:
                     continue
                 subjects_str = ','.join(pending)
             else:
-                subjects_str = 'dummy' if is_merge_task else ','.join(all_subjects)
+                subjects_str = ','.join(all_subjects)
 
-            task_env = self._prepare_task_env(option_env, all_job_ids if is_merge_task else None)
-            
+            task_env = dict(option_env or {})
+
             # Execute task
             job_ids = self._execute_single_task(
                 node, subjects=subjects_str,
                 input_dir=input_dir, output_dir=output_dir, work_dir=work_dir,
-                container_dir=container_dir, dry_run=(False if is_merge_task else dry_run),
+                container_dir=container_dir, dry_run=dry_run,
                 wait_jobs=wait_jobs, option_env=task_env,
                 project_config=project_config, requested_tasks=requested_tasks,
                 original_work_dir=original_work_dir, db_path=db_path,
@@ -237,26 +234,6 @@ class DAGExecutor:
             node.completed = True
         
         return all_job_ids, context
-
-    def _prepare_task_env(self, option_env: Optional[Dict], all_job_ids: Optional[Dict] = None) -> Dict:
-        """Prepare environment variables for task execution"""
-        task_env = dict(option_env or {})  # Simplify
-        
-        # Add job_ids for merge_logs task
-        if all_job_ids:
-            all_jobs = [job for jobs in all_job_ids.values() for job in jobs]
-            task_env['JOB_IDS'] = ','.join(all_jobs)
-        
-        return task_env
-
-    def _get_merge_config(self) -> Optional[Dict[str, Any]]:
-        """Get merge_logs config from tasks sections"""
-        for section in self.config.values():
-            if isinstance(section, list):
-                for task in section:
-                    if isinstance(task, dict) and task.get('name') == 'merge_logs':
-                        return task
-        return None
 
     def _validate_all_scripts(self, project_config: Optional[Dict]) -> None:
         from pathlib import Path
@@ -303,7 +280,6 @@ class DAGExecutor:
                 output_dir=output_dir,
                 work_dir=work_dir,
                 container_dir=container_dir,
-                env_vars=None,
                 wait_jobs=wait_jobs,
                 task_config=task_config,
                 dry_run=dry_run,
@@ -407,9 +383,3 @@ class TaskRegistry:
             tasks.extend([name for name, _ in get_tasks_from_section(pipeline, stage)])
         return tasks
 
-    def _expand_task_args(self, kwargs):
-        """Expand task arguments"""
-        if kwargs.get('task'):
-            return kwargs['task']
-        
-        return []

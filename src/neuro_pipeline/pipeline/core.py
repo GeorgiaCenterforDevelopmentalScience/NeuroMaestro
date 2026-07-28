@@ -15,7 +15,6 @@ from .utils.config_utils import (
     get_config,
 )
 from .utils.job_db import log_pipeline_execution, update_pipeline_execution
-import shutil
 
 app = typer.Typer(pretty_exceptions_enable=False)
 config: dict = {}

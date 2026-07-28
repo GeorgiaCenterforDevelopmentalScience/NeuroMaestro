@@ -83,7 +83,7 @@ execute_wrapper() {
     NUM_SUBJECTS=${#subjects_array[@]}
     
     # Select subject based on array task ID
-    if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "$NUM_SUBJECTS" -gt 0 ] && [ "${subjects_array[0]}" != "dummy" ]; then
+    if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "$NUM_SUBJECTS" -gt 0 ]; then
         local idx=$((SLURM_ARRAY_TASK_ID - 1))
         # Guard against an array range wider than the subject list (e.g. a
         # hard-coded array_config pattern): bash would silently yield "".
@@ -112,7 +112,7 @@ execute_wrapper() {
     export TASK_NAME="$task_name"
     
     # Setup log directories
-    if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "${subjects_array[0]}" != "dummy" ]; then
+    if [ -n "$SLURM_ARRAY_TASK_ID" ]; then
         SUB_LOG_DIR="$LOG_DIR/$task_name/sub-${subject}"
     else
         SUB_LOG_DIR="$LOG_DIR/$task_name"
@@ -215,22 +215,6 @@ execute_script_with_logging() {
     local script_path="$1"
     local subject="$2"
     local task_name="$3"
-    
-    # Skip database logging for specific meta tasks
-    if [ "$task_name" = "merge_logs" ]; then
-        echo "=== Meta Task (no DB logging): $task_name ===" | tee -a "$LOG_PATH"
-        
-        # Simple execution
-        if [[ "$script_path" == *.py ]]; then
-            python "$script_path" "$subject" >> "$LOG_PATH" 2>&1
-        else
-            bash "$script_path" "$subject" >> "$LOG_PATH" 2>&1
-        fi
-        local exit_code=$?
-        
-        echo "=== Meta Task Completed (exit: $exit_code) ===" | tee -a "$LOG_PATH"
-        return $exit_code
-    fi
     
     # Verify script exists
     if [ ! -f "$script_path" ]; then

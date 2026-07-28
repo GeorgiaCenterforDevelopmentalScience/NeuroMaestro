@@ -1,15 +1,20 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
-## [Unreleased]
+## [0.16.0-alpha] – 2026-07-28
 
 ### Added
 - Report section **Reported SUCCESS but Output Check Failed**: lists jobs the database recorded as successful whose output checks failed, so silent failures no longer require eyeballing two matrices.
 - `generate-report --config-dir`: lists report tasks in pipeline order instead of alphabetically.
+- `merge-logs` now reports how many logs it skipped because the job was killed before it could write an end event.
 
 ### Changed
 - `check-outputs --session` is now required. Its value is recorded in every result row, which is what keeps a failure attributable to a session. Projects without sessions may pass any value. The GUI enforces the same rule.
 - Output checks moved to a shared function used by both the CLI and the GUI, so the two cannot drift apart.
+- A config key that maps to a reserved shell variable (`PATH`, `LD_LIBRARY_PATH`, and similar) is now rejected instead of silently overwriting it in the job environment.
+
+### Removed
+- Leftover machinery for the `merge_logs` task, which has not been defined in `config.yaml` since the task-name refactor, plus a few unused parameters and helpers. The `merge-logs` command itself is unaffected.
 
 ### Fixed
 - Report tasks were always listed alphabetically; the task order was read before any config was loaded.
@@ -21,6 +26,8 @@
 - `generate-config` wrote `db_path` under `log/` while everything else expects `database/`, so `merge-logs` could not find a newly generated project's database.
 - Array jobs ran with an empty subject when the array range was wider than the subject list.
 - Submitting more than about 65 subjects at once could abort with a path-length error on Python below 3.13.
+- Config values containing `$` or backticks were expanded or executed on the compute node instead of being passed through as written.
+- The array job pattern was cached on first use, so switching config directory in the GUI kept applying the previous project's setting.
 
 ### Tests
 - Added regression tests for all of the above, including the first tests that run `wrapper_functions.sh` under bash.

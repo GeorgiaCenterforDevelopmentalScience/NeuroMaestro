@@ -10,7 +10,9 @@ import pytest
 from unittest.mock import patch, MagicMock
 from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 
-PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.hpc_utils.config"
+# hpc_utils reads the pipeline config through config_utils, so that is
+# the single place to patch.
+PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
 HPC_CONFIG_PATH      = "neuro_pipeline.pipeline.utils.hpc_utils.hpc_config"
 CONFIG_UTILS_PATH    = "neuro_pipeline.pipeline.utils.config_utils.config"
 
@@ -83,7 +85,7 @@ class TestActualInputDirResolution:
             requested_tasks=["unzip", "recon"],
             output_dir=output_dir,
         )
-        assert f'export INPUT_DIR="{output_dir}/raw"' in content
+        assert f"export INPUT_DIR='{output_dir}/raw'" in content
 
     def test_input_not_redirected_when_upstream_absent(self, tmp_path, scripts_dir):
         """recon alone (no unzip) → INPUT_DIR stays as provided"""
@@ -96,7 +98,7 @@ class TestActualInputDirResolution:
             input_dir=input_dir,
             output_dir=output_dir,
         )
-        assert f'export INPUT_DIR="{input_dir}"' in content
+        assert f"export INPUT_DIR='{input_dir}'" in content
 
     def test_nested_upstream_resolution(self, tmp_path, scripts_dir):
         """rest_preprocess with recon in run → INPUT_DIR = output_dir/BIDS"""
@@ -107,7 +109,7 @@ class TestActualInputDirResolution:
             requested_tasks=["recon", "rest_preprocess"],
             output_dir=output_dir,
         )
-        assert f'export INPUT_DIR="{output_dir}/BIDS"' in content
+        assert f"export INPUT_DIR='{output_dir}/BIDS'" in content
 
     def test_input_kept_when_running_single_step(self, tmp_path, scripts_dir):
         """rest_preprocess alone (recon already done) → INPUT_DIR kept as-is"""
@@ -120,4 +122,4 @@ class TestActualInputDirResolution:
             input_dir=input_dir,
             output_dir=output_dir,
         )
-        assert f'export INPUT_DIR="{input_dir}"' in content
+        assert f"export INPUT_DIR='{input_dir}'" in content

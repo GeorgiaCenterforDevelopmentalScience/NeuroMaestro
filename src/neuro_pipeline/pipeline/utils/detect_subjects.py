@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import List, Optional
+from typing import List
 
 def detect_subjects(input_dir: str, prefix: str = "sub-") -> List[str]:
     """

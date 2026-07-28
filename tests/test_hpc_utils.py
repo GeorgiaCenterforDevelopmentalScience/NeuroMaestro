@@ -21,7 +21,9 @@ from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 
 # config  = pipeline task/array config  (config.yaml)
 # hpc_config = scheduler + resource profiles (hpc_config.yaml)
-PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.hpc_utils.config"
+# hpc_utils reads the pipeline config through config_utils, so that is
+# the single place to patch.
+PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
 HPC_CONFIG_PATH      = "neuro_pipeline.pipeline.utils.hpc_utils.hpc_config"
 CONFIG_UTILS_PATH    = "neuro_pipeline.pipeline.utils.config_utils.config"
 
@@ -218,7 +220,6 @@ class TestCreateWrapperScript:
                 input_dir="/data/input",
                 output_dir=str(tmp_path / "output"),
                 work_dir=str(tmp_path / "work"),
-                env_vars=None,
                 use_array=True,
                 env_commands=["ml AFNI/24.3.06-foss-2023a"],
                 project_config=MOCK_PROJECT_CONFIG,
@@ -250,12 +251,12 @@ class TestCreateWrapperScript:
     def test_subjects_exported(self, tmp_path, scripts_dir):
         wrapper = self._create(tmp_path, scripts_dir, subjects=["001", "002", "003"])
         content = wrapper.read_text()
-        assert 'export SUBJECTS="001 002 003"' in content
+        assert "export SUBJECTS='001 002 003'" in content
 
     def test_single_subject_exported(self, tmp_path, scripts_dir):
         wrapper = self._create(tmp_path, scripts_dir, subjects=["001"])
         content = wrapper.read_text()
-        assert 'export SUBJECTS="001"' in content
+        assert "export SUBJECTS='001'" in content
 
     # ---- core path variables -----------------------------------------------
 
@@ -273,7 +274,7 @@ class TestCreateWrapperScript:
 
     def test_task_name_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert 'export TASK_NAME="cards_preprocess"' in content
+        assert "export TASK_NAME='cards_preprocess'" in content
 
     def test_db_path_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
@@ -294,19 +295,19 @@ class TestCreateWrapperScript:
 
     def test_remove_trs_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert 'REMOVE_TRS="2"' in content
+        assert "REMOVE_TRS='2'" in content
 
     def test_blur_size_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert 'BLUR_SIZE="4.0"' in content
+        assert "BLUR_SIZE='4.0'" in content
 
     def test_censor_motion_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert 'CENSOR_MOTION="0.3"' in content
+        assert "CENSOR_MOTION='0.3'" in content
 
     def test_censor_outliers_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert 'CENSOR_OUTLIERS="0.05"' in content
+        assert "CENSOR_OUTLIERS='0.05'" in content
 
     def test_template_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
@@ -358,7 +359,6 @@ class TestSubmitSlurmJobDryRun:
         input_dir="/data/input",
         output_dir="/data/output",
         container_dir="/work/containers",
-        env_vars=None,
         wait_jobs=None,
         dry_run=True,
         option_env={"session": "01", "prefix": "sub-"},
@@ -618,7 +618,6 @@ class TestSubmitSlurmJobExtras:
         input_dir="/data/input",
         output_dir="/data/output",
         container_dir="/work/containers",
-        env_vars=None,
         wait_jobs=None,
         dry_run=True,
         option_env={"session": "01", "prefix": "sub-"},
@@ -660,7 +659,7 @@ class TestSubmitSlurmJobExtras:
         self._invoke(tmp_path, scripts_dir, task_config,
                      {"subjects": str(subjects_file)})
         wrapper = list((tmp_path / "work" / "log" / "wrapper").glob("*.sh"))[0]
-        assert 'export SUBJECTS="001 002 003"' in wrapper.read_text()
+        assert "export SUBJECTS='001 002 003'" in wrapper.read_text()
 
     def test_long_subject_list_does_not_raise(self, tmp_path, scripts_dir):
         # Guards a latent crash, not an active one. Callers always expand
@@ -718,7 +717,6 @@ class TestSubmitSlurmJobExtras:
                 input_dir="/data/input",
                 output_dir=str(tmp_path / "output"),
                 container_dir="/containers",
-                env_vars=None,
                 wait_jobs=None,
                 option_env={"session": "01"},
                 requested_tasks=None,
@@ -726,3 +724,120 @@ class TestSubmitSlurmJobExtras:
             )
         assert job_id == "99999"
         mock_submit.assert_called_once()
+
+# ===========================================================================
+# 10. Shell quoting and reserved variable names
+# ===========================================================================
+
+BACKSLASH = chr(92)
+
+
+class TestShellQuoting:
+    """Config values used to be interpolated straight into double quotes, so a
+    value containing $, a backtick or a quote was expanded or broke the script.
+    """
+
+    @staticmethod
+    def _export(name, value):
+        from neuro_pipeline.pipeline.utils.hpc_utils import _export_line
+        return _export_line(name, value)
+
+    def test_plain_value_is_single_quoted(self):
+        assert self._export("TEMPLATE", "MNI152") == "export TEMPLATE='MNI152'"
+
+    def test_dollar_sign_is_not_expandable(self):
+        line = self._export("LICENSE", "$HOME/license.txt")
+        assert line == "export LICENSE='$HOME/license.txt'"
+
+    def test_backtick_is_not_command_substitution(self):
+        line = self._export("NOTE", "run `date` first")
+        assert line == "export NOTE='run `date` first'"
+
+    def test_double_quote_does_not_break_out(self):
+        line = self._export("TEMPLATE", 'MNI"152')
+        assert line == "export TEMPLATE='MNI\"152'"
+
+    def test_single_quote_is_escaped(self):
+        line = self._export("NOTE", "it's here")
+        # closes the quote, emits an escaped quote, reopens: 'it'\''s here'
+        assert line.startswith("export NOTE='") and line.endswith("'")
+        assert BACKSLASH + "''" in line
+        assert '"' not in line
+
+    @pytest.mark.skipif(not os.environ.get("PATH"), reason="needs a shell")
+    def test_values_survive_a_real_bash_round_trip(self):
+        import shutil, subprocess
+        bash = shutil.which("bash")
+        if not bash:
+            pytest.skip("bash not available")
+        script = "\n".join([
+            self._export("A", "$HOME/x"),
+            self._export("B", "run `date`"),
+            self._export("C", "it's"),
+            'printf "%s|%s|%s" "$A" "$B" "$C"',
+        ])
+        out = subprocess.run([bash, "-c", script], capture_output=True, text=True).stdout
+        assert out == "$HOME/x|run `date`|it's"
+
+
+class TestReservedEnvNames:
+    """key.upper() means a config key named "path" would overwrite $PATH and
+    leave the job unable to find any command.
+    """
+
+    def _build(self, tmp_path, scripts_dir, task_config):
+        from neuro_pipeline.pipeline.utils.hpc_utils import create_wrapper_script
+        return create_wrapper_script(
+            script_path=scripts_dir / "afni_cards_preprocessing.sh",
+            subjects_list=["001"],
+            input_dir="/in", output_dir="/out", work_dir=str(tmp_path / "work"),
+            container_dir="/containers",
+            task_config=task_config,
+            project_config=MOCK_PROJECT_CONFIG,
+        )
+
+    def test_task_param_named_path_is_rejected(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            with pytest.raises(ValueError, match=r"\$PATH"):
+                self._build(tmp_path, scripts_dir,
+                            {"name": "t", "profile": "standard", "path": "/opt/tool"})
+
+    def test_task_param_named_ld_library_path_is_rejected(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            with pytest.raises(ValueError, match="LD_LIBRARY_PATH"):
+                self._build(tmp_path, scripts_dir,
+                            {"name": "t", "profile": "standard", "ld_library_path": "/opt/lib"})
+
+    def test_ordinary_task_param_still_allowed(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            wrapper, sections = self._build(
+                tmp_path, scripts_dir,
+                {"name": "t", "profile": "standard", "template": "MNI152"})
+        assert "export TEMPLATE='MNI152'" in sections["task_params"]
+
+
+class TestArrayConfigFollowsCurrentConfig:
+    """hpc_utils used to cache its own copy of config.yaml at module level.
+    A long-running GUI switching config-dir would keep the first project's
+    array pattern for the rest of the process lifetime.
+    """
+
+    @staticmethod
+    def _array_for(cfg):
+        with patch(PIPELINE_CONFIG_PATH, cfg), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_resources
+            return get_hpc_resources({"profile": "standard", "array": True}).array
+
+    def test_pattern_read_from_current_config(self):
+        cfg = {**MOCK_CONFIG, "array_config": {"pattern": "1-{num}%15"}}
+        assert self._array_for(cfg) == "1-{num}%15"
+
+    def test_switching_config_changes_the_pattern(self):
+        project_a = {**MOCK_CONFIG, "array_config": {"pattern": "1-{num}%15"}}
+        project_b = {**MOCK_CONFIG, "array_config": {"pattern": "1-{num}%30"}}
+        assert self._array_for(project_a) == "1-{num}%15"
+        assert self._array_for(project_b) == "1-{num}%30"
+
+    def test_no_stale_module_level_cache(self):
+        import neuro_pipeline.pipeline.utils.hpc_utils as mod
+        assert not hasattr(mod, "config"), "hpc_utils must not keep its own config copy"

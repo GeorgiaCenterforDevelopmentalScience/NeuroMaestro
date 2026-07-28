@@ -1,4 +1,3 @@
-import sys
 import os
 import subprocess
 import time
@@ -9,18 +8,30 @@ from typing import Dict, Any, List, Optional, Tuple
 import typer
 import yaml
 
-from .config_utils import get_config_dir
+from .config_utils import get_config, get_config_dir
 
-config: Optional[dict] = None
 hpc_config: Optional[dict] = None
 
+# Config keys are upper-cased into shell variables, so a key named e.g. "path"
+# would overwrite $PATH inside the job and break every command in it.
+RESERVED_ENV_NAMES = {
+    "PATH", "HOME", "USER", "SHELL", "PWD", "OLDPWD", "LANG", "LC_ALL", "TERM",
+    "LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONPATH", "PYTHONHOME", "IFS",
+}
 
-def _ensure_config() -> dict:
-    global config
-    if config is None:
-        with open(get_config_dir() / "config.yaml", "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-    return config
+
+def _shell_quote(value) -> str:
+    """Single-quote a value for bash, escaping any embedded single quotes.
+
+    Always quotes, unlike shlex.quote, which leaves simple values bare and
+    would make the generated wrapper inconsistent to read.
+    """
+    return "'" + str(value).replace("'", "'\\''") + "'"
+
+
+def _export_line(name: str, value) -> str:
+    """Render one `export NAME=value` line with the value safely quoted."""
+    return f"export {name}={_shell_quote(value)}"
 
 
 def _ensure_hpc_config() -> dict:
@@ -347,7 +358,10 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     
     array_param = None
     if task_config.get('array', False):
-        array_config = _ensure_config().get('array_config', {})
+        # Read through config_utils so a config-dir switch is picked up: a
+        # module-level cache here would keep serving the first project's
+        # array pattern for the lifetime of a long-running GUI process.
+        array_config = (get_config() or {}).get('array_config', {})
         array_param = array_config.get('pattern', '1-{num}%15')
     
     return HPCResources(
@@ -407,7 +421,6 @@ def submit_slurm_job(
     output_dir: str,
     work_dir: str,
     container_dir: str,
-    env_vars: Optional[Dict[str, str]] = None,
     wait_jobs: Optional[List[str]] = None,
     task_config: Optional[Dict[str, Any]] = None,
     dry_run: bool = False,
@@ -521,7 +534,6 @@ def submit_slurm_job(
         output_dir=actual_output_dir,
         work_dir=work_dir,
         container_dir=container_dir,
-        env_vars=env_vars,
         use_array=bool(array_param),
         env_commands=env_commands,
         project_config=project_config,
@@ -555,7 +567,6 @@ def create_wrapper_script(
     output_dir: str,
     work_dir: str,
     container_dir: str = "",
-    env_vars: Optional[Dict[str, str]] = None,
     use_array: bool = True,
     env_commands: Optional[List[str]] = None,
     project_config: Optional[Dict[str, Any]] = None,
@@ -600,8 +611,17 @@ def create_wrapper_script(
     
     global_env_str = ""
     if global_env_vars:
-        global_env_str = "\n".join([f'export {k.upper()}="{v}"' for k, v in global_env_vars.items()])
-    
+        global_env_lines = []
+        for k, v in global_env_vars.items():
+            name = k.upper()
+            if name in RESERVED_ENV_NAMES:
+                raise ValueError(
+                    f"Config key '{k}' maps to the reserved shell variable ${name}. "
+                    "Rename it, or the job environment will be corrupted."
+                )
+            global_env_lines.append(_export_line(name, v))
+        global_env_str = "\n".join(global_env_lines)
+
     # Prepare task parameters
     task_params_str = ""
     if task_config:
@@ -610,10 +630,16 @@ def create_wrapper_script(
         for key, value in task_config.items():
             if key in excluded_keys:
                 continue
+            name = key.upper()
+            if name in RESERVED_ENV_NAMES:
+                raise ValueError(
+                    f"Task parameter '{key}' maps to the reserved shell variable ${name}. "
+                    "Rename it, or the job environment will be corrupted."
+                )
             if isinstance(value, (str, int, float)):
-                task_params.append(f'export {key.upper()}="{value}"')
+                task_params.append(_export_line(name, value))
             elif isinstance(value, list):
-                task_params.append(f'export {key.upper()}="{" ".join(map(str, value))}"')
+                task_params.append(_export_line(name, " ".join(map(str, value))))
             else:
                 typer.echo(f"[WARN] Task parameter '{key}' has unsupported type {type(value).__name__} (nested dict/object); skipped. Config values must be scalars or flat lists.", err=True)
         task_params_str = "\n".join(task_params)
@@ -627,7 +653,19 @@ def create_wrapper_script(
 
     # pipeline/ dir: used by bash wrapper to locate utils/wrapper_functions.sh
     pipeline_root = Path(__file__).parent.parent
-    
+
+    basic_paths_str = "\n".join([
+        _export_line("SUBJECTS", " ".join(subjects_list)),
+        _export_line("INPUT_DIR", input_dir),
+        _export_line("OUTPUT_DIR", output_dir),
+        _export_line("WORK_DIR", work_dir),
+        _export_line("CONTAINER_DIR", container_dir),
+        _export_line("LOG_DIR", f"{work_dir}/log"),
+        _export_line("DB_PATH", db_path),
+        _export_line("TASK_NAME", task_name),
+        _export_line("SCRIPT_DIR", pipeline_root),
+    ])
+
     # Write minimal wrapper script
     with open(wrapper_path, 'w') as f:
         f.write("#!/bin/bash\n\n")
@@ -650,16 +688,8 @@ def create_wrapper_script(
 
         # Export all configuration as environment variables
         f.write("# Basic paths and configuration\n")
-        f.write(f'export SUBJECTS="{" ".join(subjects_list)}"\n')
-        f.write(f'export INPUT_DIR="{input_dir}"\n')
-        f.write(f'export OUTPUT_DIR="{output_dir}"\n')
-        f.write(f'export WORK_DIR="{work_dir}"\n')
-        f.write(f'export CONTAINER_DIR="{container_dir}"\n')
-        f.write(f'export LOG_DIR="{work_dir}/log"\n')
-        f.write(f'export DB_PATH="{db_path}"\n')
-        f.write(f'export TASK_NAME="{task_name}"\n')
-        f.write(f'export SCRIPT_DIR="{pipeline_root}"\n')
-        f.write(f'export EXECUTION_ID="{execution_id or ""}"\n')
+        f.write(basic_paths_str + "\n")
+        f.write(_export_line("EXECUTION_ID", execution_id or "") + "\n")
         f.write("\n")
         
         # Export command strings if present
@@ -699,17 +729,7 @@ def create_wrapper_script(
     sections = {
         "full_content": wrapper_path.read_text(),
         "slurm_cmd": f"{submit_cmd} {' '.join(slurm_args)} {wrapper_path}" if slurm_args else "",
-        "basic_paths": "\n".join([
-            f'export SUBJECTS="{" ".join(subjects_list)}"',
-            f'export INPUT_DIR="{input_dir}"',
-            f'export OUTPUT_DIR="{output_dir}"',
-            f'export WORK_DIR="{work_dir}"',
-            f'export CONTAINER_DIR="{container_dir}"',
-            f'export LOG_DIR="{work_dir}/log"',
-            f'export DB_PATH="{db_path}"',
-            f'export TASK_NAME="{task_name}"',
-            f'export SCRIPT_DIR="{pipeline_root}"',
-        ]),
+        "basic_paths": basic_paths_str,
         "global_python":   global_python_str,
         "env_modules":     env_commands_str,
         "global_env_vars": global_env_str,
