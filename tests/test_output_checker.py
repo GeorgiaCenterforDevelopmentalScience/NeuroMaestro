@@ -338,3 +338,87 @@ class TestCheckAll:
         df = checker.check_all(["mytask"], ["001"])
         for col in ("task", "subject", "session", "check_type", "status"):
             assert col in df.columns
+
+
+# ---------------------------------------------------------------------------
+# run_output_checks — shared by the CLI and the GUI
+# ---------------------------------------------------------------------------
+
+class TestRunOutputChecks:
+    """The CLI and the GUI both call this, so session handling and task
+    resolution cannot drift apart between them.
+    """
+
+    @staticmethod
+    def _setup(tmp_path, sessions_with_file):
+        """Build a tree where only the listed sessions contain the file."""
+        for ses in ("01", "02"):
+            d = tmp_path / "BIDS" / "sub-001" / f"ses-{ses}" / "anat"
+            d.mkdir(parents=True)
+            if ses in sessions_with_file:
+                (d / "sub-001_T1w.nii.gz").write_bytes(b"x" * 2048)
+
+        cfg = tmp_path / "checks.yaml"
+        cfg.write_text(yaml.dump({
+            "recon": {
+                "output_path": "{work_dir}/BIDS/{prefix}{subject}/ses-{session}/",
+                "required_files": ["anat/*.nii.gz"],
+            }
+        }))
+        return str(cfg)
+
+    def _run(self, tmp_path, sessions, sessions_with_file=("01",), **kw):
+        from neuro_pipeline.pipeline.utils.output_checker import run_output_checks
+        cfg = self._setup(tmp_path, sessions_with_file)
+        return run_output_checks(
+            config_path=cfg, work_dir=str(tmp_path), sessions=sessions,
+            subjects=["001"], prefix="sub-", **kw
+        )
+
+    def test_each_session_evaluated_separately(self, tmp_path):
+        # Only ses-01 has the file; ses-02 must not be rescued by it
+        df, _, _ = self._run(tmp_path, ["01", "02"])
+        by_session = dict(zip(df["session"], df["status"]))
+        assert by_session["01"] == "PASS"
+        assert by_session["02"].startswith("FAIL")
+
+    def test_missing_session_is_not_masked(self, tmp_path):
+        df, _, _ = self._run(tmp_path, ["02"])
+        assert len(df) == 1
+        assert df.iloc[0]["status"].startswith("FAIL")
+
+    def test_real_session_value_recorded(self, tmp_path):
+        df, _, _ = self._run(tmp_path, ["01", "02"])
+        assert set(df["session"]) == {"01", "02"}
+        assert "*" not in set(df["session"])
+
+    def test_returns_checked_task_names(self, tmp_path):
+        _, checked, _ = self._run(tmp_path, ["01"])
+        assert checked == ["recon"]
+
+    def test_unknown_task_reported_as_unconfigured(self, tmp_path):
+        _, checked, unconfigured = self._run(tmp_path, ["01"], tasks=["recon", "ghost"])
+        assert checked == ["recon"]
+        assert unconfigured == ["ghost"]
+
+    def test_task_filter_restricts_checks(self, tmp_path):
+        df, checked, _ = self._run(tmp_path, ["01"], tasks=["recon"])
+        assert checked == ["recon"]
+        assert set(df["task"]) == {"recon"}
+
+    def test_empty_sessions_raises(self, tmp_path):
+        with pytest.raises(ValueError, match="session"):
+            self._run(tmp_path, [])
+
+    def test_empty_subjects_raises(self, tmp_path):
+        from neuro_pipeline.pipeline.utils.output_checker import run_output_checks
+        cfg = self._setup(tmp_path, ("01",))
+        with pytest.raises(ValueError, match="subject"):
+            run_output_checks(config_path=cfg, work_dir=str(tmp_path),
+                              sessions=["01"], subjects=[], prefix="sub-")
+
+    def test_no_configured_tasks_returns_empty_frame(self, tmp_path):
+        df, checked, _ = self._run(tmp_path, ["01"], tasks=["ghost"])
+        assert checked == []
+        assert df.empty
+        assert "status" in df.columns

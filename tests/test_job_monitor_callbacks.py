@@ -215,14 +215,10 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 1, "status": "PASS"},
         ])
-        mock_checker = MagicMock()
-        mock_checker.check_all.return_value = fake_df
-        mock_checker._config = {"my_task": {}}
-
         with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
-                   return_value=mock_checker):
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   return_value=(fake_df, ["my_task"], [])):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
 
@@ -235,14 +231,10 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 1, "status": "PASS"},
         ])
-        mock_checker = MagicMock()
-        mock_checker.check_all.return_value = fake_df
-        mock_checker._config = {"t": {}}
-
         with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
-                   return_value=mock_checker):
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   return_value=(fake_df, ["t"], [])):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
 
@@ -256,14 +248,10 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 0, "status": "FAIL - file not found"},
         ])
-        mock_checker = MagicMock()
-        mock_checker.check_all.return_value = fake_df
-        mock_checker._config = {"t": {}}
-
         with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
-                   return_value=mock_checker):
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   return_value=(fake_df, ["t"], [])):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
 
@@ -277,19 +265,18 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 1, "status": "PASS"},
         ])
-        mock_checker = MagicMock()
-        mock_checker.check_all.return_value = fake_df
-        mock_checker._config = {}
-
         with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
-                   return_value=mock_checker):
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   return_value=(fake_df, ["specific_task"], [])) as mock_run:
             fn(1, project="myproject", work_dir=str(tmp_path),
                subjects_raw="001,002", task_filter="specific_task",
                session="01", prefix="sub-")
 
-        mock_checker.check_all.assert_called_once_with(["specific_task"], ["001", "002"])
+        kwargs = mock_run.call_args.kwargs
+        assert kwargs["tasks"] == ["specific_task"]
+        assert kwargs["subjects"] == ["001", "002"]
+        assert kwargs["sessions"] == ["01"]
 
 
 # ---------------------------------------------------------------------------
@@ -311,13 +298,14 @@ class TestExportCheckCsvCallback:
         fake_df = pd.DataFrame([
             {"task": "t", "subject": "001", "status": "PASS"},
         ])
+        # OutputChecker is still used directly, but only to write the CSV
         mock_checker = MagicMock()
-        mock_checker.check_all.return_value = fake_df
-        mock_checker._config = {"t": {}}
         mock_checker.save_csv.return_value = fake_csv
 
         with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   return_value=(fake_df, ["t"], [])), \
              patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
@@ -353,3 +341,74 @@ class TestExportCheckCsvCallback:
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
+
+
+# ---------------------------------------------------------------------------
+# Session is required for output checks
+# ---------------------------------------------------------------------------
+
+class TestParseSessions:
+    """A blank session used to fall back to "*", which globs every session at
+    once. A required file present in any one session then satisfied the check,
+    so sessions that were entirely missing were reported as PASS.
+    """
+
+    @staticmethod
+    def _parse(value):
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _parse_sessions
+        return _parse_sessions(value)
+
+    def test_single_session_parsed(self):
+        sessions, err = self._parse("01")
+        assert sessions == ["01"] and err is None
+
+    def test_comma_separated_parsed(self):
+        sessions, err = self._parse("01,02")
+        assert sessions == ["01", "02"] and err is None
+
+    def test_whitespace_stripped(self):
+        sessions, err = self._parse(" 01 , 02 ")
+        assert sessions == ["01", "02"] and err is None
+
+    def test_blank_returns_warning(self):
+        sessions, err = self._parse("")
+        assert sessions is None
+        assert isinstance(err, dbc.Alert) and err.color == "warning"
+
+    def test_none_returns_warning(self):
+        sessions, err = self._parse(None)
+        assert sessions is None and isinstance(err, dbc.Alert)
+
+    def test_only_separators_returns_warning(self):
+        sessions, err = self._parse(" , ")
+        assert sessions is None and isinstance(err, dbc.Alert)
+
+    def test_no_wildcard_fallback(self):
+        # The regression: "*" must never be produced implicitly
+        for value in ("", None, "  ", ","):
+            sessions, _ = self._parse(value)
+            assert sessions is None, f"{value!r} must not silently become a wildcard"
+
+
+class TestOutputCheckRequiresSession:
+
+    def test_run_check_blank_session_warns(self, callbacks, tmp_path):
+        fn = callbacks.get("run_output_check_callback")
+        result = fn(1, project="myproject", work_dir=str(tmp_path),
+                    subjects_raw="001", task_filter="", session="", prefix="sub-")
+        assert isinstance(result, dbc.Alert)
+        assert result.color == "warning"
+
+    def test_export_csv_blank_session_warns(self, callbacks, tmp_path):
+        fn = callbacks.get("export_check_csv_callback")
+        result = fn(1, project="myproject", work_dir=str(tmp_path),
+                    subjects_raw="001", task_filter="", session="", prefix="sub-")
+        assert isinstance(result, dbc.Alert)
+        assert result.color == "warning"
+
+    def test_blank_session_does_not_reach_the_checker(self, callbacks, tmp_path):
+        fn = callbacks.get("run_output_check_callback")
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker") as mock_cls:
+            fn(1, project="myproject", work_dir=str(tmp_path),
+               subjects_raw="001", task_filter="", session="", prefix="sub-")
+        mock_cls.assert_not_called()

@@ -515,7 +515,7 @@ def check_outputs_cmd(
     """
     set_config_dir(_resolve_config_dir(config_dir))
 
-    from .utils.output_checker import OutputChecker, load_checks_config
+    from .utils.output_checker import OutputChecker, load_checks_config, run_output_checks
     from .utils.detect_subjects import detect_subjects
 
     try:
@@ -550,43 +550,33 @@ def check_outputs_cmd(
         raise typer.Exit(1)
     typer.echo(f"Sessions: {', '.join(sessions)}")
 
-    # Load config and resolve task list using the first session
-    ref_checker = OutputChecker(
+    typer.echo(f"Checking {len(subject_list)} subject(s) × {len(sessions)} session(s)...")
+
+    df, checked_tasks, unconfigured = run_output_checks(
+        config_path=checks_config_path,
+        work_dir=work_dir,
+        sessions=sessions,
+        subjects=subject_list,
+        prefix=prefix,
+        tasks=tasks or None,
+    )
+
+    for task_name in unconfigured:
+        typer.echo(f"Warning: no output check configured for task '{task_name}', skipped.", err=True)
+
+    if not checked_tasks:
+        typer.echo("No tasks to check (none have output check configs).")
+        raise typer.Exit(0)
+
+    reporter = OutputChecker(
         config_path=checks_config_path,
         work_dir=work_dir,
         prefix=prefix,
         session=sessions[0],
     )
+    reporter.print_terminal_summary(df)
 
-    all_configured_tasks = list(ref_checker._config.keys())
-    task_names = tasks if tasks else all_configured_tasks
-
-    ref_checker.warn_missing_configs(task_names)
-    task_names = [t for t in task_names if t in ref_checker._config]
-
-    if not task_names:
-        typer.echo("No tasks to check (none have output check configs).")
-        raise typer.Exit(0)
-
-    typer.echo(f"Checking {len(task_names)} task(s) × {len(subject_list)} subject(s) × {len(sessions)} session(s)...")
-
-    import pandas as pd
-    all_dfs = []
-    for sess in sessions:
-        checker = OutputChecker(
-            config_path=checks_config_path,
-            work_dir=work_dir,
-            prefix=prefix,
-            session=sess,
-        )
-        all_dfs.append(checker.check_all(task_names, subject_list))
-
-    df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame(
-        columns=["task", "subject", "session", "check_type", "pattern", "expected", "actual", "status"]
-    )
-    ref_checker.print_terminal_summary(df)
-
-    csv_path = checker.save_csv(df, work_dir)
+    csv_path = reporter.save_csv(df, work_dir)
     typer.echo(f"Full report saved to: {csv_path}")
 
 

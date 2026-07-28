@@ -1,6 +1,34 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
+## [Unreleased]
+
+### Added
+- Report section **Reported SUCCESS but Output Check Failed**: lists jobs the database recorded as successful whose output checks failed, so silent failures no longer require eyeballing two matrices.
+- `generate-report --config-dir`: lists report tasks in pipeline order instead of alphabetically.
+
+### Changed
+- `check-outputs --session` is now required. Its value is recorded in every result row, which is what keeps a failure attributable to a session. Projects without sessions may pass any value. The GUI enforces the same rule.
+- Output checks moved to a shared function used by both the CLI and the GUI, so the two cannot drift apart.
+
+### Fixed
+- Report tasks were always listed alphabetically; the task order was read before any config was loaded.
+- `check-outputs` without `--session` checked all sessions at once, so a file found in one session was reported as a pass for every session.
+- Subject IDs lost their leading zeros when the check-results CSV was read back (`001` became `1`).
+- A task name missing from `config.yaml` was silently skipped, and later surfaced as a misleading "Circular dependency detected".
+- Job logging failures in the wrapper were never reported, because the warning checked the exit code of `tee` rather than of the logging command.
+- `merge-logs` could overwrite job records from earlier runs, and left partial rows behind when a log file failed to merge.
+- `generate-config` wrote `db_path` under `log/` while everything else expects `database/`, so `merge-logs` could not find a newly generated project's database.
+- Array jobs ran with an empty subject when the array range was wider than the subject list.
+- Submitting more than about 65 subjects at once could abort with a path-length error on Python below 3.13.
+
+### Tests
+- Added regression tests for all of the above, including the first tests that run `wrapper_functions.sh` under bash.
+
+### Docs
+- Documented the `--session` requirement, the new report section, and why a `SUCCESS` status alone does not confirm an analysis succeeded.
+
+---
 ## [0.15.0-alpha] – 2026-07-21
 
 ### Added

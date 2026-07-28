@@ -5,7 +5,11 @@ from datetime import datetime
 from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
-from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, load_checks_config
+from neuro_pipeline.pipeline.utils.output_checker import (
+    OutputChecker,
+    load_checks_config,
+    run_output_checks,
+)
 from ..utils.plot_utils import (
     create_timeline_chart,
     create_status_donut,
@@ -23,17 +27,32 @@ def _auto_detect_subjects(work_dir: str, prefix: str):
     return subjects, None
 
 
+def _parse_sessions(session_input):
+    """Return (sessions, None) on success or (None, Alert) when unusable.
+
+    A blank session used to fall back to "*", which globs every session at
+    once: a required file present in any one of them satisfied the check and
+    the missing sessions were reported as PASS.
+    """
+    sessions = ([s.strip() for s in session_input.split(',') if s.strip()]
+                if session_input and session_input.strip() else [])
+    if not sessions:
+        return None, dbc.Alert(
+            "Please enter a session (e.g. 01, or 01,02). Checking every session at "
+            "once would report a file found in any one session as a pass for all of "
+            "them. Projects without sessions may enter any value.",
+            color="warning",
+        )
+    return sessions, None
+
+
 def _run_checks(checks_path: str, work_dir: str, prefix: str,
-                session_input, task_filter, subjects: list):
-    """Run OutputChecker for one or more sessions; return (sessions, combined_df)."""
-    sessions = [s.strip() for s in session_input.split(',') if s.strip()] if session_input and session_input.strip() else ["*"]
-    all_dfs = []
-    for sess in sessions:
-        checker = OutputChecker(config_path=checks_path, work_dir=work_dir, prefix=prefix, session=sess)
-        task_names = [task_filter.strip()] if task_filter and task_filter.strip() else list(checker._config.keys())
-        all_dfs.append(checker.check_all(task_names, subjects))
-    df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame(
-        columns=["task", "subject", "session", "check_type", "pattern", "expected", "actual", "status"]
+                sessions: list, task_filter, subjects: list):
+    """Thin wrapper over the shared run_output_checks service."""
+    tasks = [task_filter.strip()] if task_filter and task_filter.strip() else None
+    df, _checked, _unconfigured = run_output_checks(
+        config_path=checks_path, work_dir=work_dir, sessions=sessions,
+        subjects=subjects, prefix=prefix, tasks=tasks,
     )
     return sessions, df
 
@@ -388,6 +407,10 @@ def register_job_monitor_callbacks(app):
         if not work_dir:
             return dbc.Alert("Please enter the output data directory.", color="warning")
 
+        sessions, err = _parse_sessions(session)
+        if err:
+            return err
+
         if subjects_raw and subjects_raw.strip():
             subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
             if not subjects:
@@ -405,7 +428,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
 
         try:
-            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", session, task_filter, subjects)
+            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", sessions, task_filter, subjects)
         except Exception as e:
             return dbc.Alert(f"Error running checks: {str(e)}", color="danger")
 
@@ -452,6 +475,10 @@ def register_job_monitor_callbacks(app):
         if not work_dir:
             return dbc.Alert("Please enter the output data directory.", color="warning")
 
+        sessions, err = _parse_sessions(session)
+        if err:
+            return err
+
         if subjects_raw and subjects_raw.strip():
             subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
         else:
@@ -467,7 +494,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
 
         try:
-            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", session, task_filter, subjects)
+            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", sessions, task_filter, subjects)
             csv_path = OutputChecker(
                 config_path=checks_path, work_dir=work_dir,
                 prefix=prefix or "sub-", session=sessions[0],

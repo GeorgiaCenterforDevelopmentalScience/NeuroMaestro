@@ -132,6 +132,13 @@ class OutputChecker:
         self._config = self._load_config(config_path)
 
 
+    def configured_tasks(self) -> List[str]:
+        """Task names that have an entry in the checks YAML."""
+        return list(self._config.keys())
+
+    def has_task(self, task_name: str) -> bool:
+        return task_name in self._config
+
     def warn_missing_configs(self, task_names: List[str]) -> List[str]:
         """
         Print a warning for every task that has no entry in the checks YAML.
@@ -258,6 +265,52 @@ class OutputChecker:
             )
         with open(path, "r", encoding="utf-8") as fh:
             return yaml.safe_load(fh) or {}
+
+def run_output_checks(
+    config_path: str,
+    work_dir: str,
+    sessions: List[str],
+    subjects: List[str],
+    prefix: str = "sub-",
+    tasks: Optional[List[str]] = None,
+) -> Tuple[pd.DataFrame, List[str], List[str]]:
+    """Run output checks for every (task, subject, session) combination.
+
+    Shared by the check-outputs command and the GUI so session handling and
+    task resolution stay identical. Returns
+    (results, checked_tasks, unconfigured_tasks).
+
+    Sessions are checked one at a time on purpose. A wildcard session would
+    glob them all at once, letting a file present in any single session
+    satisfy the check for every session.
+    """
+    if not sessions:
+        raise ValueError("At least one session is required")
+    if not subjects:
+        raise ValueError("At least one subject is required")
+
+    ref = OutputChecker(config_path=config_path, work_dir=work_dir,
+                        prefix=prefix, session=sessions[0])
+
+    requested = list(tasks) if tasks else ref.configured_tasks()
+    checked = [t for t in requested if ref.has_task(t)]
+    unconfigured = [t for t in requested if not ref.has_task(t)]
+
+    frames = []
+    for sess in sessions:
+        checker = OutputChecker(config_path=config_path, work_dir=work_dir,
+                                prefix=prefix, session=sess)
+        frames.append(checker.check_all(checked, subjects))
+
+    if frames:
+        df = pd.concat(frames, ignore_index=True)
+    else:
+        df = pd.DataFrame(columns=[
+            "task", "subject", "session",
+            "check_type", "pattern", "expected", "actual", "status",
+        ])
+    return df, checked, unconfigured
+
 
 # Convenience loader (mirrors load_project_config pattern)
 
