@@ -7,6 +7,8 @@
 - Report section **Reported SUCCESS but Output Check Failed**: lists jobs the database recorded as successful whose output checks failed, so silent failures no longer require eyeballing two matrices.
 - `generate-report --config-dir`: lists report tasks in pipeline order instead of alphabetically.
 - `merge-logs` now reports how many logs it skipped because the job was killed before it could write an end event.
+- `generate-config` and `generate-checks` take `--force`; without it they refuse to overwrite an existing file instead of silently replacing your settings.
+- The GUI wrapper inspector shows which project and session a wrapper came from.
 
 ### Changed
 - `check-outputs --session` is now required. Its value is recorded in every result row, which is what keeps a failure attributable to a session. Projects without sessions may pass any value. The GUI enforces the same rule.
@@ -15,6 +17,7 @@
 
 ### Removed
 - Leftover machinery for the `merge_logs` task, which has not been defined in `config.yaml` since the task-name refactor, plus a few unused parameters and helpers. The `merge-logs` command itself is unaffected.
+- `database.include_project_name` from the generated project config template. It was never read by any code.
 
 ### Fixed
 - Report tasks were always listed alphabetically; the task order was read before any config was loaded.
@@ -28,12 +31,15 @@
 - Submitting more than about 65 subjects at once could abort with a path-length error on Python below 3.13.
 - Config values containing `$` or backticks were expanded or executed on the compute node instead of being passed through as written.
 - The array job pattern was cached on first use, so switching config directory in the GUI kept applying the previous project's setting.
+- Every session in a report showed the same wrapper script, so a session processed with an older container was documented with a newer one. Wrappers are now scoped to their own project and session.
+- A failed run lost the original traceback, which pointed at the re-raise rather than at where it broke.
 
 ### Tests
 - Added regression tests for all of the above, including the first tests that run `wrapper_functions.sh` under bash.
 
 ### Docs
 - Documented the `--session` requirement, the new report section, and why a `SUCCESS` status alone does not confirm an analysis succeeded.
+- Corrected where the database actually lives: `$WORK_DIR` in `database.db_path` expands to `--work` without the project name, so projects sharing a `--work` share one database while their job logs stay separate.
 
 ---
 ## [0.15.0-alpha] – 2026-07-21

@@ -18,6 +18,7 @@ from neuro_pipeline.pipeline.utils.job_db import get_db_connection
 from neuro_pipeline.pipeline.utils.report_generator import (
     compute_task_summary,
     compute_suspicious_jobs,
+    _wrappers_for_session,
     get_report_data,
     ordered_tasks_from_summary,
     generate_report,
@@ -709,3 +710,90 @@ class TestCheckCsvSubjectDtype:
         csv_path = self._write_csv(tmp_path)
         naive = pd.read_csv(csv_path)
         assert set(naive["subject"].astype(str)) == {"1", "10"}
+
+
+# ---------------------------------------------------------------------------
+# Wrapper scripts are scoped to project and session
+# ---------------------------------------------------------------------------
+
+class TestWrapperScopedToProjectAndSession:
+    """Every session used to receive the same globally-latest wrapper, so a
+    session run with an older container was documented with a newer one.
+    wrapper_scripts has no project or session column; both come from the
+    execution the wrapper belongs to.
+    """
+
+    @staticmethod
+    def _make_db(tmp_path):
+        db_path = str(tmp_path / "wrappers.db")
+        conn = get_db_connection(db_path)
+        rows = [(1, "branch", "01"), (2, "branch", "02"), (3, "other", "01")]
+        for eid, proj, sess in rows:
+            conn.execute(
+                "INSERT INTO pipeline_executions "
+                "(execution_id, project_name, session, status, subjects, execution_time) "
+                "VALUES (?, ?, ?, 'COMPLETED', '001', ?)",
+                (eid, proj, sess, f"2026-0{eid}-01 09:00:00"),
+            )
+            conn.execute(
+                "INSERT INTO job_status "
+                "(execution_id, subject, task_name, session, status, start_time) "
+                "VALUES (?, '001', 'recon', ?, 'SUCCESS', ?)",
+                (eid, sess, f"2026-0{eid}-01 10:00:00"),
+            )
+            conn.execute(
+                "INSERT INTO wrapper_scripts "
+                "(execution_id, task_name, submission_time, slurm_cmd) "
+                "VALUES (?, 'recon', ?, ?)",
+                (eid, f"2026-0{eid}-01 09:00:00", f"sbatch {proj}-{sess}"),
+            )
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def test_other_projects_excluded(self, tmp_path):
+        data = get_report_data(self._make_db(tmp_path), "branch", None)
+        cmds = {w["slurm_cmd"] for w in data["wrapper_scripts"]}
+        assert cmds == {"sbatch branch-01", "sbatch branch-02"}
+
+    def test_each_session_gets_its_own_wrapper(self, tmp_path):
+        data = get_report_data(self._make_db(tmp_path), "branch", None)
+        sessions = _build_sessions_data(
+            data["job_status"], [], [], wrapper_scripts=data["wrapper_scripts"]
+        )
+        got = {sd["session"]: [w["slurm_cmd"] for w in sd["wrapper_scripts"]]
+               for sd in sessions}
+        assert got == {"01": ["sbatch branch-01"], "02": ["sbatch branch-02"]}
+
+
+class TestWrappersForSession:
+
+    @staticmethod
+    def _w(task, session, cmd, ts):
+        return {"task_name": task, "session": session,
+                "slurm_cmd": cmd, "submission_time": ts}
+
+    def test_picks_latest_for_that_session(self):
+        rows = [self._w("recon", "01", "old", "1"), self._w("recon", "01", "new", "2")]
+        out = _wrappers_for_session(rows, "01")
+        assert [w["slurm_cmd"] for w in out] == ["new"]
+
+    def test_ignores_other_sessions(self):
+        rows = [self._w("recon", "01", "a", "1"), self._w("recon", "02", "b", "2")]
+        assert [w["slurm_cmd"] for w in _wrappers_for_session(rows, "01")] == ["a"]
+
+    def test_sessionless_row_used_as_fallback(self):
+        rows = [self._w("recon", None, "legacy", "1")]
+        assert [w["slurm_cmd"] for w in _wrappers_for_session(rows, "01")] == ["legacy"]
+
+    def test_session_specific_row_beats_fallback(self):
+        rows = [self._w("recon", None, "legacy", "1"), self._w("recon", "01", "exact", "2")]
+        assert [w["slurm_cmd"] for w in _wrappers_for_session(rows, "01")] == ["exact"]
+
+    def test_tasks_sorted_by_name(self):
+        rows = [self._w("volume", "01", "v", "1"), self._w("recon", "01", "r", "2")]
+        assert [w["task_name"] for w in _wrappers_for_session(rows, "01")] == ["recon", "volume"]
+
+    def test_none_session_keeps_everything(self):
+        rows = [self._w("recon", "01", "a", "1"), self._w("volume", "02", "b", "2")]
+        assert len(_wrappers_for_session(rows, None)) == 2

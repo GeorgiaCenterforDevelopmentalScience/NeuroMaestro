@@ -412,3 +412,57 @@ class TestOutputCheckRequiresSession:
             fn(1, project="myproject", work_dir=str(tmp_path),
                subjects_raw="001", task_filter="", session="", prefix="sub-")
         mock_cls.assert_not_called()
+
+
+class TestWrapperInspectorShowsProvenance:
+    """wrapper_scripts stores no project or session, so the inspector had no
+    way to say which run a wrapper came from. Both are joined in from the
+    execution it belongs to.
+    """
+
+    @staticmethod
+    def _db(tmp_path, with_execution=True):
+        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        db_path = str(tmp_path / "wrap.db")
+        conn = get_db_connection(db_path)
+        if with_execution:
+            conn.execute(
+                "INSERT INTO pipeline_executions "
+                "(execution_id, project_name, session, status, execution_time) "
+                "VALUES (7, 'branch', '02', 'COMPLETED', '2026-07-01 09:00:00')"
+            )
+        conn.execute(
+            "INSERT INTO wrapper_scripts "
+            "(execution_id, task_name, job_id, submission_time, wrapper_path, slurm_cmd) "
+            "VALUES (7, 'recon', '999', '2026-07-01 09:00:00', '/w/x.sh', 'sbatch x')"
+        )
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def test_project_and_session_shown(self, callbacks, tmp_path):
+        fn = callbacks.get("load_wrapper_callback")
+        result = fn(1, db_path=self._db(tmp_path), task_filter="recon", job_id="")
+        text = str(result)
+        assert "Project: branch" in text
+        assert "Session: 02" in text
+
+    def test_unresolvable_execution_still_renders(self, callbacks, tmp_path):
+        # Older logs were written without an execution_id link
+        fn = callbacks.get("load_wrapper_callback")
+        result = fn(1, db_path=self._db(tmp_path, with_execution=False),
+                    task_filter="recon", job_id="")
+        text = str(result)
+        assert "Project: unknown" in text
+        assert "sbatch x" in text
+
+    def test_task_filter_still_applies(self, callbacks, tmp_path):
+        fn = callbacks.get("load_wrapper_callback")
+        result = fn(1, db_path=self._db(tmp_path), task_filter="no_such_task", job_id="")
+        assert isinstance(result, dbc.Alert)
+        assert "No wrapper script found" in str(result.children)
+
+    def test_job_id_filter_still_applies(self, callbacks, tmp_path):
+        fn = callbacks.get("load_wrapper_callback")
+        result = fn(1, db_path=self._db(tmp_path), task_filter="", job_id="999")
+        assert "Job ID: 999" in str(result)

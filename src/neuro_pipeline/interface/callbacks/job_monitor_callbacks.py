@@ -518,15 +518,23 @@ def register_job_monitor_callbacks(app):
 
         try:
             conn = sqlite3.connect(db_path)
-            query = "SELECT * FROM wrapper_scripts WHERE 1=1"
+            # wrapper_scripts carries no project or session of its own; both
+            # come from the execution it belongs to. LEFT JOIN so wrappers
+            # whose execution cannot be resolved are still shown.
+            query = (
+                "SELECT ws.*, pe.project_name, pe.session "
+                "FROM wrapper_scripts ws "
+                "LEFT JOIN pipeline_executions pe ON pe.execution_id = ws.execution_id "
+                "WHERE 1=1"
+            )
             params = []
             if task_filter and task_filter.strip():
-                query += " AND task_name LIKE ?"
+                query += " AND ws.task_name LIKE ?"
                 params.append(f"%{task_filter.strip()}%")
             if job_id and job_id.strip():
-                query += " AND job_id LIKE ?"
+                query += " AND ws.job_id LIKE ?"
                 params.append(f"{job_id.strip()}%")
-            query += " ORDER BY submission_time DESC LIMIT 1"
+            query += " ORDER BY ws.submission_time DESC LIMIT 1"
 
             import pandas as pd
             df = pd.read_sql_query(query, conn, params=params)
@@ -595,10 +603,14 @@ def register_job_monitor_callbacks(app):
                 )
             ], className="mb-2")
 
+            project = row.get("project_name") or "unknown"
+            session = row.get("session") or "unknown"
             meta = dbc.Alert([
                 html.Strong(f"Task: {row.get('task_name', '')}"),
                 f"   |   Job ID: {row.get('job_id', '')}",
                 f"   |   Submitted: {row.get('submission_time', '')}",
+                html.Br(),
+                f"Project: {project}   |   Session: {session}",
                 html.Br(),
                 html.Small(f"Wrapper path: {row.get('wrapper_path', '')}", className="text-muted"),
             ], color="secondary", className="mb-3")

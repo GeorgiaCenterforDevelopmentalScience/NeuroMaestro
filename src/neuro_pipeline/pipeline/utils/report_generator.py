@@ -125,18 +125,20 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
     else:
         all_runs = []
 
+    # wrapper_scripts has neither a project nor a session column, so both come
+    # from the execution it belongs to. LEFT JOIN keeps rows whose execution
+    # cannot be resolved (logs written before execution_id was recorded);
+    # picking the latest per task and session happens in _wrappers_for_session.
     wrapper_sql = """
         SELECT ws.task_name, ws.submission_time, ws.slurm_cmd,
                ws.env_modules, ws.global_python, ws.global_env_vars,
-               ws.execute_cmd
+               ws.execute_cmd, pe.session
         FROM wrapper_scripts ws
-        WHERE ws.submission_time = (
-            SELECT MAX(submission_time) FROM wrapper_scripts
-            WHERE task_name = ws.task_name
-        )
-        ORDER BY ws.task_name
+        LEFT JOIN pipeline_executions pe ON pe.execution_id = ws.execution_id
+        WHERE pe.project_name = ? OR pe.project_name IS NULL
+        ORDER BY ws.submission_time ASC
     """
-    wrapper_scripts = _rows(conn, wrapper_sql)
+    wrapper_scripts = _rows(conn, wrapper_sql, [project_name])
 
     conn.close()
     return {
@@ -201,6 +203,26 @@ def compute_task_summary(job_status: list, all_subjects: list) -> list:
 
 def ordered_tasks_from_summary(summary: list) -> list:
     return [r['task'] for r in summary]
+
+
+def _wrappers_for_session(wrapper_scripts: list, session) -> list:
+    """Latest wrapper per task, restricted to one session.
+
+    Every session used to be shown the same globally-latest wrapper, so a
+    session processed with an older container was documented with a newer
+    one. Rows carrying no session (unresolvable execution) are kept only as a
+    fallback for tasks that have no session-specific entry.
+    """
+    exact, fallback = {}, {}
+    for w in wrapper_scripts:  # ordered oldest first, so later rows win
+        w_session = w.get('session')
+        if w_session is None:
+            fallback[w['task_name']] = w
+        elif session is None or str(w_session) == str(session):
+            exact[w['task_name']] = w
+
+    merged = {**fallback, **exact}
+    return sorted(merged.values(), key=lambda w: w['task_name'])
 
 
 def compute_suspicious_jobs(job_status: list, check_df=None) -> list:
@@ -292,7 +314,7 @@ def _build_sessions_data(
             'all_runs':       sess_runs,
             'check_df':       sess_check_df,
             'suspicious':     compute_suspicious_jobs(sess_jobs, sess_check_df),
-            'wrapper_scripts': wrapper_scripts or [],
+            'wrapper_scripts': _wrappers_for_session(wrapper_scripts or [], sess),
         })
     return sessions_data
 
