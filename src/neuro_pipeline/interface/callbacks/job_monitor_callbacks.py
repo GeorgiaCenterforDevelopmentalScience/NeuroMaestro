@@ -52,8 +52,8 @@ _QUERY_SPECS = {
         "filters": ("session", "status"),
         # One row per pipeline run rather than per job, so far fewer of them
         "view_limit": 50,
-        # update_pipeline_execution writes these, not the job-level values.
-        "status_values": ("COMPLETED", "FAILED"),
+        # Not the job-level values; RUNNING persists when no update was merged.
+        "status_values": ("RUNNING", "COMPLETED", "FAILED"),
     },
     "wrapper_scripts": {
         "table": "wrapper_scripts",
@@ -244,8 +244,7 @@ def register_job_monitor_callbacks(app):
                 style={'fontSize': '12px'}
             )
 
-            # A full page means the LIMIT was reached, so len(df) is not the
-            # number of matching rows and must not be reported as one.
+            # A full page means the LIMIT was hit, so len(df) is not a total.
             view_limit = _QUERY_SPECS[query_type]["view_limit"]
             if len(df) >= view_limit:
                 heading = (f"Showing the {view_limit} most recent records. "
@@ -298,8 +297,7 @@ def register_job_monitor_callbacks(app):
             with closing(sqlite3.connect(db_path)) as conn:
                 df = pd.read_sql_query(query, conn, params=params)
 
-            # A relative db_path has no dirname, which would silently drop the
-            # CSV in the Dash process cwd while reporting a bare filename.
+            # abspath first: a relative db_path has no dirname.
             output_dir = os.path.dirname(os.path.abspath(db_path))
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             csv_path = os.path.join(output_dir, f"{query_type}_{timestamp}.csv")

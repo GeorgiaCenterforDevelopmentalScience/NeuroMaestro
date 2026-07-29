@@ -165,10 +165,28 @@ class TestCreateStatusDonut:
         assert colors["FAILED"] == PLOT_COLORS["FAILED"]
 
     def test_status_outside_the_palette_falls_back_to_grey(self):
-        # CANCELLED is a real job_status value that PLOT_COLORS does not define
         from neuro_pipeline.interface.utils.plot_utils import create_status_donut
-        fig = create_status_donut(pd.DataFrame([{"status": "CANCELLED"}]))
+        fig = create_status_donut(pd.DataFrame([{"status": "NOT_A_REAL_STATUS"}]))
         assert fig.data[0].marker.colors[0] == "#6b7280"
+
+    def test_completed_is_the_same_green_as_success(self):
+        # pipeline_executions records COMPLETED for what job_status calls
+        # SUCCESS; it used to fall through to the grey default
+        from neuro_pipeline.interface.utils.plot_utils import (
+            create_status_donut, PLOT_COLORS,
+        )
+        fig = create_status_donut(pd.DataFrame([{"status": "COMPLETED"}]))
+        assert fig.data[0].marker.colors[0] == PLOT_COLORS["SUCCESS"]
+
+    def test_every_declared_status_has_a_colour(self):
+        """No status the GUI can filter for may render as the unknown grey."""
+        from neuro_pipeline.interface.utils.plot_utils import create_status_donut
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
+
+        for spec in _QUERY_SPECS.values():
+            for value in spec["status_values"]:
+                fig = create_status_donut(pd.DataFrame([{"status": value}]))
+                assert fig.data[0].marker.colors[0] != "#6b7280", value
 
 
 # ---------------------------------------------------------------------------

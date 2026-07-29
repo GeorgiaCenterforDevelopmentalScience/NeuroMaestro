@@ -670,6 +670,12 @@ class TestStatusOptions:
         assert "SUCCESS" not in values
         assert disabled is False
 
+    def test_pipeline_executions_can_filter_for_unfinished_runs(self):
+        # A run killed before its pipeline_update was merged stays RUNNING
+        # forever, which is exactly the row worth finding
+        options, _disabled = self._options("pipeline_executions")
+        assert "RUNNING" in self._values(options)
+
     @pytest.mark.parametrize("query_type", ["command_outputs", "wrapper_scripts"])
     def test_tables_without_a_status_column_disable_the_filter(self, query_type):
         options, disabled = self._options(query_type)
@@ -695,6 +701,31 @@ class TestStatusOptions:
                     conn.execute(sql, params)   # raises if the column is absent
         finally:
             conn.close()
+
+    # Every value the pipeline can write into each status column, traced to its
+    # writer. Maintained by hand because the writers are split across Python
+    # and bash; the test below is what keeps the dropdown from drifting off it.
+    _WRITTEN_BY_THE_PIPELINE = {
+        # merge_logs_create_db inserts RUNNING, then log_end overwrites it with
+        # SUCCESS or FAILED, or CANCELLED from the wrapper's signal trap.
+        "job_status": {"RUNNING", "SUCCESS", "FAILED", "CANCELLED"},
+        # log_pipeline_execution writes RUNNING; core.py then calls
+        # update_pipeline_execution with COMPLETED or FAILED.
+        "pipeline_executions": {"RUNNING", "COMPLETED", "FAILED"},
+        "command_outputs": set(),
+        "wrapper_scripts": set(),
+    }
+
+    def test_no_written_status_is_missing_from_the_dropdown(self):
+        """The inverse of test_every_offered_value_exists_in_the_database.
+
+        A value the table can hold but the dropdown does not offer hides those
+        rows entirely, which is worse than an option that matches nothing.
+        """
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
+        for query_type, expected in self._WRITTEN_BY_THE_PIPELINE.items():
+            offered = set(_QUERY_SPECS[query_type]["status_values"])
+            assert offered == expected, query_type
 
     def test_callback_resets_selection_when_type_changes(self, callbacks):
         fn = callbacks.get("sync_status_options")

@@ -4,8 +4,10 @@ from plotly.subplots import make_subplots
 
 PLOT_COLORS = {
     'SUCCESS': '#10b981',
+    'COMPLETED': '#10b981',   # pipeline_executions' name for SUCCESS
     'FAILED': '#ef4444',
     'RUNNING': '#3b82f6',
+    'CANCELLED': '#f59e0b',
     'PENDING': '#f59e0b',
     'line': '#1f77b4',
     'fill': 'rgba(31, 119, 180, 0.3)',
@@ -302,7 +304,6 @@ def create_exit_code_bar(df):
         return fig
     
     try:
-        # Sort by exit code, not by frequency, so the axis reads in order.
         exit_counts = df['exit_code'].value_counts().sort_index()
         
         colors = [PLOT_COLORS['SUCCESS'] if code == 0 else PLOT_COLORS['FAILED'] 
