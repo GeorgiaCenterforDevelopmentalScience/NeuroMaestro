@@ -111,10 +111,14 @@ def generate_new_config_callback(_n_clicks, project_name):
             "Please provide a project name"
         ], color="warning")
 
+    config_dir, cfg_err = _resolved_config_dir()
+    if cfg_err:
+        return _alert_warn(cfg_err)
+
     try:
         from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
 
-        resolved_dir = str(_effective_config_dir() / "project_config")
+        resolved_dir = str(config_dir / "project_config")
         generate_project_config(project_name, resolved_dir)
         config_file = os.path.join(resolved_dir, f"{project_name}_config.yaml")
 

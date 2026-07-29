@@ -24,6 +24,73 @@ def _get_alert_color(component):
 
 
 # ---------------------------------------------------------------------------
+# _effective_config_dir / _resolved_config_dir
+#
+# Every tab resolves its paths through these. Without a config dir the user
+# must get an actionable message rather than a raw RuntimeError.
+# ---------------------------------------------------------------------------
+
+class TestResolvedConfigDir:
+
+    @staticmethod
+    def _resolve():
+        from neuro_pipeline.interface.callbacks.config_callbacks import _resolved_config_dir
+        return _resolved_config_dir()
+
+    def test_test_seam_takes_precedence_over_the_environment(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CONFIG_DIR", str(tmp_path / "from_env"))
+        with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "from_seam"):
+            path, err = self._resolve()
+        assert err is None
+        assert path == tmp_path / "from_seam"
+
+    def test_environment_is_used_when_the_seam_is_unset(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CONFIG_DIR", str(tmp_path / "from_env"))
+        with patch(f"{_CB_MOD}._CONFIG_DIR", None):
+            path, err = self._resolve()
+        assert err is None
+        assert path == Path(str(tmp_path / "from_env"))
+
+    def test_blank_environment_is_not_treated_as_a_path(self, tmp_path, monkeypatch):
+        # An empty CONFIG_DIR would otherwise resolve to Path(""), i.e. the cwd
+        monkeypatch.setenv("CONFIG_DIR", "")
+        with patch(f"{_CB_MOD}._CONFIG_DIR", None), \
+             patch(f"{_CB_MOD}.get_config_dir", return_value=tmp_path / "fallback"):
+            path, err = self._resolve()
+        assert err is None
+        assert path == tmp_path / "fallback"
+
+    def test_no_config_dir_anywhere_returns_an_actionable_message(self):
+        with patch(f"{_CB_MOD}._effective_config_dir",
+                   side_effect=RuntimeError("Config directory not set.")):
+            path, err = self._resolve()
+        assert path is None
+        assert "Analysis Control" in err
+
+    def test_generate_new_config_warns_instead_of_raising(self):
+        # The regression: this was the one callback that skipped the helper and
+        # surfaced the RuntimeError text through a generic error branch
+        from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
+        with patch(f"{_CB_MOD}._effective_config_dir",
+                   side_effect=RuntimeError("Config directory not set.")):
+            result = generate_new_config_callback(1, "demo")
+
+        assert _get_alert_color(result) == "warning"
+        assert "Analysis Control" in str(result.children)
+
+    def test_loaders_report_the_missing_config_dir(self):
+        from neuro_pipeline.interface.callbacks.config_callbacks import (
+            load_global_config_callback, load_hpc_config_callback,
+        )
+        with patch(f"{_CB_MOD}._effective_config_dir",
+                   side_effect=RuntimeError("Config directory not set.")):
+            for loader in (load_global_config_callback, load_hpc_config_callback):
+                content, alert = loader(1)
+                assert content == ""
+                assert _get_alert_color(alert) == "warning"
+
+
+# ---------------------------------------------------------------------------
 # _save_file / _load_file unit tests
 # ---------------------------------------------------------------------------
 

@@ -6,6 +6,8 @@ Unit tests for the job monitor callbacks:
   - merge_logs_callback
   - run_output_check_callback
   - export_check_csv_callback
+  - execute_sql_query_callback
+  - export_csv_callback
 
 """
 
@@ -361,6 +363,17 @@ class TestExportCheckCsvCallback:
         assert result.color == "danger"
         assert "checks blew up" in str(result.children)
 
+    def test_separator_only_subjects_returns_warning(self, callbacks, tmp_path):
+        # run_output_check_callback already guarded this; the export path did not
+        fn = callbacks.get("export_check_csv_callback")
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker") as mock_cls:
+            result = fn(1, project="myproject", work_dir=str(tmp_path),
+                        subjects_raw=" , ", task_filter="", session="01", prefix="sub-")
+
+        assert isinstance(result, dbc.Alert)
+        assert result.color == "warning"
+        mock_cls.assert_not_called()
+
     def test_exception_while_writing_csv_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("export_check_csv_callback")
         fake_df = pd.DataFrame([{"task": "t", "subject": "001", "status": "PASS"}])
@@ -689,3 +702,216 @@ class TestStatusOptions:
         assert value == "all"
         assert "COMPLETED" in [o["value"] for o in options]
         assert disabled is False
+
+
+# ---------------------------------------------------------------------------
+# execute_sql_query_callback
+#
+# The view applied the per-type LIMIT and then sliced to 50 again, so
+# view_limit had no effect and the heading reported the truncated row count as
+# the number of matching records.
+# ---------------------------------------------------------------------------
+
+def _find_components(component, type_name, found=None):
+    """Depth-first search by component class name, whatever happens to wrap it."""
+    if found is None:
+        found = []
+    if type(component).__name__ == type_name:
+        found.append(component)
+    children = getattr(component, "children", None)
+    if children is not None:
+        if not isinstance(children, (list, tuple)):
+            children = [children]
+        for child in children:
+            _find_components(child, type_name, found)
+    return found
+
+
+def _find_tbody(component):
+    matches = _find_components(component, "Tbody")
+    return matches[0] if matches else None
+
+
+class TestExecuteSqlQueryPaging:
+
+    @staticmethod
+    def _db(tmp_path, n_rows):
+        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        db_path = str(tmp_path / "paging.db")
+        conn = get_db_connection(db_path)
+        conn.executemany(
+            "INSERT INTO job_status "
+            "(execution_id, subject, task_name, session, start_time, status, duration_hours) "
+            "VALUES (1, ?, 'recon', '01', ?, 'SUCCESS', 1.0)",
+            [(f"{i:03d}", f"2026-07-{(i % 28) + 1:02d} 09:00:00") for i in range(n_rows)],
+        )
+        conn.commit()
+        conn.close()
+        return db_path
+
+    @staticmethod
+    def _view_limit(query_type):
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
+        return _QUERY_SPECS[query_type]["view_limit"]
+
+    @staticmethod
+    def _run(callbacks, db_path, query_type="job_status"):
+        fn = callbacks.get("execute_sql_query_callback")
+        return fn(1, db_path, query_type, None, None, None, "all", None, None, None)
+
+    def test_view_renders_up_to_the_per_type_limit(self, callbacks, tmp_path):
+        # The regression: a second .head(50) capped this well below view_limit
+        limit = self._view_limit("job_status")
+        results, _charts = self._run(callbacks, self._db(tmp_path, limit + 20))
+        assert len(_find_tbody(results).children) == limit
+
+    def test_full_page_does_not_claim_a_record_count(self, callbacks, tmp_path):
+        limit = self._view_limit("job_status")
+        results, _charts = self._run(callbacks, self._db(tmp_path, limit + 20))
+        heading = results.children[0].children
+        assert "records found" not in heading
+        assert str(limit) in heading
+
+    def test_partial_page_reports_the_real_count(self, callbacks, tmp_path):
+        results, _charts = self._run(callbacks, self._db(tmp_path, 7))
+        assert len(_find_tbody(results).children) == 7
+        assert "7 records found" in results.children[0].children
+
+    def test_no_rows_returns_secondary_alert(self, callbacks, tmp_path):
+        results, charts = self._run(callbacks, self._db(tmp_path, 0))
+        assert isinstance(results, dbc.Alert)
+        assert results.color == "secondary"
+        assert charts == ""
+
+    def test_missing_database_returns_danger(self, callbacks, tmp_path):
+        results, _charts = self._run(callbacks, str(tmp_path / "nope.db"))
+        assert isinstance(results, dbc.Alert)
+        assert results.color == "danger"
+
+    def test_unknown_query_type_returns_warning(self, callbacks, tmp_path):
+        results, _charts = self._run(callbacks, self._db(tmp_path, 1), query_type="bogus")
+        assert isinstance(results, dbc.Alert)
+        assert results.color == "warning"
+
+
+# ---------------------------------------------------------------------------
+# export_csv_callback
+# ---------------------------------------------------------------------------
+
+class TestExportCsvDestination:
+
+    @staticmethod
+    def _db(tmp_path):
+        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        db_path = tmp_path / "pipeline_jobs.db"
+        conn = get_db_connection(str(db_path))
+        conn.execute("INSERT INTO job_status "
+                     "(execution_id, subject, task_name, session, start_time, status) "
+                     "VALUES (1,'001','recon','01','2026-07-28 09:00:00','SUCCESS')")
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def test_csv_lands_next_to_the_database(self, callbacks, tmp_path):
+        fn = callbacks.get("export_csv_callback")
+        db_path = self._db(tmp_path)
+        result = fn(1, str(db_path), "job_status", None, None, None, "all", None)
+
+        assert result.color == "success"
+        assert list(tmp_path.glob("job_status_*.csv"))
+
+    def test_relative_db_path_reports_an_absolute_destination(self, callbacks, tmp_path, monkeypatch):
+        # The regression: dirname("pipeline_jobs.db") is "", so the file was
+        # written to the process cwd but reported as a bare filename.
+        fn = callbacks.get("export_csv_callback")
+        self._db(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        result = fn(1, "pipeline_jobs.db", "job_status", None, None, None, "all", None)
+
+        assert result.color == "success"
+        reported = str(result.children).rsplit(" to ", 1)[-1]
+        assert os.path.isabs(reported)
+        assert os.path.exists(reported)
+
+    def test_export_is_not_truncated_by_the_view_limit(self, callbacks, tmp_path):
+        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        db_path = tmp_path / "big.db"
+        conn = get_db_connection(str(db_path))
+        conn.executemany(
+            "INSERT INTO job_status "
+            "(execution_id, subject, task_name, session, start_time, status) "
+            "VALUES (1, ?, 'recon', '01', '2026-07-28 09:00:00', 'SUCCESS')",
+            [(f"{i:03d}",) for i in range(150)],
+        )
+        conn.commit()
+        conn.close()
+
+        fn = callbacks.get("export_csv_callback")
+        result = fn(1, str(db_path), "job_status", None, None, None, "all", None)
+
+        assert "150 records" in str(result.children)
+
+
+# ---------------------------------------------------------------------------
+# create_query_charts
+#
+# Which charts appear is driven by the query type and by which columns the
+# table happens to carry.
+# ---------------------------------------------------------------------------
+
+class TestCreateQueryCharts:
+
+    @staticmethod
+    def _charts(df, query_type):
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import create_query_charts
+        return create_query_charts(df, query_type)
+
+    @pytest.fixture
+    def job_status_df(self):
+        return pd.DataFrame([
+            {"start_time": "2026-07-01 09:00:00", "task_name": "recon",
+             "duration_hours": 2.0, "status": "SUCCESS"},
+            {"start_time": "2026-07-08 09:00:00", "task_name": "recon",
+             "duration_hours": 4.0, "status": "FAILED"},
+        ])
+
+    def test_job_status_renders_timeline_radar_and_donut(self, job_status_df):
+        graphs = _find_components(self._charts(job_status_df, "job_status"), "Graph")
+        assert len(graphs) == 3
+
+    def test_radar_is_dropped_when_duration_is_absent(self, job_status_df):
+        df = job_status_df.drop(columns=["duration_hours"])
+        graphs = _find_components(self._charts(df, "job_status"), "Graph")
+        assert len(graphs) == 2
+
+    def test_pipeline_executions_timeline_reads_its_own_time_column(self):
+        # The table stores execution_time; create_timeline_chart only knows
+        # start_time, so the column has to be renamed on the way in
+        df = pd.DataFrame([
+            {"execution_time": "2026-07-01 09:00:00", "status": "COMPLETED"},
+            {"execution_time": "2026-07-08 09:00:00", "status": "FAILED"},
+        ])
+        graphs = _find_components(self._charts(df, "pipeline_executions"), "Graph")
+        timeline = graphs[1].figure
+        texts = [a.text for a in timeline.layout.annotations]
+        assert "No timestamp data available" not in texts
+        assert sum(timeline.data[0].y) == 2
+
+    def test_command_outputs_renders_the_exit_code_bar(self):
+        df = pd.DataFrame([{"exit_code": 0}, {"exit_code": 1}])
+        graphs = _find_components(self._charts(df, "command_outputs"), "Graph")
+        assert len(graphs) == 1
+        assert graphs[0].figure.data[0].type == "bar"
+
+    def test_wrapper_scripts_has_no_charts(self):
+        df = pd.DataFrame([{"task_name": "recon", "wrapper_path": "/w/x.sh"}])
+        assert self._charts(df, "wrapper_scripts") == ""
+
+    def test_unknown_query_type_has_no_charts(self):
+        assert self._charts(pd.DataFrame([{"a": 1}]), "bogus") == ""
+
+    def test_a_failing_chart_is_reported_inline_not_raised(self, job_status_df):
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.create_status_donut",
+                   side_effect=RuntimeError("plotly blew up")):
+            result = self._charts(job_status_df, "pipeline_executions")
+        assert "plotly blew up" in str(result)

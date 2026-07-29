@@ -2,6 +2,8 @@
 test_analysis_callbacks.py
 
 Unit tests for the analysis control callbacks:
+  - apply_config_dir
+  - init_study
   - detect_subjects_callback
   - generate_command_callback
   - execute_pipeline_callback
@@ -14,6 +16,7 @@ unchecked once a command had been generated, and a missing session reaching
 the command line as the string "None".
 """
 
+import os
 import subprocess
 import pytest
 from unittest.mock import patch, MagicMock
@@ -56,6 +59,119 @@ def _ctx(component_id, prop="n_clicks"):
     ctx = MagicMock()
     ctx.triggered = [{"prop_id": f"{component_id}.{prop}", "value": 1}]
     return ctx
+
+
+# ---------------------------------------------------------------------------
+# apply_config_dir
+#
+# Every checklist on the page is populated from here, and neuropipe run is
+# launched as a subprocess that reads CONFIG_DIR from the environment.
+# ---------------------------------------------------------------------------
+
+_CFG_MOD = "neuro_pipeline.pipeline.utils.config_utils"
+
+
+class TestApplyConfigDir:
+
+    @staticmethod
+    def _run(callbacks, config_dir, monkeypatch, **overrides):
+        # setenv (not delenv) so pytest restores whatever the callback writes
+        monkeypatch.setenv("CONFIG_DIR", "")
+        targets = {
+            "set_config_dir": MagicMock(),
+            "get_intermed_task_names": MagicMock(return_value=["smooth"]),
+            "get_bids_pipeline_names": MagicMock(return_value=["rest"]),
+            "get_staged_pipeline_names": MagicMock(return_value=["dwi"]),
+        }
+        targets.update(overrides)
+        with patch.multiple(_CFG_MOD, **targets):
+            return callbacks.get("apply_config_dir")(1, config_dir)
+
+    def test_blank_dir_warns_and_clears_every_checklist(self, callbacks):
+        status, *option_lists = callbacks.get("apply_config_dir")(1, "")
+        assert status.color == "warning"
+        assert option_lists == [[], [], [], [], []]
+
+    def test_success_publishes_options_for_each_checklist(self, callbacks, monkeypatch, tmp_path):
+        status, intermed, bids_prep, bids_post, staged_prep, staged_post = self._run(
+            callbacks, str(tmp_path), monkeypatch)
+
+        assert status.color == "success"
+        assert [o["value"] for o in intermed] == ["smooth"]
+        # prep and post share one option list per pipeline family
+        assert bids_prep == bids_post == [{"label": "Rest", "value": "rest"}]
+        assert staged_prep == staged_post == [{"label": "Dwi", "value": "dwi"}]
+
+    def test_success_exports_config_dir_for_the_subprocess(self, callbacks, monkeypatch, tmp_path):
+        self._run(callbacks, str(tmp_path), monkeypatch)
+        assert os.environ["CONFIG_DIR"] == str(tmp_path)
+
+    def test_missing_config_file_points_at_init(self, callbacks, monkeypatch, tmp_path):
+        status, *option_lists = self._run(
+            callbacks, str(tmp_path), monkeypatch,
+            set_config_dir=MagicMock(side_effect=FileNotFoundError("config.yaml")),
+        )
+        assert status.color == "warning"
+        assert "Run Init first" in str(status.children)
+        assert option_lists == [[], [], [], [], []]
+
+    def test_unexpected_error_returns_danger_and_clears_options(self, callbacks, monkeypatch, tmp_path):
+        status, *option_lists = self._run(
+            callbacks, str(tmp_path), monkeypatch,
+            set_config_dir=MagicMock(side_effect=ValueError("bad yaml")),
+        )
+        assert status.color == "danger"
+        assert "bad yaml" in str(status.children)
+        assert option_lists == [[], [], [], [], []]
+
+    def test_failure_does_not_export_config_dir(self, callbacks, monkeypatch, tmp_path):
+        # A half-applied config dir would send the subprocess somewhere the GUI
+        # never managed to load
+        self._run(callbacks, str(tmp_path), monkeypatch,
+                  set_config_dir=MagicMock(side_effect=ValueError("bad yaml")))
+        assert os.environ["CONFIG_DIR"] == ""
+
+
+# ---------------------------------------------------------------------------
+# init_study
+# ---------------------------------------------------------------------------
+
+_INIT_FN = "neuro_pipeline.pipeline.utils.init_utils.init_project_templates"
+
+
+class TestInitStudy:
+
+    def test_blank_dir_warns(self, callbacks):
+        result = callbacks.get("init_study")(1, "")
+        assert result.color == "warning"
+
+    def test_nothing_copied_warns(self, callbacks, tmp_path):
+        with patch(_INIT_FN, return_value=[]):
+            result = callbacks.get("init_study")(1, str(tmp_path))
+        assert result.color == "warning"
+
+    def test_scripts_are_reported_beside_the_config_dir(self, callbacks, tmp_path):
+        # init_project_templates writes scripts/ next to config/, not inside it
+        config_dir = tmp_path / "study" / "config"
+        with patch(_INIT_FN, return_value=["config.yaml", "scripts/"]):
+            result = callbacks.get("init_study")(1, str(config_dir))
+
+        assert result.color == "success"
+        assert str(config_dir.parent / "scripts") in str(result.children)
+
+    def test_missing_script_templates_is_flagged(self, callbacks, tmp_path):
+        with patch(_INIT_FN, return_value=["config.yaml"]):
+            result = callbacks.get("init_study")(1, str(tmp_path))
+
+        assert result.color == "success"
+        assert "script templates not found" in str(result.children)
+
+    def test_exception_returns_danger(self, callbacks, tmp_path):
+        with patch(_INIT_FN, side_effect=PermissionError("read-only")):
+            result = callbacks.get("init_study")(1, str(tmp_path))
+
+        assert result.color == "danger"
+        assert "read-only" in str(result.children)
 
 
 def _no_ctx():

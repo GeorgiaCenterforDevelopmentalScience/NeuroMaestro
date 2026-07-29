@@ -302,7 +302,8 @@ def create_exit_code_bar(df):
         return fig
     
     try:
-        exit_counts = df['exit_code'].value_counts().sort_values(ascending=True)
+        # Sort by exit code, not by frequency, so the axis reads in order.
+        exit_counts = df['exit_code'].value_counts().sort_index()
         
         colors = [PLOT_COLORS['SUCCESS'] if code == 0 else PLOT_COLORS['FAILED'] 
                   for code in exit_counts.index]

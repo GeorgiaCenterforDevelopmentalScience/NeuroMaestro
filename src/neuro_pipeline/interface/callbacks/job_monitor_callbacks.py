@@ -236,16 +236,25 @@ def register_job_monitor_callbacks(app):
                 return dbc.Alert("No data found matching the criteria", color="secondary"), ""
             
             table = dbc.Table.from_dataframe(
-                df.head(50), 
-                striped=True, 
-                bordered=True, 
+                df,
+                striped=True,
+                bordered=True,
                 hover=True,
                 size='sm',
                 style={'fontSize': '12px'}
             )
-            
+
+            # A full page means the LIMIT was reached, so len(df) is not the
+            # number of matching rows and must not be reported as one.
+            view_limit = _QUERY_SPECS[query_type]["view_limit"]
+            if len(df) >= view_limit:
+                heading = (f"Showing the {view_limit} most recent records. "
+                           "More may match; narrow the filters or use Export CSV.")
+            else:
+                heading = f"Query Results ({len(df)} records found)"
+
             results = html.Div([
-                html.H6(f"Query Results ({len(df)} records found, showing first 50)"),
+                html.H6(heading),
                 html.Div(table, style={'overflowX': 'auto', 'maxHeight': '400px', 'overflowY': 'auto'})
             ])
             
@@ -289,7 +298,9 @@ def register_job_monitor_callbacks(app):
             with closing(sqlite3.connect(db_path)) as conn:
                 df = pd.read_sql_query(query, conn, params=params)
 
-            output_dir = os.path.dirname(db_path)
+            # A relative db_path has no dirname, which would silently drop the
+            # CSV in the Dash process cwd while reporting a bare filename.
+            output_dir = os.path.dirname(os.path.abspath(db_path))
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             csv_path = os.path.join(output_dir, f"{query_type}_{timestamp}.csv")
             df.to_csv(csv_path, index=False)
@@ -476,6 +487,8 @@ def register_job_monitor_callbacks(app):
 
         if subjects_raw and subjects_raw.strip():
             subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+            if not subjects:
+                return dbc.Alert("No valid subjects found in the subject list.", color="warning")
         else:
             subjects, err = _auto_detect_subjects(work_dir, prefix or "sub-")
             if err:
