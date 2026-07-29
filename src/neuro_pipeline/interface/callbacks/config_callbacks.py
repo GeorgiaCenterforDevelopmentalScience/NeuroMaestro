@@ -18,6 +18,18 @@ def _effective_config_dir() -> Path:
     return get_config_dir()
 
 
+_NO_CONFIG_DIR = ("No config directory set. Enter one under Analysis Control "
+                  "and click Apply first.")
+
+
+def _resolved_config_dir():
+    """Returns (path, None) or (None, message) when no config dir is available."""
+    try:
+        return _effective_config_dir(), None
+    except RuntimeError:
+        return None, _NO_CONFIG_DIR
+
+
 from dash import html, Input, Output, State, callback_context
 import dash_bootstrap_components as dbc
 
@@ -135,6 +147,9 @@ def load_config_callback(n_clicks, project_name):
         return ""
     if not project_name:
         return "# Please provide a project name."
+    config_dir, err = _resolved_config_dir()
+    if err:
+        return f"# {err}"
     content, err = _load_file(str(_project_config_path(project_name)))
     if err:
         return f"# {err}"
@@ -152,6 +167,9 @@ def save_config_callback(_save_clicks, _validate_clicks, project_name, yaml_cont
             return _alert_ok("Valid YAML")
         if not project_name:
             return _alert_warn("Please provide a project name.")
+        _config_dir, cfg_err = _resolved_config_dir()
+        if cfg_err:
+            return _alert_warn(cfg_err)
         return _save_file(str(_project_config_path(project_name)), yaml_content)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
@@ -178,6 +196,10 @@ def load_checks_callback(load_clicks, new_clicks, project_name):
 
     if not project_name:
         return "", dbc.Alert("Please provide a project name.", color="warning")
+
+    _config_dir, cfg_err = _resolved_config_dir()
+    if cfg_err:
+        return "", dbc.Alert(cfg_err, color="warning")
 
     resolved = _checks_path(project_name)
     if not resolved.exists():
@@ -209,6 +231,9 @@ def save_checks_callback(save_clicks, validate_clicks, project_name, yaml_conten
             return _alert_ok(f"Valid YAML · {len(parsed)} task(s) defined: {', '.join(parsed.keys())}")
         if not project_name:
             return _alert_warn("Please provide a project name.")
+        _config_dir, cfg_err = _resolved_config_dir()
+        if cfg_err:
+            return _alert_warn(cfg_err)
         return _save_file(str(_checks_path(project_name)), yaml_content)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
@@ -219,7 +244,10 @@ def save_checks_callback(save_clicks, validate_clicks, project_name, yaml_conten
 def load_global_config_callback(n_clicks):
     if not n_clicks:
         return "", ""
-    config_path = _effective_config_dir() / "config.yaml"
+    config_dir, cfg_err = _resolved_config_dir()
+    if cfg_err:
+        return "", _alert_warn(cfg_err)
+    config_path = config_dir / "config.yaml"
     content, err = _load_file(str(config_path))
     if err:
         return "", _alert_err(err)
@@ -241,8 +269,10 @@ def save_global_config_callback(save_clicks, validate_clicks, yaml_content):
             task_count = sum(len(v) for v in parsed.values() if isinstance(v, list))
             section_count = sum(1 for v in parsed.values() if isinstance(v, list))
             return _alert_ok(f"Valid YAML · {task_count} task(s) across {section_count} section(s)")
-        config_path = _effective_config_dir() / "config.yaml"
-        return _save_file(str(config_path), yaml_content, restart_note=True)
+        config_dir, cfg_err = _resolved_config_dir()
+        if cfg_err:
+            return _alert_warn(cfg_err)
+        return _save_file(str(config_dir / "config.yaml"), yaml_content, restart_note=True)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
 
@@ -252,7 +282,10 @@ def save_global_config_callback(save_clicks, validate_clicks, yaml_content):
 def load_hpc_config_callback(n_clicks):
     if not n_clicks:
         return "", ""
-    config_path = _effective_config_dir() / "hpc_config.yaml"
+    config_dir, cfg_err = _resolved_config_dir()
+    if cfg_err:
+        return "", _alert_warn(cfg_err)
+    config_path = config_dir / "hpc_config.yaml"
     content, err = _load_file(str(config_path))
     if err:
         return "", _alert_err(err)
@@ -271,10 +304,12 @@ def save_hpc_config_callback(_save_clicks, _validate_clicks, yaml_content):
             missing = expected - (set(parsed.keys()) if isinstance(parsed, dict) else set())
             if missing:
                 return _alert_warn(f"Valid YAML but missing expected keys: {', '.join(sorted(missing))}")
-            profile_count = len(parsed.get("resource_profiles", {}))
+            profile_count = len(parsed.get("resource_profiles") or {})
             return _alert_ok(f"Valid YAML · {profile_count} resource profile(s)")
-        config_path = _effective_config_dir() / "hpc_config.yaml"
-        return _save_file(str(config_path), yaml_content, restart_note=True)
+        config_dir, cfg_err = _resolved_config_dir()
+        if cfg_err:
+            return _alert_warn(cfg_err)
+        return _save_file(str(config_dir / "hpc_config.yaml"), yaml_content, restart_note=True)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
 

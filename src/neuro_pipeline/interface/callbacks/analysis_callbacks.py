@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from dash import html, Input, Output, State, callback_context
+from dash import html, no_update, Input, Output, State, callback_context
 import dash_bootstrap_components as dbc
 
 
@@ -105,6 +105,7 @@ def register_analysis_callbacks(app):
             return "", "", [], ""
 
         trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        prefix = prefix or ""
 
         if trigger_id == "clear-subjects-btn":
             return "", "", [], ""
@@ -136,12 +137,14 @@ def register_analysis_callbacks(app):
             except Exception as e:
                 return dbc.Alert(f"Error parsing subjects: {str(e)}", color="danger"), "", [], manual_input
 
+        # A successful detection clears the manual field so that only one source
+        # of subjects is ever visible. Failures leave whatever the user typed.
         if trigger_id == "detect-subjects-btn":
             if detect_clicks is None:
-                return "", "", [], ""
+                return "", "", [], no_update
 
             if not directory:
-                return dbc.Alert("Please provide a directory", color="warning"), "", [], ""
+                return dbc.Alert("Please provide a directory", color="warning"), "", [], no_update
 
             try:
                 from ...pipeline.utils.detect_subjects import detect_subjects
@@ -150,7 +153,7 @@ def register_analysis_callbacks(app):
 
                 if not subjects:
                     result = dbc.Alert(f"No subjects found with prefix '{prefix}' in {directory}", color="warning")
-                    return result, "", [], ""
+                    return result, "", [], no_update
 
                 result = dbc.Alert([
                     html.I(className="fas fa-check-circle me-2"),
@@ -168,9 +171,12 @@ def register_analysis_callbacks(app):
                 return dbc.Alert([
                     html.I(className="fas fa-exclamation-triangle me-2"),
                     error_msg
-                ], color="danger"), "", [], ""
+                ], color="danger"), "", [], no_update
 
-        return "", "", [], ""
+        # Reached when clearing the manual field re-fires this callback, which
+        # happens right after a detection writes "" to it. Holding everything
+        # would otherwise discard the detection result that just landed.
+        return no_update, no_update, no_update, no_update
 
     # Generate command preview callback
     @app.callback(
@@ -206,8 +212,8 @@ def register_analysis_callbacks(app):
         if not subjects:
             return "Error: No subjects selected. Please detect subjects first.", {}
 
-        if not all([input_dir, output_dir, work_dir, project_name]):
-            return "Error: Please fill in all required fields (input, output, work directories, project name)", {}
+        if not all([input_dir, output_dir, work_dir, project_name, session]):
+            return "Error: Please fill in all required fields (input, output, work directories, project name, session)", {}
 
         try:
             cmd_parts = []
@@ -315,9 +321,13 @@ def register_analysis_callbacks(app):
                 "No command available. Please generate command first."
             ], color="warning")
 
-        try:
-            is_dry_run = "dry_run" in (dry_run or [])
+        if not command_data.get("session"):
+            return dbc.Alert([
+                html.I(className="fas fa-exclamation-triangle me-2"),
+                "Session is missing from the generated command. Fill in Session ID and generate again."
+            ], color="warning")
 
+        try:
             cmd = ["neuropipe", "run"]
 
             if command_data.get("config_dir"):
@@ -352,17 +362,15 @@ def register_analysis_callbacks(app):
             if command_data.get("mriqc_option") and command_data["mriqc_option"] != "none":
                 cmd.extend(["--mriqc", command_data["mriqc_option"]])
 
-            if is_dry_run:
+            # Flags come from the live checkboxes only. ORing them with the
+            # values stored at generate time made an unchecked box impossible.
+            if "dry_run" in (dry_run or []):
                 cmd.append("--dry-run")
-
-            is_resume = "resume" in (resume or []) or "resume" in (command_data.get("resume") or [])
-            if is_resume:
+            if "resume" in (resume or []):
                 cmd.append("--resume")
-
-            if "skip_preflight" in (skip_preflight or []) or "skip_preflight" in (command_data.get("skip_preflight") or []):
+            if "skip_preflight" in (skip_preflight or []):
                 cmd.append("--skip-preflight")
-
-            if "skip_bids_validation" in (skip_bids_validation or []) or "skip_bids_validation" in (command_data.get("skip_bids_validation") or []):
+            if "skip_bids_validation" in (skip_bids_validation or []):
                 cmd.append("--skip-bids-validation")
 
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -380,6 +388,11 @@ def register_analysis_callbacks(app):
                     f"Pipeline execution failed: {result.stderr}"
                 ], color="danger")
 
+        except FileNotFoundError:
+            return dbc.Alert([
+                html.I(className="fas fa-exclamation-triangle me-2"),
+                "neuropipe command not found. Make sure the package is installed in the active environment.",
+            ], color="danger")
         except Exception as e:
             return dbc.Alert([
                 html.I(className="fas fa-exclamation-triangle me-2"),
@@ -454,12 +467,10 @@ def register_analysis_callbacks(app):
         [Output("sidebar", "className"),
          Output("main-content", "className")],
         [Input("sidebar-toggle", "n_clicks")],
-        [State("sidebar", "className")]
+        [State("sidebar", "className")],
+        prevent_initial_call=True
     )
     def toggle_sidebar(n_clicks, sidebar_class):
-        if n_clicks is None:
-            return sidebar_class, "main-content"
-
         if "collapsed" in sidebar_class:
             new_class = sidebar_class.replace("collapsed", "").strip()
             main_class = "main-content"

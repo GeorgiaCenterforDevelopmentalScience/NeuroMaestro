@@ -81,11 +81,6 @@ def create_main_layout():
             html.I(className="fas fa-bars")
         ], id="sidebar-toggle", className="sidebar-toggle", n_clicks=0),
 
-        # Theme toggle button
-        html.Button([
-            html.I(className="fas fa-palette")
-        ], id="theme-toggle", className="theme-toggle", n_clicks=0),
-
         # Sidebar
         html.Div([
             create_sidebar()

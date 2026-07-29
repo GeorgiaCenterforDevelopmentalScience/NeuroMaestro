@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
@@ -16,6 +17,12 @@ from ..utils.plot_utils import (
     create_duration_radar,
     create_exit_code_bar
 )
+
+def _end_of_day(date_str):
+    """Timestamps are stored as 'YYYY-MM-DD HH:MM:SS', so a bare end date would
+    exclude everything recorded on that day."""
+    return f"{date_str} 23:59:59" if date_str and len(date_str) == 10 else date_str
+
 
 def _auto_detect_subjects(work_dir: str, prefix: str):
     """Return (subjects, None) on success or (None, Alert) on failure."""
@@ -96,24 +103,22 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Database file not found: {db_path}", color="danger"), ""
         
         try:
-            conn = sqlite3.connect(db_path)
-            
             if query_type == "job_status":
                 query = "SELECT * FROM job_status WHERE 1=1"
                 params = []
-                
+
                 if subject:
                     query += " AND subject LIKE ?"
                     params.append(f"%{subject}%")
-                
+
                 if session:
                     query += " AND session LIKE ?"
                     params.append(f"%{session}%")
-                
+
                 if task:
                     query += " AND task_name LIKE ?"
                     params.append(f"%{task}%")
-                
+
                 if status and status != "all":
                     query += " AND status = ?"
                     params.append(status)
@@ -128,7 +133,7 @@ def register_job_monitor_callbacks(app):
 
                 if end_date:
                     query += " AND start_time <= ?"
-                    params.append(end_date)
+                    params.append(_end_of_day(end_date))
 
                 query += " ORDER BY start_time DESC LIMIT 100"
                 
@@ -150,7 +155,7 @@ def register_job_monitor_callbacks(app):
                 
                 if end_date:
                     query += " AND execution_time <= ?"
-                    params.append(end_date)
+                    params.append(_end_of_day(end_date))
                 
                 query += " ORDER BY execution_time DESC LIMIT 100"
                 
@@ -168,7 +173,7 @@ def register_job_monitor_callbacks(app):
                 
                 if end_date:
                     query += " AND execution_time <= ?"
-                    params.append(end_date)
+                    params.append(_end_of_day(end_date))
                 
                 if status and status != "all":
                     query += " AND status = ?"
@@ -190,16 +195,16 @@ def register_job_monitor_callbacks(app):
 
                 if end_date:
                     query += " AND submission_time <= ?"
-                    params.append(end_date)
+                    params.append(_end_of_day(end_date))
 
                 query += " ORDER BY submission_time DESC LIMIT 100"
 
             else:
                 return dbc.Alert("Invalid query type", color="warning"), ""
-            
-            df = pd.read_sql_query(query, conn, params=params)
-            conn.close()
-            
+
+            with closing(sqlite3.connect(db_path)) as conn:
+                df = pd.read_sql_query(query, conn, params=params)
+
             if df.empty:
                 return dbc.Alert("No data found matching the criteria", color="secondary"), ""
             
@@ -245,24 +250,22 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert("Database file not found", color="danger")
         
         try:
-            conn = sqlite3.connect(db_path)
-            
             if query_type == "job_status":
                 query = "SELECT * FROM job_status WHERE 1=1"
                 params = []
-                
+
                 if subject:
                     query += " AND subject LIKE ?"
                     params.append(f"%{subject}%")
-                
+
                 if session:
                     query += " AND session LIKE ?"
                     params.append(f"%{session}%")
-                
+
                 if task:
                     query += " AND task_name LIKE ?"
                     params.append(f"%{task}%")
-                
+
                 if status and status != "all":
                     query += " AND status = ?"
                     params.append(status)
@@ -274,26 +277,45 @@ def register_job_monitor_callbacks(app):
             elif query_type == "command_outputs":
                 query = "SELECT * FROM command_outputs WHERE 1=1"
                 params = []
-                
+
                 if subject:
                     query += " AND subject LIKE ?"
                     params.append(f"%{subject}%")
-                
+
                 if task:
                     query += " AND task_name LIKE ?"
                     params.append(f"%{task}%")
-                
-            else:
+
+            elif query_type == "wrapper_scripts":
+                query = "SELECT * FROM wrapper_scripts WHERE 1=1"
+                params = []
+
+                if task:
+                    query += " AND task_name LIKE ?"
+                    params.append(f"%{task}%")
+
+                if execution_id and execution_id.strip():
+                    query += " AND execution_id = ?"
+                    params.append(execution_id.strip())
+
+            elif query_type == "pipeline_executions":
                 query = "SELECT * FROM pipeline_executions WHERE 1=1"
                 params = []
-                
+
                 if session:
                     query += " AND session LIKE ?"
                     params.append(f"%{session}%")
-            
-            df = pd.read_sql_query(query, conn, params=params)
-            conn.close()
-            
+
+                if status and status != "all":
+                    query += " AND status = ?"
+                    params.append(status)
+
+            else:
+                return dbc.Alert("Invalid query type", color="warning")
+
+            with closing(sqlite3.connect(db_path)) as conn:
+                df = pd.read_sql_query(query, conn, params=params)
+
             output_dir = os.path.dirname(db_path)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             csv_path = os.path.join(output_dir, f"{query_type}_{timestamp}.csv")
@@ -517,7 +539,6 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Database file not found: {db_path}", color="danger")
 
         try:
-            conn = sqlite3.connect(db_path)
             # wrapper_scripts carries no project or session of its own; both
             # come from the execution it belongs to. LEFT JOIN so wrappers
             # whose execution cannot be resolved are still shown.
@@ -536,9 +557,8 @@ def register_job_monitor_callbacks(app):
                 params.append(f"{job_id.strip()}%")
             query += " ORDER BY ws.submission_time DESC LIMIT 1"
 
-            import pandas as pd
-            df = pd.read_sql_query(query, conn, params=params)
-            conn.close()
+            with closing(sqlite3.connect(db_path)) as conn:
+                df = pd.read_sql_query(query, conn, params=params)
 
             if df.empty:
                 return dbc.Alert("No wrapper script found matching the filters.", color="secondary")
