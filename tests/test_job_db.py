@@ -2,10 +2,9 @@
 test_job_db.py
 
 Tests for pipeline/utils/job_db.py:
-  - calculate_duration_hours: pure function, normal / edge / invalid inputs
   - get_db_connection: all tables and indexes created
   - log_job_start: JSONL file created with correct content
-  - log_job_end: appends to file by job_id; falls back to mtime when id unmatched
+  - log_job_end: resolves its own log by job_id and subject, raises when absent
   - log_pipeline_execution: returns execution_id; serialises subjects correctly
   - update_pipeline_execution: appends update record; silent when file missing
   - log_command_output: truncates stdout/stderr to last 50 lines
@@ -13,12 +12,13 @@ Tests for pipeline/utils/job_db.py:
 """
 
 import json
+import os
 import sqlite3
 import pytest
+import typer
 from pathlib import Path
 
 from neuro_pipeline.pipeline.utils.job_db import (
-    calculate_duration_hours,
     get_db_connection,
     log_job_start,
     log_job_end,
@@ -28,31 +28,6 @@ from neuro_pipeline.pipeline.utils.job_db import (
     query_pipeline_executions,
     query_jobs,
 )
-
-
-# ---------------------------------------------------------------------------
-# calculate_duration_hours
-# ---------------------------------------------------------------------------
-
-class TestCalculateDurationHours:
-
-    def test_whole_hours(self):
-        assert calculate_duration_hours("2024-01-01T10:00:00", "2024-01-01T12:00:00") == 2.0
-
-    def test_fractional_hours(self):
-        assert calculate_duration_hours("2024-01-01T10:00:00", "2024-01-01T10:30:00") == 0.5
-
-    def test_same_start_and_end(self):
-        assert calculate_duration_hours("2024-01-01T10:00:00", "2024-01-01T10:00:00") == 0.0
-
-    def test_invalid_start_returns_none(self):
-        assert calculate_duration_hours("not-a-date", "2024-01-01T10:00:00") is None
-
-    def test_none_start_returns_none(self):
-        assert calculate_duration_hours(None, "2024-01-01T10:00:00") is None
-
-    def test_none_end_returns_none(self):
-        assert calculate_duration_hours("2024-01-01T10:00:00", None) is None
 
 
 # ---------------------------------------------------------------------------
@@ -140,23 +115,56 @@ class TestLogJobEnd:
         assert end_record["event"] == "end"
         assert end_record["status"] == "COMPLETED"
 
-    def test_fallback_to_mtime_when_job_id_unmatched(self, tmp_path):
+    def test_unmatched_job_id_raises_instead_of_guessing(self, tmp_path):
+        # The regression: it fell back to the most recently written file in the
+        # directory, which belongs to whichever array task logged last
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
         json_dir = tmp_path / "db" / "json" / "recon"
         json_dir.mkdir(parents=True)
-        existing = json_dir / "unknown_000000.jsonl"
-        existing.write_text(json.dumps({"event": "start"}) + "\n")
+        other = json_dir / "unknown_000000.jsonl"
+        other.write_text(json.dumps(
+            {"event": "start", "subject": "002", "session": "01"}) + "\n")
 
-        log_job_end("001", "recon", "FAILED", job_id="nonexistent_id", db_path=db_path)
-        lines = existing.read_text().strip().splitlines()
-        assert len(lines) == 2
-        assert json.loads(lines[1])["event"] == "end"
-        assert json.loads(lines[1])["status"] == "FAILED"
+        with pytest.raises(typer.Exit):
+            log_job_end("001", "recon", "FAILED", session="01",
+                        job_id="nonexistent_id", db_path=db_path)
 
-    def test_missing_json_dir_returns_silently(self, tmp_path):
+        assert len(other.read_text().strip().splitlines()) == 1
+
+    def test_subject_disambiguates_when_there_is_no_job_id(self, tmp_path):
+        # Outside SLURM every task of one name writes unknown_*.jsonl
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
-        # No json dir created — should not raise
-        log_job_end("001", "recon", "COMPLETED", db_path=db_path)
+        json_dir = tmp_path / "db" / "json" / "recon"
+        json_dir.mkdir(parents=True)
+
+        mine = json_dir / "unknown_100.jsonl"
+        mine.write_text(json.dumps(
+            {"event": "start", "subject": "001", "session": "01"}) + "\n")
+        newer = json_dir / "unknown_200.jsonl"
+        newer.write_text(json.dumps(
+            {"event": "start", "subject": "002", "session": "01"}) + "\n")
+        os.utime(newer, (2_000_000_000, 2_000_000_000))
+
+        log_job_end("001", "recon", "SUCCESS", session="01", job_id="",
+                    db_path=db_path)
+
+        assert len(mine.read_text().strip().splitlines()) == 2
+        assert len(newer.read_text().strip().splitlines()) == 1
+
+    def test_session_is_part_of_the_identity(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_job_start("001", "recon", session="01", job_id="900", db_path=db_path)
+
+        with pytest.raises(typer.Exit):
+            log_job_end("001", "recon", "SUCCESS", session="02", job_id="900",
+                        db_path=db_path)
+
+    def test_missing_json_dir_raises(self, tmp_path):
+        # Returning 0 here meant warn_if_failed in the wrapper never fired, so
+        # a job absent from the database left no trace in its own log
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        with pytest.raises(typer.Exit):
+            log_job_end("001", "recon", "COMPLETED", db_path=db_path)
 
 
 # ---------------------------------------------------------------------------
@@ -311,10 +319,27 @@ class TestLogCommandOutput:
         record = self._read_command_record(tmp_path)
         assert len(record["stderr"].split("\n")) == 50
 
-    def test_missing_json_dir_returns_silently(self, tmp_path):
+    def test_missing_json_dir_raises(self, tmp_path):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
-        # No prior log_job_start — json dir absent, should not raise
-        log_command_output("001", "recon", "script.sh", "cmd", db_path=db_path)
+        with pytest.raises(typer.Exit):
+            log_command_output("001", "recon", "script.sh", "cmd", db_path=db_path)
+
+    def test_output_goes_to_its_own_subject(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        json_dir = tmp_path / "db" / "json" / "recon"
+        json_dir.mkdir(parents=True)
+
+        mine = json_dir / "unknown_100.jsonl"
+        mine.write_text(json.dumps({"event": "start", "subject": "001"}) + "\n")
+        newer = json_dir / "unknown_200.jsonl"
+        newer.write_text(json.dumps({"event": "start", "subject": "002"}) + "\n")
+        os.utime(newer, (2_000_000_000, 2_000_000_000))
+
+        log_command_output("001", "recon", "script.sh", "cmd",
+                           stdout="hello", job_id="", db_path=db_path)
+
+        assert len(mine.read_text().strip().splitlines()) == 2
+        assert len(newer.read_text().strip().splitlines()) == 1
 
 
 # ---------------------------------------------------------------------------

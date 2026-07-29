@@ -119,16 +119,6 @@ def get_db_connection(db_path: str):
 
     return conn
 
-def calculate_duration_hours(start_time_str: str, end_time_str: str) -> Optional[float]:
-    """Calculate task duration in hours"""
-    try:
-        start_time = datetime.fromisoformat(start_time_str)
-        end_time = datetime.fromisoformat(end_time_str)
-        duration_seconds = (end_time - start_time).total_seconds()
-        return round(duration_seconds / 3600, 3)
-    except (ValueError, TypeError):
-        return None
-
 @app.command("init_db")
 def init_db(db_path: str = "pipeline_jobs.db"):
     """Initialize database"""
@@ -170,6 +160,35 @@ def log_wrapper_script(
             os.fsync(f.fileno())
     except Exception as e:
         typer.echo(f"Warning: could not write wrapper JSONL: {e}", err=True)
+
+def _find_job_log(json_dir: str, job_id: Optional[str], subject: str,
+                  session: Optional[str]) -> Optional[str]:
+    """Locate the JSONL that log_job_start wrote for this job.
+
+    Array tasks of one task_name all write into the same directory, so the
+    file has to be identified by subject rather than by taking the most
+    recently written one.
+    """
+    # Same expression log_job_start builds the filename from.
+    candidates = sorted(Path(json_dir).glob(f"{job_id or 'unknown'}_*.jsonl"),
+                        key=os.path.getmtime, reverse=True)
+    for path in candidates:
+        try:
+            with open(path) as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    record = json.loads(line)
+                    if record.get("event") != "start":
+                        break
+                    if (record.get("subject") == subject
+                            and record.get("session") == session):
+                        return str(path)
+                    break
+        except (OSError, ValueError):
+            continue
+    return None
+
 
 @app.command("log_start")
 @app.command("log_job_start")
@@ -229,31 +248,20 @@ def log_job_end(
     db_path: str = "pipeline_jobs.db"
 ):
     """Log job end to JSON file"""
+    # Resolved outside the try: typer.Exit subclasses RuntimeError, so raising
+    # it inside would be swallowed by the handler below.
+    json_dir = os.path.join(os.path.dirname(db_path), "json", task_name)
+    json_file = _find_job_log(json_dir, job_id, subject, session)
+    if json_file is None:
+        typer.echo(
+            f"Error: no start log for {subject}/{task_name} "
+            f"(job {job_id or 'unknown'}) under {json_dir}. "
+            "This job will be absent from the database.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     try:
-        # Locate JSON directory
-        db_dir = os.path.dirname(db_path)
-        json_dir = os.path.join(db_dir, "json", task_name)
-        
-        if not os.path.exists(json_dir):
-            typer.echo(f"Warning: JSON dir not found: {json_dir}", err=True)
-            return
-        
-        # Find JSON file by job_id
-        json_file = None
-        if job_id:
-            matches = list(Path(json_dir).glob(f"{job_id}_*.jsonl"))
-            if matches:
-                json_file = str(matches[0])
-        
-        # Fallback to mtime-based search if job_id not provided or not found
-        if not json_file:
-            json_files = sorted(Path(json_dir).glob("*.jsonl"), 
-                              key=os.path.getmtime, reverse=True)
-            if not json_files:
-                typer.echo(f"Warning: No JSON files found for task: {task_name}", err=True)
-                return
-            json_file = str(json_files[0])
-        
         # Calculate duration
         duration_hours = None
         if duration_seconds is not None:
@@ -463,28 +471,17 @@ def log_command_output(
     db_path: str = "pipeline_jobs.db"
 ):
     """Log command output to JSON file"""
+    json_dir = os.path.join(os.path.dirname(db_path), "json", task_name)
+    json_file = _find_job_log(json_dir, job_id, subject, session)
+    if json_file is None:
+        typer.echo(
+            f"Error: no start log for {subject}/{task_name} "
+            f"(job {job_id or 'unknown'}) under {json_dir}",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     try:
-        db_dir = os.path.dirname(db_path)
-        json_dir = os.path.join(db_dir, "json", task_name)
-        
-        if not os.path.exists(json_dir):
-            return
-        
-        # Find JSON file by job_id
-        json_file = None
-        if job_id:
-            matches = list(Path(json_dir).glob(f"{job_id}_*.jsonl"))
-            if matches:
-                json_file = str(matches[0])
-        
-        # Fallback to mtime-based search
-        if not json_file:
-            json_files = sorted(Path(json_dir).glob("*.jsonl"), 
-                              key=os.path.getmtime, reverse=True)
-            if not json_files:
-                return
-            json_file = str(json_files[0])
-        
         # Truncate stdout and stderr to last 50 lines
         if stdout:
             lines = stdout.split('\n')

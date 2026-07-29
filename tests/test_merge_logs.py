@@ -864,5 +864,144 @@ class TestJobStatusRowTargeting:
         assert Path(log_file).exists()
 
 
+def create_job_log_without_job_id(json_dir, subject, task_name):
+    """A start event written before the wrapper could resolve a SLURM id."""
+    task_dir = Path(json_dir) / task_name
+    task_dir.mkdir(exist_ok=True)
+    log_file = task_dir / f"{subject}_{task_name}_nojobid.jsonl"
+    with open(log_file, 'w') as f:
+        for record in [
+            {"event": "start", "timestamp": datetime.now().isoformat(),
+             "subject": subject, "task_name": task_name, "session": "01",
+             "job_id": None, "log_path": f"/path/{subject}.log", "node_name": "node001"},
+            {"event": "end", "timestamp": datetime.now().isoformat(),
+             "subject": subject, "task_name": task_name, "session": "01",
+             "status": "SUCCESS", "exit_code": 0, "duration_hours": 0.5},
+        ]:
+            f.write(json.dumps(record) + '\n')
+    return str(log_file)
+
+
+class TestJobIdFilter:
+    """job_id.startswith(...) raised AttributeError on a null id, and the broad
+    except reported it as if the file were unreadable.
+    """
+
+    def test_null_job_id_is_skipped_without_an_error(self, temp_workspace, mock_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        create_job_log_without_job_id(json_dir, "sub001", "task1")
+        merge_json_to_db(json_dir, mock_db, job_ids=["12345"])
+        assert "Error:" not in capsys.readouterr().out
+
+    def test_null_job_id_matches_no_filter(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_job_log_without_job_id(json_dir, "sub001", "task1")
+        merge_json_to_db(json_dir, mock_db, job_ids=["12345"])
+
+        conn = sqlite3.connect(mock_db)
+        count = conn.execute("SELECT COUNT(*) FROM job_status").fetchone()[0]
+        conn.close()
+        assert count == 0
+
+    def test_matching_log_still_merges_alongside_it(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_job_log_without_job_id(json_dir, "sub001", "task1")
+        create_mock_json_log(json_dir, "sub002", "task1", "12345")
+        merge_json_to_db(json_dir, mock_db, job_ids=["12345"])
+
+        conn = sqlite3.connect(mock_db)
+        subjects = [r[0] for r in conn.execute("SELECT subject FROM job_status")]
+        conn.close()
+        assert subjects == ["sub002"]
+
+    def test_null_job_id_merges_when_no_filter_is_given(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_job_log_without_job_id(json_dir, "sub001", "task1")
+        merge_json_to_db(json_dir, mock_db)
+
+        conn = sqlite3.connect(mock_db)
+        count = conn.execute("SELECT COUNT(*) FROM job_status").fetchone()[0]
+        conn.close()
+        assert count == 1
+
+
+class TestPipelineScanIsScopedToExecutionLogs:
+    """_pipeline/ holds both execution_*.jsonl and the much larger
+    wrapper_*.jsonl; _merge_pipeline used to open and parse both.
+    """
+
+    def test_wrapper_logs_are_not_touched_by_the_pipeline_pass(self, temp_workspace, full_db):
+        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+        json_dir = temp_workspace['json_dir']
+        wrapper_log = create_wrapper_log(json_dir)
+
+        conn = sqlite3.connect(full_db)
+        count = mod._merge_pipeline(Path(json_dir) / "_pipeline", conn, archive=True)
+        conn.close()
+
+        assert count == 0
+        assert Path(wrapper_log).exists()
+
+    def test_a_corrupt_wrapper_log_is_reported_once_not_twice(self, temp_workspace, full_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        pipeline_dir = Path(json_dir) / "_pipeline"
+        pipeline_dir.mkdir(exist_ok=True)
+        (pipeline_dir / "wrapper_task1_99999.jsonl").write_text("{not json\n")
+
+        merge_json_to_db(json_dir, full_db)
+
+        assert capsys.readouterr().out.count("wrapper_task1_99999.jsonl") == 1
+
+    def test_execution_logs_still_merge_after_scoping(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        create_pipeline_log(json_dir, execution_id=2001)
+        create_wrapper_log(json_dir)
+        merge_json_to_db(json_dir, full_db)
+
+        conn = sqlite3.connect(full_db)
+        executions = conn.execute(
+            "SELECT COUNT(*) FROM pipeline_executions WHERE execution_id=2001"
+        ).fetchone()[0]
+        wrappers = conn.execute("SELECT COUNT(*) FROM wrapper_scripts").fetchone()[0]
+        conn.close()
+        assert executions == 1
+        assert wrappers == 1
+
+
+class TestArchiveFailureIsVisible:
+    """A merged log that cannot be moved aside gets merged again next run, and
+    the message used to be indistinguishable from a parse error.
+    """
+
+    def _merge_with_broken_move(self, json_dir, db_path):
+        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+        with patch.object(mod.shutil, "move", side_effect=OSError("read-only")):
+            return merge_json_to_db(json_dir, db_path)
+
+    def test_message_points_at_force_rebuild(self, temp_workspace, mock_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+        self._merge_with_broken_move(json_dir, mock_db)
+
+        out = capsys.readouterr().out
+        assert "could not archive" in out
+        assert "force-rebuild" in out
+
+    def test_rows_are_still_committed(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+        self._merge_with_broken_move(json_dir, mock_db)
+
+        conn = sqlite3.connect(mock_db)
+        rows = conn.execute("SELECT COUNT(*) FROM job_status").fetchone()[0]
+        conn.close()
+        assert rows == 1
+
+    def test_merged_count_is_not_under_reported(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+        assert self._merge_with_broken_move(json_dir, mock_db) == 1
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '-s'])

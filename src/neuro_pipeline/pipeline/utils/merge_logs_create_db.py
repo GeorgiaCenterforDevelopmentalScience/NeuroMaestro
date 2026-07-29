@@ -43,6 +43,20 @@ def merge_json_to_db(json_base_dir: str, db_path: str, job_ids: list = None):
     return merged_count
 
 
+def _archive(json_file, task_dir) -> None:
+    """Move a merged log aside. Failing here leaves it to be merged twice."""
+    try:
+        archived = task_dir / "archived"
+        archived.mkdir(exist_ok=True)
+        shutil.move(str(json_file), str(archived / json_file.name))
+    except Exception as e:
+        print(
+            f"Merged but could not archive {json_file}: {e}\n"
+            "  Running merge-logs again would insert these rows a second time. "
+            "Use force-rebuild to rebuild the database from the logs instead."
+        )
+
+
 def _count_incomplete(task_dir) -> int:
     """Count logs with a start event but no end event.
 
@@ -90,7 +104,9 @@ def _merge_pipeline(task_dir, conn, job_ids=None, archive=True):
         int: Number of pipeline logs merged
     """
     count = 0
-    for json_file in task_dir.glob("*.jsonl"):
+    # Named by log_pipeline_execution. _pipeline/ also holds the much larger
+    # wrapper_*.jsonl files, which _merge_wrappers handles.
+    for json_file in task_dir.glob("execution_*.jsonl"):
         try:
             records = {}
             with open(json_file) as f:
@@ -118,9 +134,7 @@ def _merge_pipeline(task_dir, conn, job_ids=None, archive=True):
                 conn.commit()
 
                 if archive:
-                    archived = task_dir / "archived"
-                    archived.mkdir(exist_ok=True)
-                    shutil.move(str(json_file), str(archived / json_file.name))
+                    _archive(json_file, task_dir)
                 count += 1
         except Exception as e:
             conn.rollback()
@@ -160,7 +174,7 @@ def _merge_jobs(task_dir, conn, job_ids=None, archive=True):
             if job_ids is not None:
                 # Support both exact match and prefix match (for array jobs)
                 # e.g., job_id='41693293_1' matches filter='41693293'
-                matched = any(
+                matched = bool(job_id) and any(
                     job_id == fid or job_id.startswith(fid + '_')
                     for fid in job_ids
                 )
@@ -205,9 +219,7 @@ def _merge_jobs(task_dir, conn, job_ids=None, archive=True):
             conn.commit()
 
             if archive:
-                archived = task_dir / "archived"
-                archived.mkdir(exist_ok=True)
-                shutil.move(str(json_file), str(archived / json_file.name))
+                _archive(json_file, task_dir)
             count += 1
         except Exception as e:
             conn.rollback()
@@ -257,9 +269,7 @@ def _merge_wrappers(task_dir, conn, archive=True):
             conn.commit()
 
             if archive:
-                archived = task_dir / "archived"
-                archived.mkdir(exist_ok=True)
-                shutil.move(str(json_file), str(archived / json_file.name))
+                _archive(json_file, task_dir)
             count += 1
         except Exception as e:
             conn.rollback()
