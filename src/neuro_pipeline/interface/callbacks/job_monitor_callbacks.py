@@ -32,18 +32,28 @@ _QUERY_SPECS = {
         "columns": "*",
         "time_column": "start_time",
         "filters": ("subject", "session", "task", "status", "execution_id"),
+        "view_limit": 100,
+        # Written by wrapper_functions.sh (SUCCESS/FAILED/CANCELLED) and
+        # log_job_start (RUNNING).
+        "status_values": ("RUNNING", "SUCCESS", "FAILED", "CANCELLED"),
     },
     "command_outputs": {
         "table": "command_outputs",
         "columns": "*",
         "time_column": "execution_time",
         "filters": ("subject", "task"),
+        "view_limit": 100,
+        "status_values": (),
     },
     "pipeline_executions": {
         "table": "pipeline_executions",
         "columns": "*",
         "time_column": "execution_time",
         "filters": ("session", "status"),
+        # One row per pipeline run rather than per job, so far fewer of them
+        "view_limit": 50,
+        # update_pipeline_execution writes these, not the job-level values.
+        "status_values": ("COMPLETED", "FAILED"),
     },
     "wrapper_scripts": {
         "table": "wrapper_scripts",
@@ -51,8 +61,24 @@ _QUERY_SPECS = {
         "columns": "id, execution_id, task_name, job_id, submission_time, wrapper_path",
         "time_column": "submission_time",
         "filters": ("task", "execution_id"),
+        "view_limit": 100,
+        "status_values": (),
     },
 }
+
+
+def status_options_for(query_type):
+    """Returns (options, disabled) for the status dropdown.
+
+    Each table records its own vocabulary: job_status uses SUCCESS while
+    pipeline_executions uses COMPLETED, so a single fixed option list silently
+    matched nothing for one of them.
+    """
+    spec = _QUERY_SPECS.get(query_type)
+    values = spec["status_values"] if spec else ()
+    options = [{"label": "All", "value": "all"}]
+    options += [{"label": v.capitalize(), "value": v} for v in values]
+    return options, not values
 
 _FILTER_SQL = {
     "subject":      ("subject LIKE ?",      lambda v: f"%{v}%"),
@@ -65,8 +91,12 @@ _FILTER_SQL = {
 
 def _build_query(query_type, *, subject=None, session=None, task=None, status=None,
                  execution_id=None, start_date=None, end_date=None,
-                 limit=None, columns=None):
-    """Returns (sql, params), or (None, None) for an unknown query type."""
+                 paged=False, columns=None):
+    """Returns (sql, params), or (None, None) for an unknown query type.
+
+    paged applies the per-type view limit; exports pass paged=False to get
+    every matching row.
+    """
     spec = _QUERY_SPECS.get(query_type)
     if spec is None:
         return None, None
@@ -96,8 +126,8 @@ def _build_query(query_type, *, subject=None, session=None, task=None, status=No
         params.append(_end_of_day(end_date))
 
     sql += f" ORDER BY {time_col} DESC"
-    if limit:
-        sql += f" LIMIT {int(limit)}"
+    if paged:
+        sql += f" LIMIT {int(spec['view_limit'])}"
     return sql, params
 
 
@@ -157,7 +187,18 @@ def _render_check_table(df: pd.DataFrame):
 
 
 def register_job_monitor_callbacks(app):
-    
+
+    @app.callback(
+        [Output("status-filter", "options"),
+         Output("status-filter", "value"),
+         Output("status-filter", "disabled")],
+        Input("query-type", "value"),
+    )
+    def sync_status_options(query_type):
+        options, disabled = status_options_for(query_type)
+        return options, "all", disabled
+
+
     @app.callback(
         [Output("sql-query-results", "children"),
          Output("sql-query-charts", "children")],
@@ -180,11 +221,10 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Database file not found: {db_path}", color="danger"), ""
         
         try:
-            limit = 50 if query_type == "pipeline_executions" else 100
             query, params = _build_query(
                 query_type, subject=subject, session=session, task=task,
                 status=status, execution_id=execution_id,
-                start_date=start_date, end_date=end_date, limit=limit,
+                start_date=start_date, end_date=end_date, paged=True,
             )
             if query is None:
                 return dbc.Alert("Invalid query type", color="warning"), ""

@@ -554,7 +554,7 @@ class TestBuildQuery:
         "job_status", "command_outputs", "pipeline_executions", "wrapper_scripts",
     ])
     def test_every_type_produces_runnable_sql(self, db, query_type):
-        sql, params = self._build(query_type, limit=100)
+        sql, params = self._build(query_type, paged=True)
         assert len(db.execute(sql, params).fetchall()) == 1
 
     @pytest.mark.parametrize("query_type", [
@@ -563,7 +563,7 @@ class TestBuildQuery:
     def test_end_date_includes_records_on_that_day(self, db, query_type):
         # The regression: '<= 2026-07-28' dropped a row stamped 09:00 that day
         sql, params = self._build(query_type, start_date="2026-07-28",
-                                  end_date="2026-07-28", limit=100)
+                                  end_date="2026-07-28", paged=True)
         assert len(db.execute(sql, params).fetchall()) == 1
 
     def test_export_of_wrapper_scripts_hits_the_right_table(self):
@@ -578,48 +578,114 @@ class TestBuildQuery:
         assert "full_content" in cols
 
     def test_table_view_omits_full_content(self, db):
-        sql, params = self._build("wrapper_scripts", limit=100)
+        sql, params = self._build("wrapper_scripts", paged=True)
         cols = [d[0] for d in db.execute(sql, params).description]
         assert "full_content" not in cols
 
     def test_status_all_is_not_a_filter(self):
-        _sql, params = self._build("job_status", status="all", limit=100)
+        _sql, params = self._build("job_status", status="all", paged=True)
         assert params == []
 
     def test_blank_filters_are_ignored(self):
         _sql, params = self._build("job_status", subject="", session=None,
-                                   task="   ", execution_id="", limit=100)
+                                   task="   ", execution_id="", paged=True)
         assert params == []
 
     def test_non_matching_filter_returns_no_rows(self, db):
-        sql, params = self._build("job_status", subject="zzz", limit=100)
+        sql, params = self._build("job_status", subject="zzz", paged=True)
         assert db.execute(sql, params).fetchall() == []
 
     def test_execution_id_is_exact_not_fuzzy(self, db):
-        sql, params = self._build("job_status", execution_id="1", limit=100)
+        sql, params = self._build("job_status", execution_id="1", paged=True)
         assert "execution_id = ?" in sql
         assert len(db.execute(sql, params).fetchall()) == 1
 
     def test_subject_filter_is_fuzzy(self):
-        sql, params = self._build("job_status", subject="01", limit=100)
+        sql, params = self._build("job_status", subject="01", paged=True)
         assert "subject LIKE ?" in sql
         assert params == ["%01%"]
 
-    def test_limit_omitted_when_not_requested(self):
+    def test_export_is_not_limited(self):
         sql, _ = self._build("job_status")
         assert "LIMIT" not in sql
 
-    def test_limit_applied_when_requested(self):
-        sql, _ = self._build("job_status", limit=50)
-        assert sql.endswith("LIMIT 50")
+    def test_view_applies_the_per_type_limit(self):
+        for query_type, spec in self._specs().items():
+            sql, _ = self._build(query_type, paged=True)
+            assert sql.endswith(f"LIMIT {spec['view_limit']}")
 
     def test_filters_only_apply_where_the_column_exists(self, db):
         # command_outputs has no session column; passing one must not break it
-        sql, params = self._build("command_outputs", session="01", limit=100)
+        sql, params = self._build("command_outputs", session="01", paged=True)
         assert "session" not in sql
         assert len(db.execute(sql, params).fetchall()) == 1
 
     def test_every_spec_orders_by_its_own_time_column(self):
         for query_type, spec in self._specs().items():
-            sql, _ = self._build(query_type, limit=10)
+            sql, _ = self._build(query_type, paged=True)
             assert f"ORDER BY {spec['time_column']} DESC" in sql
+
+
+# ---------------------------------------------------------------------------
+# status_options_for
+#
+# Each table records its own status vocabulary. A single fixed dropdown meant
+# "Success" never matched a pipeline_executions row (which stores COMPLETED),
+# and the filter stayed clickable for tables that have no status column.
+# ---------------------------------------------------------------------------
+
+class TestStatusOptions:
+
+    @staticmethod
+    def _options(query_type):
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import status_options_for
+        return status_options_for(query_type)
+
+    @staticmethod
+    def _values(options):
+        return [o["value"] for o in options]
+
+    def test_job_status_offers_the_job_level_vocabulary(self):
+        options, disabled = self._options("job_status")
+        assert self._values(options) == ["all", "RUNNING", "SUCCESS", "FAILED", "CANCELLED"]
+        assert disabled is False
+
+    def test_pipeline_executions_offers_completed_not_success(self):
+        options, disabled = self._options("pipeline_executions")
+        values = self._values(options)
+        assert "COMPLETED" in values
+        assert "SUCCESS" not in values
+        assert disabled is False
+
+    @pytest.mark.parametrize("query_type", ["command_outputs", "wrapper_scripts"])
+    def test_tables_without_a_status_column_disable_the_filter(self, query_type):
+        options, disabled = self._options(query_type)
+        assert self._values(options) == ["all"]
+        assert disabled is True
+
+    def test_unknown_query_type_falls_back_to_all(self):
+        options, disabled = self._options("bogus")
+        assert self._values(options) == ["all"]
+        assert disabled is True
+
+    def test_every_offered_value_exists_in_the_database(self, tmp_path):
+        """The regression itself: an option the table can never contain."""
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import (
+            _build_query, _QUERY_SPECS,
+        )
+        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        conn = get_db_connection(str(tmp_path / "s.db"))
+        try:
+            for query_type, spec in _QUERY_SPECS.items():
+                for value in spec["status_values"]:
+                    sql, params = _build_query(query_type, status=value)
+                    conn.execute(sql, params)   # raises if the column is absent
+        finally:
+            conn.close()
+
+    def test_callback_resets_selection_when_type_changes(self, callbacks):
+        fn = callbacks.get("sync_status_options")
+        options, value, disabled = fn("pipeline_executions")
+        assert value == "all"
+        assert "COMPLETED" in [o["value"] for o in options]
+        assert disabled is False

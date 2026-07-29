@@ -23,6 +23,8 @@ def create_job_monitor_layout():
                             type="text",
                             placeholder="/data/work/my_study",
                             value=os.getcwd(),
+                            persistence=True,
+                            persistence_type="session",
                         )
                     ], width=5),
                     dbc.Col([
@@ -32,6 +34,8 @@ def create_job_monitor_layout():
                             type="text",
                             placeholder="e.g. {work_dir}/database/pipeline_jobs.db",
                             value=os.path.join(os.getcwd(), "database", "pipeline_jobs.db"),
+                            persistence=True,
+                            persistence_type="session",
                         )
                     ], width=7),
                 ])
@@ -108,7 +112,9 @@ def create_job_monitor_layout():
                                     dbc.Input(
                                         id="wrapper-task-filter",
                                         type="text",
-                                        placeholder="e.g., rest_preprocess (leave empty for latest)"
+                                        placeholder="e.g., rest_preprocess (leave empty for latest)",
+                                        persistence=True,
+                                        persistence_type="session",
                                     )
                                 ], width=6),
                                 dbc.Col([
@@ -116,7 +122,9 @@ def create_job_monitor_layout():
                                     dbc.Input(
                                         id="wrapper-job-id",
                                         type="text",
-                                        placeholder="e.g., 12345 (leave empty for latest)"
+                                        placeholder="e.g., 12345 (leave empty for latest)",
+                                        persistence=True,
+                                        persistence_type="session",
                                     )
                                 ], width=4),
                                 dbc.Col([
@@ -165,35 +173,44 @@ def create_job_monitor_layout():
                                 dbc.Col([
                                     dbc.Label("Subject:", html_for="subject-filter"),
                                     dbc.Input(id="subject-filter", type="text",
-                                              placeholder="e.g., 001", className="mb-3")
+                                              placeholder="e.g., 001", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=3),
                                 dbc.Col([
                                     dbc.Label("Session:", html_for="session-filter"),
                                     dbc.Input(id="session-filter", type="text",
-                                              placeholder="e.g., 01", className="mb-3")
+                                              placeholder="e.g., 01", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=2),
                                 dbc.Col([
                                     dbc.Label("Task:", html_for="task-filter"),
                                     dbc.Input(id="task-filter", type="text",
-                                              placeholder="e.g., unzip", className="mb-3")
+                                              placeholder="e.g., unzip", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=2),
                                 dbc.Col([
                                     dbc.Label("Execution ID:", html_for="execution-id-filter"),
                                     dbc.Input(id="execution-id-filter", type="text",
-                                              placeholder="e.g., 3", className="mb-3"),
+                                              placeholder="e.g., 3", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              ),
                                     html.Small("Pipeline run ID — filter by this to isolate one run when a task was submitted multiple times.",
                                                className="text-muted")
                                 ], width=2),
                                 dbc.Col([
                                     dbc.Label("Status:", html_for="status-filter"),
+                                    # Options are swapped per query type: each
+                                    # table records a different vocabulary.
                                     dcc.Dropdown(
                                         id="status-filter",
-                                        options=[
-                                            {"label": "All",       "value": "all"},
-                                            {"label": "Success",   "value": "SUCCESS"},
-                                            {"label": "Failed",    "value": "FAILED"},
-                                            {"label": "Cancelled", "value": "CANCELLED"},
-                                        ],
+                                        options=[{"label": "All", "value": "all"}],
                                         value="all",
                                         className="mb-3"
                                     )
@@ -238,7 +255,10 @@ def create_job_monitor_layout():
                                     dbc.Label("Output Data Directory:", html_for="check-output-dir"),
                                     dbc.Input(id="check-output-dir", type="text",
                                               placeholder="/data/processed/my_study",
-                                              value=os.getcwd(), className="mb-1"),
+                                              value=os.getcwd(), className="mb-1",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              ),
                                     html.Small([
                                         "The folder that directly contains ",
                                         html.Code("BIDS/"),
@@ -254,27 +274,42 @@ def create_job_monitor_layout():
                                 dbc.Col([
                                     dbc.Label("Project Name:", html_for="check-project-name"),
                                     dbc.Input(id="check-project-name", type="text",
-                                              placeholder="e.g., branch", className="mb-3")
+                                              placeholder="e.g., branch", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=3),
                                 dbc.Col([
                                     dbc.Label("Subjects (comma-separated):", html_for="check-subjects"),
                                     dbc.Input(id="check-subjects", type="text",
-                                              placeholder="001,002,003", className="mb-3")
+                                              placeholder="001,002,003", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=4),
                                 dbc.Col([
                                     dbc.Label("Task Filter (optional):", html_for="check-task-filter"),
                                     dbc.Input(id="check-task-filter", type="text",
-                                              placeholder="e.g., rest_preprocess", className="mb-3")
+                                              placeholder="e.g., rest_preprocess", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=3),
                                 dbc.Col([
                                     dbc.Label("Session(s) (required):", html_for="check-session"),
                                     dbc.Input(id="check-session", type="text",
-                                              placeholder="01 or 01,02", value="01", className="mb-3")
+                                              placeholder="01 or 01,02", value="01", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=2),
                                 dbc.Col([
                                     dbc.Label("Prefix:", html_for="check-prefix"),
                                     dbc.Input(id="check-prefix", type="text",
-                                              placeholder="sub-", value="sub-", className="mb-3")
+                                              placeholder="sub-", value="sub-", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=1),
                             ]),
                             dbc.Row([
@@ -297,23 +332,35 @@ def create_job_monitor_layout():
                                 dbc.Col([
                                     dbc.Label("Project Name:", html_for="report-project"),
                                     dbc.Input(id="report-project", type="text",
-                                              placeholder="e.g., GCDS", className="mb-3")
+                                              placeholder="e.g., GCDS", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=3),
                                 dbc.Col([
                                     dbc.Label("Session (optional):", html_for="report-session"),
                                     dbc.Input(id="report-session", type="text",
-                                              placeholder="e.g., 01,02", className="mb-3")
+                                              placeholder="e.g., 01,02", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=2),
                                 dbc.Col([
                                     dbc.Label("Check Results CSV:", html_for="report-check-results"),
                                     dbc.Input(id="report-check-results", type="text",
-                                              placeholder="e.g., /data/work/check_results_20260421.csv", className="mb-3")
+                                              placeholder="e.g., /data/work/check_results_20260421.csv", className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=4),
                                 dbc.Col([
                                     dbc.Label("Output Path (optional):", html_for="report-output-path"),
                                     dbc.Input(id="report-output-path", type="text",
                                               placeholder="File, or a folder (auto-named). Default: next to database",
-                                              className="mb-3")
+                                              className="mb-3",
+                                              persistence=True,
+                                              persistence_type="session",
+                                              )
                                 ], width=3),
                             ]),
                             dbc.Row([
