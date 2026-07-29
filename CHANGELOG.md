@@ -1,6 +1,33 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
+## [0.17.0-alpha] – 2026-07-29
+
+### Fixed
+- `log_job_end` and `log_command_output` fell back to the most recently modified log in the task directory when they could not match a job id, appending the event to another subject's log. They now identify the log by subject and session.
+- Those same two commands exited successfully when no log was found, so `warn_if_failed` never fired and the job was absent from the database with nothing in its own log to say why.
+- The Job Monitor status filter for pipeline runs omitted `RUNNING`, so a run still in flight, or killed before its completion record was merged, could not be filtered for.
+- Charts drew `COMPLETED` and `CANCELLED` in the unknown-status grey. `COMPLETED` is the pipeline-level name for `SUCCESS` and now shares its green.
+- The Job Monitor results table applied a limit twice, so the per-type view limit had no effect and the truncated row count was reported as a total.
+- Exporting query results with a relative database path wrote the CSV into the GUI working directory while reporting a bare filename.
+- Exporting output check results accepted a subject list that parsed to nothing, although running the same checks rejected it.
+- The command exit code chart was ordered by frequency rather than by exit code.
+- Generating a project config with no config directory set surfaced a raw error instead of pointing at Analysis Control.
+- `merge-logs --job-ids` raised on a log written without a job id and reported it as though the file were unreadable.
+- A log that merged but could not be archived reported an error indistinguishable from a parse failure and was left out of the merged count. The message now points at `force-rebuild`.
+
+### Changed
+- `merge-logs` reads only `execution_*.jsonl` when scanning `_pipeline/`, instead of opening every wrapper log to find out it is not a pipeline record.
+
+### Removed
+- `calculate_duration_hours`, which had no callers.
+
+### Tests
+- First tests for `execute_sql_query_callback`, `create_query_charts`, `apply_config_dir` and `init_study`.
+- `plot_utils` tests assert chart contents rather than only that a `Figure` was returned.
+- Status vocabularies are checked in both directions: every offered value must exist in the schema, and every value the pipeline writes must be offered. The missing `RUNNING` slipped through the second direction.
+
+---
 ## [0.16.0-alpha] – 2026-07-28
 
 ### Added

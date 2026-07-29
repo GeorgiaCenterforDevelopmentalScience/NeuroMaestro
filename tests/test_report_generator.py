@@ -127,6 +127,8 @@ class TestComputeTaskSummary:
 
     def test_total_always_equals_subject_count(self):
         summary = self._run()
+        # guards the loop below against passing on an empty summary
+        assert [r["task"] for r in summary] == ["recon", "volume"]
         for row in summary:
             assert row["total"] == len(self.SUBJECTS)
 
@@ -306,6 +308,9 @@ class TestGetReportData:
         db_path = _make_db(tmp_path)
         with patch(TASK_ORDER_PATH, _mock_task_order):
             data = get_report_data(db_path, "proj", "01")
+        # the fixture holds exactly one FAILED row (001/volume); without this
+        # the loop would also pass on an empty result
+        assert len(data["failed_jobs"]) == 1
         for job in data["failed_jobs"]:
             assert job["status"] == "FAILED"
 

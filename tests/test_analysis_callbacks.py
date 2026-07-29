@@ -157,21 +157,22 @@ class TestInitStudy:
             result = callbacks.get("init_study")(1, str(config_dir))
 
         assert result.color == "success"
-        assert str(config_dir.parent / "scripts") in str(result.children)
+        # _text, not str(children): repr() escapes the backslashes in a Windows path
+        assert str(config_dir.parent / "scripts") in _text(result)
 
     def test_missing_script_templates_is_flagged(self, callbacks, tmp_path):
         with patch(_INIT_FN, return_value=["config.yaml"]):
             result = callbacks.get("init_study")(1, str(tmp_path))
 
         assert result.color == "success"
-        assert "script templates not found" in str(result.children)
+        assert "script templates not found" in _text(result)
 
     def test_exception_returns_danger(self, callbacks, tmp_path):
         with patch(_INIT_FN, side_effect=PermissionError("read-only")):
             result = callbacks.get("init_study")(1, str(tmp_path))
 
         assert result.color == "danger"
-        assert "read-only" in str(result.children)
+        assert "read-only" in _text(result)
 
 
 def _no_ctx():

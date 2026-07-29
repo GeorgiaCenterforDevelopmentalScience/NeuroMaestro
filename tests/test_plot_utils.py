@@ -183,10 +183,14 @@ class TestCreateStatusDonut:
         from neuro_pipeline.interface.utils.plot_utils import create_status_donut
         from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
 
+        checked = 0
         for spec in _QUERY_SPECS.values():
             for value in spec["status_values"]:
                 fig = create_status_donut(pd.DataFrame([{"status": value}]))
                 assert fig.data[0].marker.colors[0] != "#6b7280", value
+                checked += 1
+        # otherwise an emptied status_values would make this pass silently
+        assert checked == 7
 
 
 # ---------------------------------------------------------------------------

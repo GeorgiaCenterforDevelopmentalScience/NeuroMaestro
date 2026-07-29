@@ -722,10 +722,18 @@ class TestMergeBadJson:
 
 class TestMergeOnceEdgeCases:
 
-    def test_no_json_dir_returns_without_error(self, temp_workspace, mock_db):
+    def test_no_json_dir_returns_without_error(self, temp_workspace, mock_db, capsys):
         work_dir = temp_workspace['work_dir']
         db_path = temp_workspace['db_path']
+        # the fixture pre-creates json_dir, so this branch is only reachable once
+        # it is removed
+        shutil.rmtree(temp_workspace['json_dir'])
+
         merge_once(work_dir, db_path)
+
+        # returns ahead of the backup step, so nothing is written
+        assert "No JSON logs" in capsys.readouterr().out
+        assert not list(Path(db_path).parent.glob("*.backup_*.db"))
 
     def test_backup_failure_does_not_abort_merge(self, temp_workspace, mock_db):
         work_dir = temp_workspace['work_dir']

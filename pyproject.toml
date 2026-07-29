@@ -1,8 +1,8 @@
 [project]
 name = "neuroimage-pipe"
-version = "0.16.0-alpha"
+version = "0.17.0-alpha"
 description = "Neuroimage pipeline"
-readme = "README.md"
+readme = "readme.md"
 requires-python = ">=3.10"
 authors = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" },
@@ -28,6 +28,26 @@ dev = [
   "pytest-cov",
 ]
 
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# strict-markers turns a typo'd @pytest.mark into an error instead of a warning
+addopts = "--strict-markers --strict-config"
+# deprecations from pandas/plotly/dash/pybids fail now rather than on the HPC
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["neuro_pipeline"]
+# this codebase branches heavily on config, so line coverage alone overstates it
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+  "pragma: no cover",
+  "if __name__ == .__main__.:",
+  "raise NotImplementedError",
+]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

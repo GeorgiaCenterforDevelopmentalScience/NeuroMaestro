@@ -49,8 +49,12 @@ class TestInitProjectTemplates:
         config_dir = tmp_path / "study" / "config"
         copied = init_project_templates(config_dir)
 
-        if "scripts/" in copied:
-            assert (tmp_path / "study" / "scripts").is_dir()
+        assert "scripts/" in copied
+        scripts_dir = tmp_path / "study" / "scripts"
+        assert scripts_dir.is_dir()
+        assert any(scripts_dir.glob("*.sh"))
+        # the regression: scripts must sit beside config_dir, not inside it
+        assert not (config_dir / "scripts").exists()
 
     def test_returns_non_empty_list(self, tmp_path):
         from neuro_pipeline.pipeline.utils.init_utils import init_project_templates

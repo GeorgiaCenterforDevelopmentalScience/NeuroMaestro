@@ -336,6 +336,7 @@ class TestCheckAll:
             }
         })
         df = checker.check_all(["mytask"], ["001"])
+        assert not df.empty
         for col in ("task", "subject", "session", "check_type", "status"):
             assert col in df.columns
 

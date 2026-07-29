@@ -63,9 +63,15 @@ class TestGetDbConnection:
     def test_idempotent_second_call(self, tmp_path):
         db_path = str(tmp_path / "test.db")
         conn = get_db_connection(db_path)
+        conn.execute("INSERT INTO job_status (subject, task_name) VALUES ('001', 'recon')")
+        conn.commit()
         conn.close()
+
         conn2 = get_db_connection(db_path)
+        # re-running CREATE TABLE must not drop what a previous run wrote
+        rows = conn2.execute("SELECT subject, task_name FROM job_status").fetchall()
         conn2.close()
+        assert rows == [("001", "recon")]
 
 
 # ---------------------------------------------------------------------------
@@ -271,10 +277,13 @@ class TestUpdatePipelineExecution:
         assert update_record["event"] == "pipeline_update"
         assert update_record["status"] == "COMPLETED"
 
-    def test_missing_file_does_not_raise(self, tmp_path):
+    def test_missing_file_does_not_raise(self, tmp_path, capsys):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
-        # File never created — should not raise
         update_pipeline_execution(999999, status="COMPLETED", db_path=db_path)
+
+        # warns instead of raising, and does not fabricate the missing log
+        assert "not found" in capsys.readouterr().err
+        assert not (tmp_path / "db" / "json").exists()
 
 
 # ---------------------------------------------------------------------------

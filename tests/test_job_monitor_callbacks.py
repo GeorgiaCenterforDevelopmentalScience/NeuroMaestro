@@ -72,16 +72,17 @@ class TestRenderCheckTable:
         table = self.render(df)
         tbody = table.children[1]
         row = tbody.children[0]
-        bg = row.style.get("backgroundColor", "")
-        assert "40,167,69" in bg or "40, 167, 69" in bg.replace(",", ", ")
+        # normalised so the assertion survives a purely cosmetic respacing
+        bg = row.style.get("backgroundColor", "").replace(" ", "")
+        assert "40,167,69" in bg
 
     def test_fail_row_gets_red_background(self):
         df = self._make_df([{"subject": "002", "status": "FAIL - file not found"}])
         table = self.render(df)
         tbody = table.children[1]
         row = tbody.children[0]
-        bg = row.style.get("backgroundColor", "")
-        assert "220,53,69" in bg or "220, 53, 69" in bg.replace(",", ", ")
+        bg = row.style.get("backgroundColor", "").replace(" ", "")
+        assert "220,53,69" in bg
 
     def test_mixed_rows(self):
         df = self._make_df([
@@ -529,6 +530,8 @@ class TestWrapperInspectorShowsProvenance:
 
 class TestBuildQuery:
 
+    ALL_TYPES = {"job_status", "command_outputs", "pipeline_executions", "wrapper_scripts"}
+
     @staticmethod
     def _build(*args, **kwargs):
         from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _build_query
@@ -623,7 +626,9 @@ class TestBuildQuery:
         assert "LIMIT" not in sql
 
     def test_view_applies_the_per_type_limit(self):
-        for query_type, spec in self._specs().items():
+        specs = self._specs()
+        assert set(specs) == self.ALL_TYPES
+        for query_type, spec in specs.items():
             sql, _ = self._build(query_type, paged=True)
             assert sql.endswith(f"LIMIT {spec['view_limit']}")
 
@@ -634,7 +639,9 @@ class TestBuildQuery:
         assert len(db.execute(sql, params).fetchall()) == 1
 
     def test_every_spec_orders_by_its_own_time_column(self):
-        for query_type, spec in self._specs().items():
+        specs = self._specs()
+        assert set(specs) == self.ALL_TYPES
+        for query_type, spec in specs.items():
             sql, _ = self._build(query_type, paged=True)
             assert f"ORDER BY {spec['time_column']} DESC" in sql
 
@@ -694,13 +701,18 @@ class TestStatusOptions:
         )
         from neuro_pipeline.pipeline.utils.job_db import get_db_connection
         conn = get_db_connection(str(tmp_path / "s.db"))
+        checked = 0
         try:
             for query_type, spec in _QUERY_SPECS.items():
                 for value in spec["status_values"]:
                     sql, params = _build_query(query_type, status=value)
                     conn.execute(sql, params)   # raises if the column is absent
+                    checked += 1
         finally:
             conn.close()
+        # without this the loop passes vacuously if a spec loses status_values;
+        # 4 for job_status + 3 for pipeline_executions, the other two have none
+        assert checked == 7
 
     # Every value the pipeline can write into each status column, traced to its
     # writer. Maintained by hand because the writers are split across Python
