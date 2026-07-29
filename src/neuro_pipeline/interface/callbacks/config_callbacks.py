@@ -6,6 +6,8 @@ import yaml as _yaml
 from neuro_pipeline.pipeline.utils.config_utils import get_config_dir
 from neuro_pipeline.pipeline.utils.generate_results_check import RESULTS_CHECK_TEMPLATE
 
+# Overridden by tests to redirect config reads and writes at a tmp_path.
+# Production always resolves through CONFIG_DIR or get_config_dir().
 _CONFIG_DIR: Optional[Path] = None
 
 

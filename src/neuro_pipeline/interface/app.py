@@ -73,7 +73,6 @@ def create_main_layout():
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="subjects-store"),
         dcc.Store(id="pipeline-commands-store"),
-        dcc.Store(id="job-status-store"),
         dcc.Store(id="page-rendered-store"),
 
         # Sidebar toggle button
@@ -113,9 +112,9 @@ register_callbacks(app)
     Input("url", "pathname")
 )
 def display_page(pathname):
-    is_ac  = pathname in ("/", "/home", "/analysis-control") or pathname not in ("/project-config", "/job-monitor")
     is_pc  = pathname == "/project-config"
     is_jm  = pathname == "/job-monitor"
+    is_ac  = not (is_pc or is_jm)   # analysis control is the fallback route
     return (
         _SHOW if is_ac else _HIDE,
         _SHOW if is_pc else _HIDE,

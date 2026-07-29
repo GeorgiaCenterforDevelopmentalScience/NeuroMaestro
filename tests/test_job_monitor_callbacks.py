@@ -190,12 +190,33 @@ class TestRunOutputCheckCallback:
         assert isinstance(result, dbc.Alert)
         assert result.color == "warning"
 
-    def test_missing_subjects_returns_warning(self, callbacks):
+    def test_missing_subjects_returns_warning(self, callbacks, tmp_path):
+        # Blank subject list falls back to auto-detection; an empty work dir
+        # yields nothing, so the user gets a warning rather than a silent run.
         fn = callbacks.get("run_output_check_callback")
-        result = fn(1, project="myproject", work_dir="/work", subjects_raw="",
+        result = fn(1, project="myproject", work_dir=str(tmp_path), subjects_raw="",
                     task_filter="", session="01", prefix="sub-")
         assert isinstance(result, dbc.Alert)
         assert result.color == "warning"
+        assert "auto-detected" in str(result.children)
+
+    def test_blank_subjects_uses_auto_detection(self, callbacks, tmp_path):
+        fn = callbacks.get("run_output_check_callback")
+        fake_df = pd.DataFrame([
+            {"task": "t", "subject": "007", "session": "01", "status": "PASS"},
+        ])
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.detect_subjects",
+                   return_value=["007"], create=True), \
+             patch("neuro_pipeline.pipeline.utils.detect_subjects.detect_subjects",
+                   return_value=["007"]), \
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+                   return_value="/fake/path.yaml"), \
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   return_value=(fake_df, ["t"], [])) as mock_run:
+            fn(1, project="myproject", work_dir=str(tmp_path), subjects_raw="",
+               task_filter="", session="01", prefix="sub-")
+
+        assert mock_run.call_args.kwargs["subjects"] == ["007"]
 
     def test_checks_config_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("run_output_check_callback")
@@ -326,14 +347,30 @@ class TestExportCheckCsvCallback:
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
 
-    def test_exception_during_export_returns_danger(self, callbacks, tmp_path):
+    def test_exception_while_running_checks_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("export_check_csv_callback")
-        mock_checker = MagicMock()
-        mock_checker.check_all.side_effect = RuntimeError("disk full")
-        mock_checker._config = {}
 
         with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   side_effect=RuntimeError("checks blew up")):
+            result = fn(1, project="myproject", work_dir=str(tmp_path),
+                        subjects_raw="001", task_filter="", session="01", prefix="sub-")
+
+        assert isinstance(result, dbc.Alert)
+        assert result.color == "danger"
+        assert "checks blew up" in str(result.children)
+
+    def test_exception_while_writing_csv_returns_danger(self, callbacks, tmp_path):
+        fn = callbacks.get("export_check_csv_callback")
+        fake_df = pd.DataFrame([{"task": "t", "subject": "001", "status": "PASS"}])
+        mock_checker = MagicMock()
+        mock_checker.save_csv.side_effect = OSError("disk full")
+
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+                   return_value="/fake/path.yaml"), \
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+                   return_value=(fake_df, ["t"], [])), \
              patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
@@ -341,6 +378,7 @@ class TestExportCheckCsvCallback:
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
+        assert "disk full" in str(result.children)
 
 
 # ---------------------------------------------------------------------------
@@ -466,3 +504,122 @@ class TestWrapperInspectorShowsProvenance:
         fn = callbacks.get("load_wrapper_callback")
         result = fn(1, db_path=self._db(tmp_path), task_filter="", job_id="999")
         assert "Job ID: 999" in str(result)
+
+
+# ---------------------------------------------------------------------------
+# _build_query
+#
+# The query and export paths used to build SQL separately, which let them
+# drift: exporting "wrapper_scripts" silently dumped pipeline_executions, and
+# a bare end date excluded everything recorded on that day.
+# ---------------------------------------------------------------------------
+
+class TestBuildQuery:
+
+    @staticmethod
+    def _build(*args, **kwargs):
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _build_query
+        return _build_query(*args, **kwargs)
+
+    @staticmethod
+    def _specs():
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
+        return _QUERY_SPECS
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        """One row per table, all stamped 2026-07-28 09:00:00."""
+        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        conn = get_db_connection(str(tmp_path / "q.db"))
+        conn.execute("INSERT INTO pipeline_executions "
+                     "(execution_id, project_name, session, status, execution_time) "
+                     "VALUES (1,'proj','01','COMPLETED','2026-07-28 09:00:00')")
+        conn.execute("INSERT INTO job_status "
+                     "(execution_id, subject, task_name, session, start_time, status) "
+                     "VALUES (1,'001','recon','01','2026-07-28 09:00:00','SUCCESS')")
+        conn.execute("INSERT INTO command_outputs "
+                     "(execution_id, subject, task_name, execution_time, exit_code) "
+                     "VALUES (1,'001','recon','2026-07-28 09:00:00',0)")
+        conn.execute("INSERT INTO wrapper_scripts "
+                     "(execution_id, task_name, job_id, submission_time, wrapper_path, full_content) "
+                     "VALUES (1,'recon','999','2026-07-28 09:00:00','/w/x.sh','#!/bin/bash')")
+        conn.commit()
+        yield conn
+        conn.close()
+
+    def test_unknown_query_type_returns_none(self):
+        assert self._build("nope") == (None, None)
+
+    @pytest.mark.parametrize("query_type", [
+        "job_status", "command_outputs", "pipeline_executions", "wrapper_scripts",
+    ])
+    def test_every_type_produces_runnable_sql(self, db, query_type):
+        sql, params = self._build(query_type, limit=100)
+        assert len(db.execute(sql, params).fetchall()) == 1
+
+    @pytest.mark.parametrize("query_type", [
+        "job_status", "command_outputs", "pipeline_executions", "wrapper_scripts",
+    ])
+    def test_end_date_includes_records_on_that_day(self, db, query_type):
+        # The regression: '<= 2026-07-28' dropped a row stamped 09:00 that day
+        sql, params = self._build(query_type, start_date="2026-07-28",
+                                  end_date="2026-07-28", limit=100)
+        assert len(db.execute(sql, params).fetchall()) == 1
+
+    def test_export_of_wrapper_scripts_hits_the_right_table(self):
+        # The regression: this fell through to pipeline_executions
+        sql, _ = self._build("wrapper_scripts", columns="*")
+        assert "FROM wrapper_scripts" in sql
+        assert "pipeline_executions" not in sql
+
+    def test_export_includes_full_content(self, db):
+        sql, params = self._build("wrapper_scripts", columns="*")
+        cols = [d[0] for d in db.execute(sql, params).description]
+        assert "full_content" in cols
+
+    def test_table_view_omits_full_content(self, db):
+        sql, params = self._build("wrapper_scripts", limit=100)
+        cols = [d[0] for d in db.execute(sql, params).description]
+        assert "full_content" not in cols
+
+    def test_status_all_is_not_a_filter(self):
+        _sql, params = self._build("job_status", status="all", limit=100)
+        assert params == []
+
+    def test_blank_filters_are_ignored(self):
+        _sql, params = self._build("job_status", subject="", session=None,
+                                   task="   ", execution_id="", limit=100)
+        assert params == []
+
+    def test_non_matching_filter_returns_no_rows(self, db):
+        sql, params = self._build("job_status", subject="zzz", limit=100)
+        assert db.execute(sql, params).fetchall() == []
+
+    def test_execution_id_is_exact_not_fuzzy(self, db):
+        sql, params = self._build("job_status", execution_id="1", limit=100)
+        assert "execution_id = ?" in sql
+        assert len(db.execute(sql, params).fetchall()) == 1
+
+    def test_subject_filter_is_fuzzy(self):
+        sql, params = self._build("job_status", subject="01", limit=100)
+        assert "subject LIKE ?" in sql
+        assert params == ["%01%"]
+
+    def test_limit_omitted_when_not_requested(self):
+        sql, _ = self._build("job_status")
+        assert "LIMIT" not in sql
+
+    def test_limit_applied_when_requested(self):
+        sql, _ = self._build("job_status", limit=50)
+        assert sql.endswith("LIMIT 50")
+
+    def test_filters_only_apply_where_the_column_exists(self, db):
+        # command_outputs has no session column; passing one must not break it
+        sql, params = self._build("command_outputs", session="01", limit=100)
+        assert "session" not in sql
+        assert len(db.execute(sql, params).fetchall()) == 1
+
+    def test_every_spec_orders_by_its_own_time_column(self):
+        for query_type, spec in self._specs().items():
+            sql, _ = self._build(query_type, limit=10)
+            assert f"ORDER BY {spec['time_column']} DESC" in sql

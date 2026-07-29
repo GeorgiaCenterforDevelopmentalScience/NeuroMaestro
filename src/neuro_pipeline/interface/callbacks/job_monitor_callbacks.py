@@ -24,6 +24,83 @@ def _end_of_day(date_str):
     return f"{date_str} 23:59:59" if date_str and len(date_str) == 10 else date_str
 
 
+# Each query type differs only in table, time column, and which filters apply.
+# Keeping that in one table stops the query and export paths from drifting apart.
+_QUERY_SPECS = {
+    "job_status": {
+        "table": "job_status",
+        "columns": "*",
+        "time_column": "start_time",
+        "filters": ("subject", "session", "task", "status", "execution_id"),
+    },
+    "command_outputs": {
+        "table": "command_outputs",
+        "columns": "*",
+        "time_column": "execution_time",
+        "filters": ("subject", "task"),
+    },
+    "pipeline_executions": {
+        "table": "pipeline_executions",
+        "columns": "*",
+        "time_column": "execution_time",
+        "filters": ("session", "status"),
+    },
+    "wrapper_scripts": {
+        "table": "wrapper_scripts",
+        # full_content is far too large to render in a results table
+        "columns": "id, execution_id, task_name, job_id, submission_time, wrapper_path",
+        "time_column": "submission_time",
+        "filters": ("task", "execution_id"),
+    },
+}
+
+_FILTER_SQL = {
+    "subject":      ("subject LIKE ?",      lambda v: f"%{v}%"),
+    "session":      ("session LIKE ?",      lambda v: f"%{v}%"),
+    "task":         ("task_name LIKE ?",    lambda v: f"%{v}%"),
+    "status":       ("status = ?",          lambda v: v),
+    "execution_id": ("execution_id = ?",    lambda v: v.strip()),
+}
+
+
+def _build_query(query_type, *, subject=None, session=None, task=None, status=None,
+                 execution_id=None, start_date=None, end_date=None,
+                 limit=None, columns=None):
+    """Returns (sql, params), or (None, None) for an unknown query type."""
+    spec = _QUERY_SPECS.get(query_type)
+    if spec is None:
+        return None, None
+
+    values = {"subject": subject, "session": session, "task": task,
+              "status": status, "execution_id": execution_id}
+
+    sql = f"SELECT {columns or spec['columns']} FROM {spec['table']} WHERE 1=1"
+    params = []
+
+    for name in spec["filters"]:
+        value = values.get(name)
+        if not value or not str(value).strip():
+            continue
+        if name == "status" and value == "all":
+            continue
+        clause, transform = _FILTER_SQL[name]
+        sql += f" AND {clause}"
+        params.append(transform(value))
+
+    time_col = spec["time_column"]
+    if start_date:
+        sql += f" AND {time_col} >= ?"
+        params.append(start_date)
+    if end_date:
+        sql += f" AND {time_col} <= ?"
+        params.append(_end_of_day(end_date))
+
+    sql += f" ORDER BY {time_col} DESC"
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return sql, params
+
+
 def _auto_detect_subjects(work_dir: str, prefix: str):
     """Return (subjects, None) on success or (None, Alert) on failure."""
     from ...pipeline.utils.detect_subjects import detect_subjects
@@ -61,7 +138,7 @@ def _run_checks(checks_path: str, work_dir: str, prefix: str,
         config_path=checks_path, work_dir=work_dir, sessions=sessions,
         subjects=subjects, prefix=prefix, tasks=tasks,
     )
-    return sessions, df
+    return df
 
 
 def _render_check_table(df: pd.DataFrame):
@@ -103,103 +180,13 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Database file not found: {db_path}", color="danger"), ""
         
         try:
-            if query_type == "job_status":
-                query = "SELECT * FROM job_status WHERE 1=1"
-                params = []
-
-                if subject:
-                    query += " AND subject LIKE ?"
-                    params.append(f"%{subject}%")
-
-                if session:
-                    query += " AND session LIKE ?"
-                    params.append(f"%{session}%")
-
-                if task:
-                    query += " AND task_name LIKE ?"
-                    params.append(f"%{task}%")
-
-                if status and status != "all":
-                    query += " AND status = ?"
-                    params.append(status)
-
-                if execution_id and execution_id.strip():
-                    query += " AND execution_id = ?"
-                    params.append(execution_id.strip())
-
-                if start_date:
-                    query += " AND start_time >= ?"
-                    params.append(start_date)
-
-                if end_date:
-                    query += " AND start_time <= ?"
-                    params.append(_end_of_day(end_date))
-
-                query += " ORDER BY start_time DESC LIMIT 100"
-                
-            elif query_type == "command_outputs":
-                query = "SELECT * FROM command_outputs WHERE 1=1"
-                params = []
-                
-                if subject:
-                    query += " AND subject LIKE ?"
-                    params.append(f"%{subject}%")
-                
-                if task:
-                    query += " AND task_name LIKE ?"
-                    params.append(f"%{task}%")
-                
-                if start_date:
-                    query += " AND execution_time >= ?"
-                    params.append(start_date)
-                
-                if end_date:
-                    query += " AND execution_time <= ?"
-                    params.append(_end_of_day(end_date))
-                
-                query += " ORDER BY execution_time DESC LIMIT 100"
-                
-            elif query_type == "pipeline_executions":
-                query = "SELECT * FROM pipeline_executions WHERE 1=1"
-                params = []
-                
-                if session:
-                    query += " AND session LIKE ?"
-                    params.append(f"%{session}%")
-                
-                if start_date:
-                    query += " AND execution_time >= ?"
-                    params.append(start_date)
-                
-                if end_date:
-                    query += " AND execution_time <= ?"
-                    params.append(_end_of_day(end_date))
-                
-                if status and status != "all":
-                    query += " AND status = ?"
-                    params.append(status)
-                
-                query += " ORDER BY execution_time DESC LIMIT 50"
-            
-            elif query_type == "wrapper_scripts":
-                query = "SELECT id, execution_id, task_name, job_id, submission_time, wrapper_path FROM wrapper_scripts WHERE 1=1"
-                params = []
-
-                if task:
-                    query += " AND task_name LIKE ?"
-                    params.append(f"%{task}%")
-
-                if start_date:
-                    query += " AND submission_time >= ?"
-                    params.append(start_date)
-
-                if end_date:
-                    query += " AND submission_time <= ?"
-                    params.append(_end_of_day(end_date))
-
-                query += " ORDER BY submission_time DESC LIMIT 100"
-
-            else:
+            limit = 50 if query_type == "pipeline_executions" else 100
+            query, params = _build_query(
+                query_type, subject=subject, session=session, task=task,
+                status=status, execution_id=execution_id,
+                start_date=start_date, end_date=end_date, limit=limit,
+            )
+            if query is None:
                 return dbc.Alert("Invalid query type", color="warning"), ""
 
             with closing(sqlite3.connect(db_path)) as conn:
@@ -250,67 +237,13 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert("Database file not found", color="danger")
         
         try:
-            if query_type == "job_status":
-                query = "SELECT * FROM job_status WHERE 1=1"
-                params = []
-
-                if subject:
-                    query += " AND subject LIKE ?"
-                    params.append(f"%{subject}%")
-
-                if session:
-                    query += " AND session LIKE ?"
-                    params.append(f"%{session}%")
-
-                if task:
-                    query += " AND task_name LIKE ?"
-                    params.append(f"%{task}%")
-
-                if status and status != "all":
-                    query += " AND status = ?"
-                    params.append(status)
-
-                if execution_id and execution_id.strip():
-                    query += " AND execution_id = ?"
-                    params.append(execution_id.strip())
-
-            elif query_type == "command_outputs":
-                query = "SELECT * FROM command_outputs WHERE 1=1"
-                params = []
-
-                if subject:
-                    query += " AND subject LIKE ?"
-                    params.append(f"%{subject}%")
-
-                if task:
-                    query += " AND task_name LIKE ?"
-                    params.append(f"%{task}%")
-
-            elif query_type == "wrapper_scripts":
-                query = "SELECT * FROM wrapper_scripts WHERE 1=1"
-                params = []
-
-                if task:
-                    query += " AND task_name LIKE ?"
-                    params.append(f"%{task}%")
-
-                if execution_id and execution_id.strip():
-                    query += " AND execution_id = ?"
-                    params.append(execution_id.strip())
-
-            elif query_type == "pipeline_executions":
-                query = "SELECT * FROM pipeline_executions WHERE 1=1"
-                params = []
-
-                if session:
-                    query += " AND session LIKE ?"
-                    params.append(f"%{session}%")
-
-                if status and status != "all":
-                    query += " AND status = ?"
-                    params.append(status)
-
-            else:
+            # Export is unfiltered by date and unpaged; columns="*" so the
+            # wrapper body is included rather than the trimmed table view.
+            query, params = _build_query(
+                query_type, subject=subject, session=session, task=task,
+                status=status, execution_id=execution_id, columns="*",
+            )
+            if query is None:
                 return dbc.Alert("Invalid query type", color="warning")
 
             with closing(sqlite3.connect(db_path)) as conn:
@@ -450,7 +383,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
 
         try:
-            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", sessions, task_filter, subjects)
+            df = _run_checks(checks_path, work_dir, prefix or "sub-", sessions, task_filter, subjects)
         except Exception as e:
             return dbc.Alert(f"Error running checks: {str(e)}", color="danger")
 
@@ -516,7 +449,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
 
         try:
-            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", sessions, task_filter, subjects)
+            df = _run_checks(checks_path, work_dir, prefix or "sub-", sessions, task_filter, subjects)
             csv_path = OutputChecker(
                 config_path=checks_path, work_dir=work_dir,
                 prefix=prefix or "sub-", session=sessions[0],

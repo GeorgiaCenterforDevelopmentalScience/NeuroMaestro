@@ -2,7 +2,6 @@ from dash import dcc, html
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 import os
-from ...pipeline.utils.config_utils import get_bids_pipeline_names, get_staged_pipeline_names, get_intermed_task_names
 
 def create_analysis_control_layout():
     """Create the analysis control layout with subject selection and pipeline options"""

@@ -61,7 +61,7 @@ def register_analysis_callbacks(app):
         if not config_dir:
             return dbc.Alert("Please enter a config directory path first.", color="warning")
         try:
-            from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+            from ...pipeline.utils.init_utils import init_project_templates
             config_path = Path(config_dir)
             copied = init_project_templates(config_path)
             if not copied:
@@ -452,7 +452,8 @@ def register_analysis_callbacks(app):
             a.href = url;
             a.download = 'pipeline_dag.png';
             a.click();
-            URL.revokeObjectURL(url);
+            // Revoking synchronously truncates the download in some browsers.
+            setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
 
             return window.dash_clientside.no_update;
         }

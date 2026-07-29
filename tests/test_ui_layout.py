@@ -60,9 +60,115 @@ class TestJobMonitorLayout:
 
 class TestAnalysisControlLayout:
 
-    def test_does_not_crash(self):
+    @pytest.fixture(autouse=True)
+    def layout(self):
         from neuro_pipeline.interface.components.analysis_control import create_analysis_control_layout
-        assert create_analysis_control_layout() is not None
+        self.component = create_analysis_control_layout()
+        self.ids = collect_ids(self.component)
+
+    def test_does_not_crash(self):
+        assert self.component is not None
+
+    def test_setup_and_subject_ids_present(self):
+        for id_ in (
+            "config-dir-input", "apply-config-dir-btn", "init-study-btn", "config-dir-status",
+            "subject-prefix", "current-dir", "detect-subjects-btn", "clear-subjects-btn",
+            "manual-subjects", "subjects-detection-result", "subjects-list-container",
+        ):
+            assert id_ in self.ids
+
+    def test_pipeline_config_ids_present(self):
+        for id_ in (
+            "input-dir", "output-dir", "work-dir", "project-name", "session-id",
+            "prep-options", "intermed-checklist", "bids-prep-checklist",
+            "bids-post-checklist", "staged-prep-checklist", "staged-post-checklist",
+            "mriqc-options",
+        ):
+            assert id_ in self.ids
+
+    def test_execution_and_dag_ids_present(self):
+        for id_ in (
+            "dry-run-checkbox", "resume-checkbox", "skip-preflight-checkbox",
+            "skip-bids-validation-checkbox", "generate-commands-btn",
+            "execute-pipeline-btn", "execution-status", "command-preview",
+            "dag-overview", "dag-reset-btn", "dag-download-btn",
+        ):
+            assert id_ in self.ids
+
+
+class TestProjectConfigLayout:
+
+    @pytest.fixture(autouse=True)
+    def layout(self):
+        from neuro_pipeline.interface.components.project_config import create_project_config_page
+        self.component = create_project_config_page()
+        self.ids = collect_ids(self.component)
+
+    def test_project_config_tab_ids_present(self):
+        for id_ in ("new-project-name", "generate-new-config-btn", "load-config-btn",
+                    "new-config-result", "yaml-editor", "save-config-btn",
+                    "validate-config-btn", "yaml-validation-result"):
+            assert id_ in self.ids
+
+    def test_results_check_tab_ids_present(self):
+        for id_ in ("checks-project-name", "load-checks-btn", "new-checks-btn",
+                    "checks-yaml-editor", "save-checks-btn", "validate-checks-btn",
+                    "checks-validation-result"):
+            assert id_ in self.ids
+
+    def test_global_config_tab_ids_present(self):
+        for id_ in ("load-global-config-btn", "global-config-editor",
+                    "save-global-config-btn", "validate-global-config-btn",
+                    "global-config-result"):
+            assert id_ in self.ids
+
+    def test_hpc_config_tab_ids_present(self):
+        for id_ in ("load-hpc-config-btn", "hpc-config-editor",
+                    "save-hpc-config-btn", "validate-hpc-config-btn",
+                    "hpc-config-result"):
+            assert id_ in self.ids
+
+
+class TestCallbackIdsExistInLayouts:
+    """Every id a callback reads or writes must exist somewhere in the layout.
+    Catches renames on either side that no other test would notice."""
+
+    @pytest.fixture(autouse=True)
+    def app_ids(self):
+        import neuro_pipeline.interface.app as app_module
+        self.layout_ids = collect_ids(app_module.app.layout)
+
+    @staticmethod
+    def _referenced_ids():
+        from dash import Input, Output, State
+
+        seen = set()
+
+        class RecordingApp:
+            def callback(self, *args, **kwargs):
+                for arg in args:
+                    for dep in (arg if isinstance(arg, (list, tuple)) else [arg]):
+                        if isinstance(dep, (Input, Output, State)):
+                            seen.add(dep.component_id)
+                for value in kwargs.values():
+                    for dep in (value if isinstance(value, (list, tuple)) else [value]):
+                        if isinstance(dep, (Input, Output, State)):
+                            seen.add(dep.component_id)
+
+                def decorator(fn):
+                    return fn
+                return decorator
+
+            def clientside_callback(self, _js, *args, **kwargs):
+                self.callback(*args, **kwargs)
+
+        from neuro_pipeline.interface.callbacks import register_callbacks
+        register_callbacks(RecordingApp())
+        return seen
+
+    def test_no_callback_references_a_missing_id(self):
+        missing = sorted(self._referenced_ids() - self.layout_ids)
+        assert not missing, f"callbacks reference ids absent from the layout: {missing}"
 
 
 class TestAppRouting:

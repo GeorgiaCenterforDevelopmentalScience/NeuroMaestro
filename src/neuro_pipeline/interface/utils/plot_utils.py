@@ -1,8 +1,6 @@
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
-from datetime import datetime
 
 PLOT_COLORS = {
     'SUCCESS': '#10b981',
@@ -229,8 +227,7 @@ def create_duration_radar(df):
             task_data = df_valid[df_valid['task_name'] == task]['duration_hours']
             avg_durations.append(task_data.mean())
         
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
-        color = colors[0]
+        color = PLOT_COLORS['line']
         r, g, b = hex_to_rgb(color)
         fill_color_rgba = f'rgba({r}, {g}, {b}, 0.3)'
         
