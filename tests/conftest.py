@@ -26,6 +26,7 @@ Assumed package layout:
         test_hpc_utils.py
 """
 
+import copy
 import pytest
 import yaml
 from pathlib import Path
@@ -38,6 +39,7 @@ from unittest.mock import MagicMock, patch
 
 MOCK_HPC_CONFIG = {
     "scheduler": "slurm",
+    # Unlike the shipped config, these stay in defaults to cover the fallback merge
     "defaults": {
         "partition": "batch",
         "nodes": 1,
@@ -105,8 +107,8 @@ MOCK_CONFIG = {
             "profile": "standard_short",
             "array": True,
             "input_from": "recon",
-            "scripts": ["bfc_scratch.sh"],
-            "output_pattern": "{base_output}/AFNI_derivatives",
+            "scripts": ["sdcflows.sh"],
+            "output_pattern": "{base_output}/BIDS_derivatives/sdcflows",
         },
     ],
     "rest": [
@@ -266,13 +268,14 @@ MOCK_PROJECT_CONFIG = {
 @pytest.fixture
 def mock_config():
     """Return a copy of the in-memory global config."""
-    return MOCK_CONFIG.copy()
+    # deep, not shallow: the nested task dicts are shared across every test
+    return copy.deepcopy(MOCK_CONFIG)
 
 
 @pytest.fixture
 def mock_project_config():
     """Return a copy of the in-memory project config."""
-    return MOCK_PROJECT_CONFIG.copy()
+    return copy.deepcopy(MOCK_PROJECT_CONFIG)
 
 
 
@@ -285,6 +288,16 @@ def config_yaml_file(tmp_path):
     return cfg_file
 
 
+def mock_script_names():
+    """Every script MOCK_CONFIG references."""
+    names = []
+    for tasks in MOCK_CONFIG.values():
+        if isinstance(tasks, list):
+            for t in tasks:
+                names.extend(t.get("scripts", []))
+    return sorted(set(names))
+
+
 @pytest.fixture
 def scripts_dir(tmp_path):
     """
@@ -294,20 +307,8 @@ def scripts_dir(tmp_path):
     """
     s_dir = tmp_path / "scripts" / "test"
     s_dir.mkdir(parents=True)
-    script_names = [
-        "unzip_rename.sh",
-        "dcm2bids_convert_BIDS.sh",
-        "sswarp_scratch.sh",
-        "fmriprep_rs.sh",
-        "xcpd_rs.sh",
-        "afni_cards_preprocessing.sh",
-        "afni_kidvid_preprocess.sh",
-        "mriqc_individual.sh",
-        "mriqc_group.sh",
-        "qsiprep.sh",
-        "qsirecon.sh",
-    ]
-    for name in script_names:
+    # derived, not hand-listed: a hand-listed copy silently fell behind MOCK_CONFIG
+    for name in mock_script_names():
         (s_dir / name).write_text("#!/bin/bash\necho mock script\n")
     return s_dir
 
