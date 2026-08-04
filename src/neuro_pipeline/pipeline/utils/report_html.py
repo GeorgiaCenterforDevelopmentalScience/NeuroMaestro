@@ -8,6 +8,8 @@ from typing import Optional
 
 import pandas as pd
 
+from .config_utils import find_task_config_by_name
+
 
 def _e(text) -> str:
     return html_module.escape(str(text) if text is not None else '')
@@ -191,10 +193,24 @@ def _section_status_matrix(job_status: list, all_subjects: list, all_tasks: list
     sorted_subjects = sorted(all_subjects, key=_subj_key)
     status_map = {(j['subject'], j['task_name']): j.get('status', '') for j in job_status}
 
+    # Group/aggregate tasks (no `array` flag) run as one job; broadcast that single
+    # result across every subject cell instead of leaving one OK and the rest "not run".
+    group_status = {}
+    for j in job_status:
+        task = j['task_name']
+        if (find_task_config_by_name(task) or {}).get('array'):
+            continue
+        st = j.get('status', '')
+        if group_status.get(task) != 'FAILED':
+            group_status[task] = st
+
     header = '<tr><th>Task</th>' + ''.join(f'<th>{_e(s)}</th>' for s in sorted_subjects) + '</tr>'
     rows = []
     for task in all_tasks:
-        cells = ''.join(_cell(status_map.get((subj, task), '')) for subj in sorted_subjects)
+        if task in group_status:
+            cells = ''.join(_cell(group_status[task]) for _ in sorted_subjects)
+        else:
+            cells = ''.join(_cell(status_map.get((subj, task), '')) for subj in sorted_subjects)
         rows.append(f'<tr><td>{_e(task)}</td>{cells}</tr>')
 
     return (

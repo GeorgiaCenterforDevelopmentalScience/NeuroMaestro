@@ -9,7 +9,7 @@ from typing import Optional
 import pandas as pd
 
 from .report_html import render_html
-from .config_utils import get_all_task_names
+from .config_utils import get_all_task_names, find_task_config_by_name
 
 
 def _rows(conn: sqlite3.Connection, sql: str, params=()):
@@ -164,12 +164,20 @@ def compute_task_summary(job_status: list, all_subjects: list) -> list:
     extras  = sorted(data_tasks - set(ordered))
     all_tasks = ordered + extras
 
-    total = len(all_subjects)
+    n_subjects = len(all_subjects)
     rows = []
     for task in all_tasks:
         tdf = df[df['task_name'] == task] if not df.empty else df
         n_ok   = int((tdf['status'] == 'SUCCESS').sum())
         n_fail = int((tdf['status'] == 'FAILED').sum())
+
+        # Group/aggregate tasks (no `array` flag in config) run as a single job,
+        # so their denominator is the job count, not the subject count.
+        cfg = find_task_config_by_name(task) or {}
+        if cfg.get('array'):
+            total = n_subjects
+        else:
+            total = len(tdf) if len(tdf) else 1
         n_none = total - len(tdf)
 
         durs = tdf[tdf['status'] == 'SUCCESS']['duration_hours'].dropna()
