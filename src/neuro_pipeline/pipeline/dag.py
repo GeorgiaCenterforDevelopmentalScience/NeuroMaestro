@@ -199,19 +199,29 @@ class DAGExecutor:
 
             # Resume: filter already-completed subjects
             if checker and not dry_run:
-                pending = checker.get_pending_subjects(task_name, all_subjects)
-                if len(pending) < len(all_subjects):
-                    skipped = sorted(set(all_subjects) - set(pending))
-                    typer.echo(
-                        f"[resume] {task_name}: skipping {len(skipped)} completed subject(s): "
-                        f"{', '.join(skipped)}"
-                    )
-                if not pending:
-                    typer.echo(f"[resume] {task_name}: all subjects complete, skipping task.")
-                    all_job_ids[task_name] = []
-                    node.completed = True
-                    continue
-                subjects_str = ','.join(pending)
+                if checker.is_group(task_name):
+                    # Group task: single job, all-or-nothing on the group result
+                    rows = checker.check_group(task_name)
+                    if rows and all(r["status"] == "PASS" for r in rows):
+                        typer.echo(f"[resume] {task_name}: group result complete, skipping task.")
+                        all_job_ids[task_name] = []
+                        node.completed = True
+                        continue
+                    subjects_str = ','.join(all_subjects)
+                else:
+                    pending = checker.get_pending_subjects(task_name, all_subjects)
+                    if len(pending) < len(all_subjects):
+                        skipped = sorted(set(all_subjects) - set(pending))
+                        typer.echo(
+                            f"[resume] {task_name}: skipping {len(skipped)} completed subject(s): "
+                            f"{', '.join(skipped)}"
+                        )
+                    if not pending:
+                        typer.echo(f"[resume] {task_name}: all subjects complete, skipping task.")
+                        all_job_ids[task_name] = []
+                        node.completed = True
+                        continue
+                    subjects_str = ','.join(pending)
             else:
                 subjects_str = ','.join(all_subjects)
 

@@ -182,6 +182,14 @@ class OutputChecker:
 
         return rows
 
+    def is_group(self, task_name: str) -> bool:
+        """Task whose output is a single group result, not one per subject."""
+        return (self._config.get(task_name) or {}).get("scope") == "group"
+
+    def check_group(self, task_name: str) -> List[dict]:
+        """Evaluate a group-scope task once; subject label is a fixed placeholder."""
+        return self.check_subject(task_name, subject="GROUP")
+
     def check_all(self, task_names: List[str],
                   subjects: List[str]) -> pd.DataFrame:
         """
@@ -192,8 +200,11 @@ class OutputChecker:
         for task in task_names:
             if task not in self._config:
                 continue
-            for subject in subjects:
-                all_rows.extend(self.check_subject(task, subject))
+            if self.is_group(task):
+                all_rows.extend(self.check_group(task))
+            else:
+                for subject in subjects:
+                    all_rows.extend(self.check_subject(task, subject))
 
         if not all_rows:
             return pd.DataFrame(columns=[

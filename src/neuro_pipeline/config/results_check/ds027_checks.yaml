@@ -67,11 +67,14 @@ volume:
 rest_preprocess:
   output_path: "{work_dir}/BIDS_derivatives/fmriprep/"
   required_files:
+    - pattern: "sub-{subject}/func/*space-MNI152NLin2009cAsym*desc-preproc_bold.nii.gz"
+      min_size_kb: 20000
+    - pattern: "sub-{subject}/func/*desc-confounds_timeseries.tsv"
     - pattern: "sub-{subject}*.html"
       min_size_kb: 50
 
 rest_post:
-  output_path: "{work_dir}/BIDS_derivatives/xcpd/sub-{subject}"
+  output_path: "{work_dir}/BIDS_derivatives/xcpd/"
   required_files:
     - pattern: "sub-{subject}*.html"
       min_size_kb: 50
@@ -99,16 +102,19 @@ workingmemory_preprocess:
 # Task fMRI - AFNI postprocess (group-level; one result set, not per-subject)
 
 emomatching_postprocess:
+  scope: group
   output_path: "{work_dir}/postprocessing/emomatching"
   required_files:
     - pattern: "emomatching_group_LMEr+tlrc.HEAD"
 
 stopsignal_postprocess:
+  scope: group
   output_path: "{work_dir}/postprocessing/stopsignal"
   required_files:
     - pattern: "Stats_GroupA_vs_GroupB_*+tlrc.HEAD"
 
 workingmemory_postprocess:
+  scope: group
   output_path: "{work_dir}/postprocessing/workingmemory"
   required_files:
     - pattern: "Stats_GroupA_vs_GroupB_*+tlrc.HEAD"
@@ -118,6 +124,8 @@ workingmemory_postprocess:
 dwi_preprocess:
   output_path: "{work_dir}/BIDS_derivatives/qsiprep"
   required_files:
+    - pattern: "sub-{subject}/dwi/*desc-preproc_dwi.nii.gz"
+      min_size_kb: 10000
     - pattern: "sub-{subject}*.html"
       min_size_kb: 10
 
@@ -136,6 +144,7 @@ mriqc_preprocess:
       min_size_kb: 30
 
 mriqc_post:
+  scope: group
   output_path: "{work_dir}/quality_control/mriqc"
   required_files:
     - pattern: "group_*.html"
