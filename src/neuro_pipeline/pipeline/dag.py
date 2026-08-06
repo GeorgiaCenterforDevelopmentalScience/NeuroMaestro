@@ -228,15 +228,25 @@ class DAGExecutor:
             task_env = dict(option_env or {})
 
             # Execute task
-            job_ids = self._execute_single_task(
-                node, subjects=subjects_str,
-                input_dir=input_dir, output_dir=output_dir, work_dir=work_dir,
-                container_dir=container_dir, dry_run=dry_run,
-                wait_jobs=wait_jobs, option_env=task_env,
-                project_config=project_config, requested_tasks=requested_tasks,
-                original_work_dir=original_work_dir, db_path=db_path,
-                execution_id=execution_id,
-            )
+            try:
+                job_ids = self._execute_single_task(
+                    node, subjects=subjects_str,
+                    input_dir=input_dir, output_dir=output_dir, work_dir=work_dir,
+                    container_dir=container_dir, dry_run=dry_run,
+                    wait_jobs=wait_jobs, option_env=task_env,
+                    project_config=project_config, requested_tasks=requested_tasks,
+                    original_work_dir=original_work_dir, db_path=db_path,
+                    execution_id=execution_id,
+                )
+            except Exception:
+                submitted = [jid for ids in all_job_ids.values() for jid in ids]
+                if submitted:
+                    typer.echo(
+                        f"\nAlready submitted before this failure: {', '.join(submitted)}\n"
+                        "These jobs stay queued; cancel them if the partial run is unwanted.",
+                        err=True,
+                    )
+                raise
             
             # Record results
             all_job_ids[task_name] = job_ids or []
@@ -300,9 +310,15 @@ class DAGExecutor:
                 db_path=db_path,
                 execution_id=execution_id,
             )
-            if job_id:
-                job_ids.append(job_id)
-        
+            # A missing job id reaches downstream tasks as an empty wait_jobs list, which is indistinguishable from "no dependency needed".
+            if not job_id:
+                raise RuntimeError(
+                    f"Submission failed for task '{node.name}' (script '{script}'). "
+                    "Aborting: downstream tasks would otherwise be submitted with no "
+                    "dependency on it and run on missing input."
+                )
+            job_ids.append(job_id)
+
         return job_ids
 
 

@@ -172,9 +172,11 @@ def compute_task_summary(job_status: list, all_subjects: list) -> list:
         n_fail = int((tdf['status'] == 'FAILED').sum())
 
         # Group/aggregate tasks (no `array` flag in config) run as a single job,
-        # so their denominator is the job count, not the subject count.
-        cfg = find_task_config_by_name(task) or {}
-        if cfg.get('array'):
+        # so their denominator is the job count, not the subject count. Group
+        # scope must be declared: an unregistered task falls back to per-subject,
+        # otherwise its not_run count would silently collapse to zero.
+        cfg = find_task_config_by_name(task)
+        if cfg is None or cfg.get('array'):
             total = n_subjects
         else:
             total = len(tdf) if len(tdf) else 1

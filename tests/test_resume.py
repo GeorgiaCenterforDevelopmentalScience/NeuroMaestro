@@ -34,7 +34,8 @@ class TestDAGExecutorResume:
     SUBJECTS = ["001", "002", "003"]
 
     def _run_execute(self, requested_tasks, completed_map,
-                     checks_config_path="fake_checks.yaml"):
+                     checks_config_path="fake_checks.yaml",
+                     group_tasks=(), group_passes=True):
         executor = make_executor()
 
         mock_execute = MagicMock(side_effect=lambda node, **kwargs: [f"job_{node.name}"])
@@ -45,6 +46,12 @@ class TestDAGExecutorResume:
 
         mock_checker = MagicMock()
         mock_checker.get_pending_subjects.side_effect = fake_pending
+        # Must be set explicitly: a bare MagicMock returns a truthy mock, which
+        # would route every per-subject task down the group branch.
+        mock_checker.is_group.side_effect = lambda task_name: task_name in group_tasks
+        mock_checker.check_group.side_effect = lambda task_name: [
+            {"status": "PASS" if group_passes else "FAIL"}
+        ]
         mock_checker.warn_missing_configs.return_value = []
 
         with patch(CONFIG_PATH, MOCK_CONFIG), \
@@ -154,6 +161,33 @@ class TestDAGExecutorResume:
         _, kwargs = mock_execute.call_args
         submitted = set(kwargs["subjects"].split(","))
         assert submitted == set(self.SUBJECTS)
+
+    def test_resume_skips_group_task_when_group_result_passes(self):
+        """A group-scope task with a passing group result is skipped whole."""
+        _, all_job_ids, mock_execute, _ = self._run_execute(
+            requested_tasks=["rest_preprocess"],
+            completed_map={},
+            group_tasks={"rest_preprocess"},
+            group_passes=True,
+        )
+
+        assert all_job_ids["rest_preprocess"] == []
+        mock_execute.assert_not_called()
+
+    def test_resume_group_task_resubmits_all_subjects_when_group_fails(self):
+        """A failing group result resubmits the task with the full subject list."""
+        _, _, mock_execute, mock_checker = self._run_execute(
+            requested_tasks=["rest_preprocess"],
+            completed_map={"rest_preprocess": ["001"]},
+            group_tasks={"rest_preprocess"},
+            group_passes=False,
+        )
+
+        mock_execute.assert_called_once()
+        _, kwargs = mock_execute.call_args
+        assert set(kwargs["subjects"].split(",")) == set(self.SUBJECTS)
+        # Group tasks are all-or-nothing, so per-subject filtering must not run.
+        mock_checker.get_pending_subjects.assert_not_called()
 
     def test_resume_false_does_not_instantiate_checker(self):
         """When resume=False, OutputChecker should never be imported/instantiated."""

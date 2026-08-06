@@ -13,7 +13,7 @@ DAG rules under test:
 """
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
 
 CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
@@ -443,3 +443,47 @@ class TestMissingTaskConfig:
             executor._prune_dangling_dependencies()
             with pytest.raises(ValueError, match="Circular dependency"):
                 executor._topological_sort()
+
+
+# ===========================================================================
+# Submission failure
+# ===========================================================================
+
+class TestSubmissionFailureAborts:
+    """A rejected sbatch must stop the run.
+
+    A failed submission used to yield an empty job id list, which reached the
+    downstream task as an empty wait_jobs and dropped its --dependency flag
+    entirely, so it started while its input was still missing.
+    """
+
+    SUBMIT_PATH = "neuro_pipeline.pipeline.utils.hpc_utils.submit_slurm_job"
+
+    def _execute(self, submit_mock):
+        executor = make_executor()
+        with patch(CONFIG_PATH, MOCK_CONFIG), \
+             patch(self.SUBMIT_PATH, submit_mock):
+            executor.execute(
+                requested_tasks=["recon", "rest_preprocess"],
+                input_dir="/in", output_dir="/out", work_dir="/work",
+                container_dir="/c", dry_run=False,
+                context={"subjects": ["001"]},
+                option_env={"session": "01"},
+                project_config=MOCK_PROJECT_CONFIG,
+            )
+
+    def test_failed_submission_raises(self):
+        with pytest.raises(RuntimeError, match="Submission failed"):
+            self._execute(MagicMock(return_value=None))
+
+    def test_downstream_task_is_never_submitted(self):
+        submit = MagicMock(return_value=None)
+        with pytest.raises(RuntimeError):
+            self._execute(submit)
+        # recon is first in topological order; rest_preprocess must not follow it
+        assert submit.call_count == 1
+
+    def test_successful_submission_still_runs_every_task(self):
+        submit = MagicMock(side_effect=lambda **kw: "12345")
+        self._execute(submit)
+        assert submit.call_count == 2
