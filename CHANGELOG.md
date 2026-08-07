@@ -4,6 +4,7 @@
 ## [Unreleased]
 
 ### Changed
+- `profile` is now required on every task. It used to fall back to a profile literally named `standard`, so a task that omitted it, or misspelled it, silently ran on whatever resources that profile happened to define. A task without `profile` now raises, listing the available profile names. This also means `standard` is no longer a name the code depends on, and profiles can be renamed freely.
 - Array concurrency is now set per resource profile. Add `array_limit: N` to a profile in `hpc_config.yaml` and every task using that profile caps its array at N concurrent subjects. A profile without `array_limit` submits an unthrottled array. This replaces the single global cap, so a 64 GB task and a 16 GB task no longer have to share one number.
 
 ### Fixed

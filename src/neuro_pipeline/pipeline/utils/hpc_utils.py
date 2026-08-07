@@ -348,11 +348,14 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     
     hpc_cfg = _ensure_hpc_config()
     defaults = hpc_cfg.get('defaults', {})
-    profile_name = task_config.get('profile', 'standard')
+    profile_name = task_config.get('profile')
     profile_config = hpc_cfg.get('resource_profiles', {}).get(profile_name, {})
 
     if not profile_config:
         available = ', '.join(hpc_cfg.get('resource_profiles', {}).keys())
+        if not profile_name:
+            task_name = task_config.get('name', '<unnamed>')
+            raise ValueError(f"Task '{task_name}' sets no 'profile'. Available: {available}")
         raise ValueError(f"Profile '{profile_name}' not found. Available: {available}")
     
     merged_config = {**defaults, **profile_config}
@@ -439,13 +442,14 @@ def submit_slurm_job(
     if not script_path:
         raise FileNotFoundError(f"Script '{script_name}' not found in scripts_dir='{scripts_dir}'")
 
-    if task_config:
-        resources = get_hpc_resources(task_config)
-        env_commands = get_environment_commands(task_config, project_config=project_config)
-    else:
-        default_task_config = {'profile': 'standard', 'array': False}
-        resources = get_hpc_resources(default_task_config)
-        env_commands = []
+    if not task_config:
+        raise ValueError(
+            f"submit_slurm_job('{script_name}') requires task_config: the resource "
+            f"profile is resolved from it and has no default."
+        )
+
+    resources = get_hpc_resources(task_config)
+    env_commands = get_environment_commands(task_config, project_config=project_config)
 
     actual_input_dir = input_dir
     if task_config and 'input_from' in task_config:

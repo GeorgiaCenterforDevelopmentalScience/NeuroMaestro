@@ -148,7 +148,7 @@ qc:
 | Field | Modifiable? | Description |
 |-------|-------------|-------------|
 | `name` | **Set once — do not rename** | Internal task identifier used in database logging, `_checks.yaml`, and `input_from` references. Renaming after any jobs have run breaks resume and job history. |
-| `profile` | **Yes** | Resource profile from `hpc_config.yaml`. Tune freely — changing only affects future submissions. |
+| `profile` | **Yes** | Resource profile from `hpc_config.yaml`. Required on every task, there is no default. Tune freely, changing one only affects future submissions. |
 | `scripts` | **Yes** | Shell script filename(s) relative to `scripts_dir`. Update when swapping the underlying analysis script. |
 | `stage` | **Set at design time** | `prep` or `post` — controls intra-section dependency order. Do not change after the section is in use. |
 | `array` | **Rarely** | `true` = one SLURM array job per subject. Nearly always `true` for subject-level tasks; `false` only for group-level steps like `mriqc_post`. How many of those subjects run at once is set by `array_limit` on the task's resource profile, in [`hpc_config.yaml`](hpc-config.md). |
