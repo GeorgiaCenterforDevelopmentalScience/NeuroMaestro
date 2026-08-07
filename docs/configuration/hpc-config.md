@@ -175,7 +175,7 @@ slurm:
 | Key | Description |
 |-----|-------------|
 | `dependency_flag` | Template for expressing upstream job dependencies. `{jobs}` is replaced with a colon-joined list of upstream job IDs: `--dependency=afterany:12345:12346`. Staged pipelines that wait for multiple intermed tasks will have all their job IDs joined here. |
-| `array_flag` | Template for SLURM array submission. `{array}` is replaced with the range string from `array_config.pattern` in `config.yaml` (e.g. `1-50%15`). |
+| `array_flag` | Template for array submission. `{array}` is replaced with the complete range string from `array_config.pattern` in `config.yaml` (e.g. `1-50%15`), so the template supplies only the flag itself, not the range. |
 
 ### Resource flags
 
@@ -209,7 +209,7 @@ To use PBS/Torque, set `scheduler: pbs` and uncomment the `pbs:` block in `hpc_c
 #   submit_cmd: qsub
 #   job_id_parse: first_word        # qsub prints "12345.cluster.example.com"
 #   dependency_flag: "-W depend=afterany:{jobs}"
-#   array_flag: "-J 1-{array}"
+#   array_flag: "-J {array}"
 #   resource_flags:
 #     partition:     "-q {value}"
 #     nodes:         "-l nodes={value}"

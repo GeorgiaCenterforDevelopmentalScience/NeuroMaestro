@@ -103,7 +103,7 @@ slurm:
 #   submit_cmd: qsub
 #   job_id_parse: first_word        # qsub prints "12345.cluster.example.com"
 #   dependency_flag: "-W depend=afterany:{jobs}"
-#   array_flag: "-J 1-{array}"
+#   array_flag: "-J {array}"        # {array} is the full range, e.g. 1-50%15
 #   resource_flags:
 #     partition:     "-q {value}"   # PBS calls this a queue
 #     nodes:         "-l nodes={value}"

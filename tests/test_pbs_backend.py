@@ -10,7 +10,7 @@ PBS_CONFIG = {
     "submit_cmd": "qsub",
     "job_id_parse": "first_word",
     "dependency_flag": "-W depend=afterany:{jobs}",
-    "array_flag": "-J 1-{array}",
+    "array_flag": "-J {array}",
     "resource_flags": {
         "partition":     "-q {value}",
         "nodes":         "-l nodes={value}",
@@ -105,7 +105,8 @@ class TestPBSBackendSmoke:
             wait_jobs=None,
             job_name="j", log_output="/o", log_error="/e",
         )
-        assert any("-J" in a for a in args)
+        # array_param is already a full range, so the template must not re-prefix it
+        assert "-J 1-5%15" in args
 
     def test_dependency_flag_added_when_wait_jobs_given(self):
         backend = make_backend()
