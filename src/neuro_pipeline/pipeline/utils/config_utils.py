@@ -25,6 +25,11 @@ def set_config_dir(path) -> None:
     _config_dir = Path(path)
     with open(_config_dir / "config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
+    # hpc_config.yaml follows the same dir but is cached in hpc_utils, which would
+    # otherwise serve the previous project for the life of a long-running process.
+    # Imported here rather than at module level: hpc_utils imports this module.
+    from . import hpc_utils
+    hpc_utils.hpc_config = None
 
 
 config: dict = {}

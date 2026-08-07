@@ -14,6 +14,7 @@ Covers:
 import os
 import time
 import pytest
+import yaml
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open
 from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
@@ -850,3 +851,44 @@ class TestArrayLimitComesFromTheProfile:
     def test_no_stale_module_level_cache(self):
         import neuro_pipeline.pipeline.utils.hpc_utils as mod
         assert not hasattr(mod, "config"), "hpc_utils must not keep its own config copy"
+
+
+class TestSwitchingConfigDirReloadsHpcConfig:
+    """hpc_config.yaml is cached in a module global. A long-lived process (the
+    Dash app) switching projects kept the first project's profiles for the rest
+    of its lifetime; set_config_dir now drops that cache.
+    """
+
+    @staticmethod
+    def _make_config_dir(root, array_limit):
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "config.yaml").write_text(yaml.safe_dump({
+            "prep": [{"name": "recon", "profile": "standard", "array": True}],
+        }), encoding="utf-8")
+        (root / "hpc_config.yaml").write_text(yaml.safe_dump({
+            "scheduler": "slurm",
+            "defaults": {"partition": "batch", "nodes": 1, "ntasks": 1, "cpus_per_task": 1},
+            "resource_profiles": {
+                "standard": {"memory": "1gb", "time": "01:00:00", "array_limit": array_limit},
+            },
+            "slurm": {"submit_cmd": "sbatch"},
+        }), encoding="utf-8")
+        return root
+
+    def test_switching_dir_picks_up_the_new_profiles(self, tmp_path):
+        from neuro_pipeline.pipeline.utils import config_utils, hpc_utils
+
+        # these are module globals; leaking them breaks unrelated tests
+        saved = (config_utils._config_dir, config_utils.config, hpc_utils.hpc_config)
+        try:
+            project_a = self._make_config_dir(tmp_path / "a", 15)
+            project_b = self._make_config_dir(tmp_path / "b", 40)
+            task = {"profile": "standard", "array": True}
+
+            config_utils.set_config_dir(project_a)
+            assert hpc_utils.get_hpc_resources(task).array == "1-{num}%15"
+
+            config_utils.set_config_dir(project_b)
+            assert hpc_utils.get_hpc_resources(task).array == "1-{num}%40"
+        finally:
+            config_utils._config_dir, config_utils.config, hpc_utils.hpc_config = saved

@@ -8,6 +8,10 @@
 
 ### Fixed
 - PBS `array_flag` was defined as `-J 1-{array}` while `{array}` already carried the full range, producing `-J 1-1-50%15`. The template is now `-J {array}`, matching how the SLURM backend treats the placeholder. The test covering this asserted only that `-J` appeared somewhere in the arguments, which is why it passed.
+- `hpc_config.yaml` was read once per process and cached forever, so switching the config directory inside a long-running process (the Dash app) kept serving the previous project's resource profiles. `set_config_dir` now drops that cache alongside reloading `config.yaml`. The CLI was never affected, since each run is a fresh process.
+
+### Tests
+- Switching config directory twice within one process is now covered, asserting the second project's profiles take effect.
 
 ### Removed
 - `array_config` in `config.yaml`. **Migration:** delete the `array_config` block from your `config.yaml`, then set `array_limit` on the profiles in `hpc_config.yaml` that need a cap. Carrying the number over unchanged means putting the old `%N` value on every profile. Leaving the block in place is harmless but has no effect.
