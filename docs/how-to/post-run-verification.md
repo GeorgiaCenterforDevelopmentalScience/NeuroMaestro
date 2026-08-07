@@ -241,7 +241,10 @@ The report is organised by session. Each session gets its own section in the nav
 | **Output Validation** *(per session)* | Compact colour-block matrix (rows = check type grouped by task, columns = subjects). Only shown when check-results data is available. Failed checks expandable in a detail table below |
 | **Environment & Reproducibility** *(per session)* | Collapsed. The SLURM command, modules, env vars, and execute command from the latest wrapper script for each task |
 
-<!-- ![Subject × Task Status heatmap](../images/report_heatmap_placeholder.png) -->
+![Report sections](../images/report_sections.png)
+
+Above: the **Subject × Task Status** matrix, the collapsed **Failed Jobs** list, and the
+**Reported SUCCESS but Output Check Failed** table, as rendered for a 30-subject run.
 
 ---
 

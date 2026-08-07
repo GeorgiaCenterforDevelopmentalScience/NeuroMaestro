@@ -176,7 +176,7 @@ Edit `config/hpc_config.yaml` — scheduler selection, resource profiles, and SL
 
 ## Job Monitor
 
-The database path and work directory are set once at the top and shared across all three tabs.
+The work directory and database path are set once at the top and shared across all three tabs.
 
 ### Database tab
 
@@ -192,8 +192,6 @@ See [Merge Logs Implementation](../internals/pipeline-backend.md#merge-logs-impl
 ### Query tab
 
 ![Database2](../images/job_monitor_db1.png)
-
-![Database3](../images/job_monitor_db2.png)
 
 **Wrapper Script Inspector** — look up the exact wrapper script submitted for any job. Filter by task name and/or job ID (leave blank for the most recent). Shows all exported environment variables, module load commands, and the exact script call — useful for reproducing or debugging a specific submission.
 
