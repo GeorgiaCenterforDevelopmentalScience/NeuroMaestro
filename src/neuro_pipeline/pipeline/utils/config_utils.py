@@ -63,10 +63,9 @@ def get_tasks_by_suffix(suffix: str, category: str = None) -> List[str]:
     if category:
         all_tasks = config.get(category, [])
     else:
-        skip = {'array_config'}
         all_tasks = []
-        for key, val in config.items():
-            if key not in skip and isinstance(val, list):
+        for val in config.values():
+            if isinstance(val, list):
                 all_tasks.extend(val)
     return [t['name'] for t in all_tasks if isinstance(t, dict) and suffix in t.get('name', '')]
 
@@ -74,10 +73,9 @@ def get_all_task_names(category: str = None) -> List[str]:
     """Get all task names. If category is given, only that section; otherwise all sections in config order."""
     if category:
         return [t['name'] for t in config.get(category, []) if isinstance(t, dict)]
-    skip = {'array_config'}
     names = []
-    for key, val in config.items():
-        if key in skip or not isinstance(val, list):
+    for val in config.values():
+        if not isinstance(val, list):
             continue
         for task in val:
             if isinstance(task, dict) and 'name' in task:
@@ -138,7 +136,7 @@ def get_intermed_task_names() -> List[str]:
     """Return task names from the intermed section of config.yaml."""
     return [t['name'] for t in config.get('intermed', []) if isinstance(t, dict) and 'name' in t]
 
-_SYSTEM_SECTIONS = {'prep', 'intermed', 'qc', 'array_config'}
+_SYSTEM_SECTIONS = {'prep', 'intermed', 'qc'}
 
 def get_bids_pipeline_names() -> List[str]:
     """Return section names for BIDS-native pipelines (tasks without multi_stage)."""

@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import typer
 import yaml
 
-from .config_utils import get_config, get_config_dir
+from .config_utils import get_config_dir
 
 hpc_config: Optional[dict] = None
 
@@ -359,12 +359,10 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     
     array_param = None
     if task_config.get('array', False):
-        # Read through config_utils so a config-dir switch is picked up: a
-        # module-level cache here would keep serving the first project's
-        # array pattern for the lifetime of a long-running GUI process.
-        array_config = (get_config() or {}).get('array_config', {})
-        array_param = array_config.get('pattern', '1-{num}%15')
-    
+        # {num} is filled in with the subject count in submit_slurm_job
+        array_limit = merged_config.get('array_limit')
+        array_param = '1-{num}' + (f'%{array_limit}' if array_limit else '')
+
     return HPCResources(
         partition=merged_config['partition'],
         nodes=merged_config['nodes'],

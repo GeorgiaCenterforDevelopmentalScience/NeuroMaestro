@@ -225,7 +225,7 @@ Key details:
 
 - **`%A`** in log filenames = the array job ID (same for all subjects in one submission)
 - **`%a`** = the array task index (1-based, one per subject)
-- **`%15`** = maximum 15 subjects running simultaneously (configurable in `config.yaml` → `array_config.pattern`)
+- **`%15`** = maximum 15 subjects running simultaneously (configurable per profile in `hpc_config.yaml` → `resource_profiles.<name>.array_limit`; omit it and no `%N` is emitted)
 - **`--dependency=afterany:{job_id}`** is added when a task has upstream dependencies. The downstream job starts after the upstream job reaches any terminal state (completed, failed, or cancelled).
 
 ### Non-array jobs

@@ -44,7 +44,7 @@ def create_job_monitor_layout():
 
         dbc.Tabs([
 
-            # ── Tab 1: Database Maintenance ─────────────────────────────────
+            # Tab 1: Database Maintenance
             dbc.Tab(label="Database", tab_id="tab-db", children=[
                 dbc.Alert([
                     html.I(className="fas fa-info-circle me-2"),
@@ -98,7 +98,7 @@ def create_job_monitor_layout():
                 ], className="mt-3")
             ]),
 
-            # ── Tab 2: Query ────────────────────────────────────────────────
+            # Tab 2: Query
             dbc.Tab(label="Query", tab_id="tab-query", children=[
                 html.Div([
 
@@ -242,7 +242,7 @@ def create_job_monitor_layout():
                 ])
             ]),
 
-            # ── Tab 3: QA & Report ──────────────────────────────────────────
+            # Tab 3: QA & Report
             dbc.Tab(label="QA & Report", tab_id="tab-qa", children=[
                 html.Div([
 

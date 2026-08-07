@@ -98,7 +98,7 @@ def _trigger_id():
     return ctx.triggered[0]["prop_id"].split(".")[0]
 
 
-# ── Tab 1: Project Config ─────────────────────────────────────────────────────
+# Tab 1: Project Config
 
 def _project_config_path(project_name: str) -> Path:
     return _effective_config_dir() / "project_config" / f"{project_name}_config.yaml"
@@ -181,7 +181,7 @@ def save_config_callback(_save_clicks, _validate_clicks, project_name, yaml_cont
         return _alert_err(f"Unexpected error: {e}")
 
 
-# ── Tab 2: Results Check ──────────────────────────────────────────────────────
+# Tab 2: Results Check
 
 def _checks_path(project_name: str) -> Path:
     return _effective_config_dir() / "results_check" / f"{project_name}_checks.yaml"
@@ -245,7 +245,7 @@ def save_checks_callback(save_clicks, validate_clicks, project_name, yaml_conten
         return _alert_err(f"Unexpected error: {e}")
 
 
-# ── Tab 3: Global Pipeline Config ─────────────────────────────────────────────
+# Tab 3: Global Pipeline Config
 
 def load_global_config_callback(n_clicks):
     if not n_clicks:
@@ -268,7 +268,7 @@ def save_global_config_callback(save_clicks, validate_clicks, yaml_content):
         if err:
             return err
         if _trigger_id() == "validate-global-config-btn":
-            expected = {"prep", "intermed", "qc", "array_config"}
+            expected = {"prep", "intermed", "qc"}
             missing = expected - (set(parsed.keys()) if isinstance(parsed, dict) else set())
             if missing:
                 return _alert_warn(f"Valid YAML but missing expected top-level keys: {', '.join(sorted(missing))}")
@@ -283,7 +283,7 @@ def save_global_config_callback(save_clicks, validate_clicks, yaml_content):
         return _alert_err(f"Unexpected error: {e}")
 
 
-# ── Tab 4: HPC Config ────────────────────────────────────────────────────────
+# Tab 4: HPC Config
 
 def load_hpc_config_callback(n_clicks):
     if not n_clicks:
@@ -320,7 +320,7 @@ def save_hpc_config_callback(_save_clicks, _validate_clicks, yaml_content):
         return _alert_err(f"Unexpected error: {e}")
 
 
-# ── Registration ──────────────────────────────────────────────────────────────
+# Registration
 
 def register_config_callbacks(app):
 

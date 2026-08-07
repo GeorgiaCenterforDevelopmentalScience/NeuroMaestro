@@ -92,9 +92,6 @@ class TestMockConfigTracksTheRealConfig:
         for script in referenced:
             assert script in available, script
 
-    def test_array_config_shape_matches(self, real_config):
-        assert set(MOCK_CONFIG["array_config"]) == set(real_config["array_config"])
-
 
 # ---------------------------------------------------------------------------
 # MOCK_HPC_CONFIG vs hpc_config.yaml
@@ -128,6 +125,13 @@ class TestMockHpcConfigTracksTheRealConfig:
         real_flags = set(real_hpc_config[scheduler]["resource_flags"])
         assert mock_flags
         assert mock_flags <= real_flags
+
+    def test_array_limits_are_positive_ints(self, real_hpc_config):
+        # a string or 0 here would silently emit a broken "%" throttle
+        for name, profile in real_hpc_config["resource_profiles"].items():
+            limit = profile.get("array_limit")
+            if limit is not None:
+                assert isinstance(limit, int) and limit > 0, name
 
 
 # ---------------------------------------------------------------------------

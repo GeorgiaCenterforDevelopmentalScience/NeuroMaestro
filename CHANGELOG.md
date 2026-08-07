@@ -1,6 +1,18 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
+## [Unreleased]
+
+### Changed
+- Array concurrency is now set per resource profile. Add `array_limit: N` to a profile in `hpc_config.yaml` and every task using that profile caps its array at N concurrent subjects. A profile without `array_limit` submits an unthrottled array. This replaces the single global cap, so a 64 GB task and a 16 GB task no longer have to share one number.
+
+### Fixed
+- PBS `array_flag` was defined as `-J 1-{array}` while `{array}` already carried the full range, producing `-J 1-1-50%15`. The template is now `-J {array}`, matching how the SLURM backend treats the placeholder. The test covering this asserted only that `-J` appeared somewhere in the arguments, which is why it passed.
+
+### Removed
+- `array_config` in `config.yaml`. **Migration:** delete the `array_config` block from your `config.yaml`, then set `array_limit` on the profiles in `hpc_config.yaml` that need a cap. Carrying the number over unchanged means putting the old `%N` value on every profile. Leaving the block in place is harmless but has no effect.
+
+---
 ## [0.17.0-alpha] – 2026-07-29
 
 ### Fixed

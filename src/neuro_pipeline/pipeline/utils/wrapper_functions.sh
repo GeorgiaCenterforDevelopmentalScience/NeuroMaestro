@@ -86,7 +86,7 @@ execute_wrapper() {
     if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "$NUM_SUBJECTS" -gt 0 ]; then
         local idx=$((SLURM_ARRAY_TASK_ID - 1))
         # Guard against an array range wider than the subject list (e.g. a
-        # hard-coded array_config pattern): bash would silently yield "".
+        # hand-edited --array range): bash would silently yield "".
         if [ "$idx" -lt 0 ] || [ "$idx" -ge "$NUM_SUBJECTS" ]; then
             echo "Array task $SLURM_ARRAY_TASK_ID has no matching subject (only $NUM_SUBJECTS provided); exiting."
             return 0

@@ -46,12 +46,13 @@ MOCK_HPC_CONFIG = {
         "ntasks": 1,
         "cpus_per_task": 16,
     },
+    # light_short deliberately omits array_limit to cover the unthrottled branch
     "resource_profiles": {
-        "data_manage":    {"memory": "2gb",  "time": "00:20:00"},
+        "data_manage":    {"memory": "2gb",  "time": "00:20:00", "array_limit": 30},
         "light_short":    {"memory": "16gb", "time": "04:00:00"},
-        "standard":       {"memory": "32gb", "time": "20:00:00"},
-        "standard_short": {"memory": "32gb", "time": "08:00:00"},
-        "heavy_long":     {"memory": "64gb", "time": "24:00:00"},
+        "standard":       {"memory": "32gb", "time": "20:00:00", "array_limit": 15},
+        "standard_short": {"memory": "32gb", "time": "08:00:00", "array_limit": 15},
+        "heavy_long":     {"memory": "64gb", "time": "24:00:00", "array_limit": 8},
     },
     "slurm": {
         "submit_cmd": "sbatch",
@@ -194,9 +195,6 @@ MOCK_CONFIG = {
             "output_pattern": "{base_output}/quality_control/mriqc",
         },
     ],
-    "array_config": {
-        "pattern": "1-{num}%15",
-    },
 }
 
 # Minimal project config (mirrors test_config.yaml).

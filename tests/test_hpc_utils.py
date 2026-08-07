@@ -827,27 +827,25 @@ class TestReservedEnvNames:
         assert "export TEMPLATE='MNI152'" in sections["task_params"]
 
 
-class TestArrayConfigFollowsCurrentConfig:
-    """hpc_utils used to cache its own copy of config.yaml at module level.
-    A long-running GUI switching config-dir would keep the first project's
-    array pattern for the rest of the process lifetime.
+class TestArrayLimitComesFromTheProfile:
+    """Array throttling used to be one global pattern in config.yaml. It now
+    rides on the resource profile, so a 64gb task and a 16gb one can differ.
     """
 
     @staticmethod
-    def _array_for(cfg):
-        with patch(PIPELINE_CONFIG_PATH, cfg), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+    def _array_for(profile):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_resources
-            return get_hpc_resources({"profile": "standard", "array": True}).array
+            return get_hpc_resources({"profile": profile, "array": True}).array
 
-    def test_pattern_read_from_current_config(self):
-        cfg = {**MOCK_CONFIG, "array_config": {"pattern": "1-{num}%15"}}
-        assert self._array_for(cfg) == "1-{num}%15"
+    def test_limit_read_from_profile(self):
+        assert self._array_for("standard") == "1-{num}%15"
 
-    def test_switching_config_changes_the_pattern(self):
-        project_a = {**MOCK_CONFIG, "array_config": {"pattern": "1-{num}%15"}}
-        project_b = {**MOCK_CONFIG, "array_config": {"pattern": "1-{num}%30"}}
-        assert self._array_for(project_a) == "1-{num}%15"
-        assert self._array_for(project_b) == "1-{num}%30"
+    def test_profiles_can_carry_different_limits(self):
+        assert self._array_for("heavy_long") == "1-{num}%8"
+
+    def test_profile_without_a_limit_is_unthrottled(self):
+        assert self._array_for("light_short") == "1-{num}"
 
     def test_no_stale_module_level_cache(self):
         import neuro_pipeline.pipeline.utils.hpc_utils as mod

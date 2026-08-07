@@ -212,7 +212,3 @@ qc:
     input_from: recon
     scripts: [mriqc_group.sh]
     output_pattern: "{base_output}/quality_control/mriqc"
-
-# Array job configuration
-array_config:
-  pattern: "1-{num}%15"

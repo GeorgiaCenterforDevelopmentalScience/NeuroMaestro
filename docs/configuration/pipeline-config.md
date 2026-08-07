@@ -139,10 +139,6 @@ qc:
     input_from: recon
     scripts: [mriqc_group.sh]
     output_pattern: "{base_output}/quality_control/mriqc"
-
-# Array job concurrency limit
-array_config:
-  pattern: "1-{num}%15"   # %15 = max 15 subjects running simultaneously
 ```
 
 ---
@@ -154,9 +150,8 @@ array_config:
 | `name` | **Set once — do not rename** | Internal task identifier used in database logging, `_checks.yaml`, and `input_from` references. Renaming after any jobs have run breaks resume and job history. |
 | `profile` | **Yes** | Resource profile from `hpc_config.yaml`. Tune freely — changing only affects future submissions. |
 | `scripts` | **Yes** | Shell script filename(s) relative to `scripts_dir`. Update when swapping the underlying analysis script. |
-| `array_config` `pattern` | **Yes** (`%N` part only) | Change the concurrency cap (`%15`) to match your cluster's limits. Leave `1-{num}` as-is. |
 | `stage` | **Set at design time** | `prep` or `post` — controls intra-section dependency order. Do not change after the section is in use. |
-| `array` | **Rarely** | `true` = one SLURM array job per subject. Nearly always `true` for subject-level tasks; `false` only for group-level steps like `mriqc_post`. |
+| `array` | **Rarely** | `true` = one SLURM array job per subject. Nearly always `true` for subject-level tasks; `false` only for group-level steps like `mriqc_post`. How many of those subjects run at once is set by `array_limit` on the task's resource profile, in [`hpc_config.yaml`](hpc-config.md). |
 | `input_from` | **Set at design time** | Name of the upstream task whose output directory becomes this task's input. Controls where the task reads data from — not the job dependency order (that is handled internally by the pipeline). |
 | `output_pattern` | **Before first run only** | Output root used by `--resume` to locate existing results. Can be set freely when first creating a task, but changing it after subjects have been processed means the pipeline can no longer find their outputs and will resubmit them. |
 | `multi_stage` | **Set at design time** | `true` = this task belongs to a staged pipeline. When any `--intermed` tasks are requested, this task waits for **all** of them to finish before starting. Without `--intermed`, it runs in parallel with `recon`. Set when first creating the section; do not toggle later. |
@@ -209,14 +204,9 @@ To add a new intermed task, add an entry under `intermed:` in `config.yaml` and 
 
 ---
 
-## `array_config`
+## Array concurrency
 
-```yaml
-array_config:
-  pattern: "1-{num}%15"
-```
-
-`{num}` is replaced with the subject count at runtime. `%15` caps concurrent running jobs to 15. Increase this if your cluster policy allows more.
+A task with `array: true` submits one array job covering every subject. The cap on how many run simultaneously lives on the resource profile, not here. See [`array_limit`](hpc-config.md#profile-fields) in `hpc_config.yaml`.
 
 ---
 

@@ -154,7 +154,7 @@ neuropipe force-rebuild /data/work/my_study
 
 **Jobs are queued but never start**
 - Check resource limits: `sacctmgr show assoc user=$USER`
-- Reduce concurrent array jobs: lower `%15` in the `array_config.pattern` field in `config.yaml`
+- Reduce concurrent array jobs: lower `array_limit` on the task's resource profile in `hpc_config.yaml`
 
 ### Container Mounting (Apptainer / Singularity)
 
@@ -207,7 +207,7 @@ fi
 ```
 
 If mount timeouts still appear (staging fell back to the network image), also:
-- Lower concurrency via `%15` in `array_config.pattern` in `config.yaml`
+- Lower concurrency via `array_limit` on the task's resource profile in `hpc_config.yaml`
 - Submit off-peak, or use dedicated nodes when available
 
 **`cp: ... No space left on device` when staging the image**

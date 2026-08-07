@@ -67,6 +67,7 @@ resource_profiles:
 | `ntasks` | Yes | Number of parallel tasks within a job. Almost always `1` (the wrapper launches one process per subject). |
 | `cpus_per_task` | Yes | CPU cores allocated per task. Becomes `--cpus-per-task`. Set to match the parallelism of the underlying tool (e.g. 16 for AFNI, 16 for fMRIPrep). |
 | `partition` | No | Queue/partition name. Overrides `defaults.partition` when set. |
+| `array_limit` | No | Caps how many subjects of an array task run at once. Becomes the `%N` in `--array=1-50%15`. Only applies to tasks marked `array: true` in `config.yaml`. Omit it to leave the array unthrottled, letting the scheduler run as many subjects as the queue allows. |
 | `additional_args` | No | List of raw scheduler flags appended verbatim to the submission command. Use for cluster-specific flags not covered above (e.g. `--constraint=avx512`, `--account=mylab`). |
 
 ### Adding a new profile
@@ -128,13 +129,15 @@ intermed:
 
 ### Current profiles
 
-| Profile | Memory | Time | Use for |
-|---------|--------|------|---------|
-| `data_manage` | 2 GB | 20 min | Unzip, file management |
-| `light_short` | 16 GB | 4 h | MRIQC group, lightweight postprocessing |
-| `standard_short` | 32 GB | 8 h | Intermed AFNI (`volume`), XCP-D |
-| `standard` | 32 GB | 20 h | Task fMRI (AFNI), DWI |
-| `heavy_long` | 64 GB | 24 h | fMRIPrep, MRIQC individual |
+| Profile | Memory | Time | Array limit | Use for |
+|---------|--------|------|-------------|---------|
+| `data_manage` | 2 GB | 20 min | 15 | Unzip, file management |
+| `light_short` | 16 GB | 4 h | 15 | MRIQC group, lightweight postprocessing |
+| `standard_short` | 32 GB | 8 h | 15 | Intermed AFNI (`volume`), XCP-D |
+| `standard` | 32 GB | 20 h | 15 | Task fMRI (AFNI), DWI |
+| `heavy_long` | 64 GB | 24 h | 15 | fMRIPrep, MRIQC individual |
+
+The shipped profiles all cap at 15, which is a conservative starting point rather than a tuned value. Since the limit is per profile, a light profile can usually be raised well above a heavy one without exceeding the same node budget. Adjust to match your cluster's queue policy.
 
 ---
 
@@ -175,7 +178,7 @@ slurm:
 | Key | Description |
 |-----|-------------|
 | `dependency_flag` | Template for expressing upstream job dependencies. `{jobs}` is replaced with a colon-joined list of upstream job IDs: `--dependency=afterany:12345:12346`. Staged pipelines that wait for multiple intermed tasks will have all their job IDs joined here. |
-| `array_flag` | Template for array submission. `{array}` is replaced with the complete range string from `array_config.pattern` in `config.yaml` (e.g. `1-50%15`), so the template supplies only the flag itself, not the range. |
+| `array_flag` | Template for array submission. `{array}` is replaced with the complete range string the pipeline builds from the subject count and the profile's `array_limit` (e.g. `1-50%15`), so the template supplies only the flag itself, not the range. |
 
 ### Resource flags
 

@@ -18,7 +18,7 @@ def create_project_config_page():
 
             dbc.Tabs([
 
-                # ── Tab 1: Project Config ─────────────────────────────────
+                # Tab 1: Project Config
                 dbc.Tab(label="Project Config", tab_id="tab-project-config", children=[
                     html.Div([
 
@@ -76,7 +76,7 @@ def create_project_config_page():
                     ], className="pt-3")
                 ]),
 
-                # ── Tab 2: Results Check Config ───────────────────────────
+                # Tab 2: Results Check Config
                 dbc.Tab(label="Results Check Config", tab_id="tab-results-check", children=[
                     html.Div([
 
@@ -163,7 +163,7 @@ def create_project_config_page():
                     ], className="pt-3")
                 ]),
 
-                # ── Tab 3: Global Pipeline Config ─────────────────────────
+                # Tab 3: Global Pipeline Config
                 dbc.Tab(label="Global Pipeline Config", tab_id="tab-global-config", children=[
                     html.Div([
 
@@ -229,7 +229,7 @@ def create_project_config_page():
                     ], className="pt-3")
                 ]),
 
-                # ── Tab 4: HPC Config ─────────────────────────────────────
+                # Tab 4: HPC Config
                 dbc.Tab(label="HPC Config", tab_id="tab-hpc-config", children=[
                     html.Div([
 
