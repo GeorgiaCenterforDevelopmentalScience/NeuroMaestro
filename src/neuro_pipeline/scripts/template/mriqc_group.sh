@@ -18,6 +18,8 @@ echo "$OUTPUT_DIR"
 
 # ---------------------------------- Run Processing -------------------------------------
 
+# --nprocs below should track cpus_per_task in hpc_config.yaml.
+# To follow it automatically, replace with:  --nprocs ${SLURM_CPUS_PER_TASK:-16} \
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \
                 -B ${input_dir}:/data \

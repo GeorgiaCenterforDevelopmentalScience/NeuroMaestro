@@ -57,6 +57,8 @@ else
 fi
 echo "run_container: ${local_container}"
 
+# --nprocs below should track cpus_per_task in hpc_config.yaml.
+# To follow it automatically, replace with:  --nprocs ${SLURM_CPUS_PER_TASK:-4} \
 singularity run \
                 -B $HOME:/home/xcp \
                 --home /home/xcp \

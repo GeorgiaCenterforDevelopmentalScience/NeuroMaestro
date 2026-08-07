@@ -34,6 +34,8 @@ echo "nuisance-regressors: ${NUISANCE_REGRESSORS}"
 
 # notch filter parameter: https://xcp-d.readthedocs.io/en/latest/workflows.html#motion-parameter-filtering-optional 
 
+# --nprocs below should track cpus_per_task in hpc_config.yaml.
+# To follow it automatically, replace with:  --nprocs ${SLURM_CPUS_PER_TASK:-4} \
 singularity run \
                 -B $HOME:/home/xcp \
                 --home /home/xcp \

@@ -52,6 +52,8 @@ else
 fi
 echo "run_container: ${local_container}"
 
+# --nthreads below should track cpus_per_task in hpc_config.yaml.
+# To follow it automatically, replace with:  --nthreads ${SLURM_CPUS_PER_TASK:-16} \
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \
                 -B ${INPUT_DIR}:/data \

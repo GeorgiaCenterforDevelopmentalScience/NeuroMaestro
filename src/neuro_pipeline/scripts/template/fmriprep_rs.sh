@@ -30,6 +30,8 @@ echo "container: ${CONTAINER_DIR}/${CONTAINER}"
 # If you want to use HaskinsPeds template you need to make and upload it to the template folder.
 # See https://fmriprep.org/en/stable/spaces.html
 
+# --nthreads below should track cpus_per_task in hpc_config.yaml.
+# To follow it automatically, replace with:  --nthreads ${SLURM_CPUS_PER_TASK:-16} \
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \
                 -B ${input_dir}:/data \
