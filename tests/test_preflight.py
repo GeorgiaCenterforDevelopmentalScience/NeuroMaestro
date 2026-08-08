@@ -5,6 +5,7 @@ Tests for the pre-flight schema validation and filesystem checks
 in neuro_pipeline.pipeline.utils.preflight.
 """
 
+import copy
 import os
 import pytest
 import yaml
@@ -155,6 +156,29 @@ class TestSchemaChecks:
             if i.severity == "ERROR" and "profile" in i.message
         ]
         assert len(profile_errors) > 0
+
+    def test_error_when_task_sets_no_profile(self, tmp_path):
+        gc = copy.deepcopy(MOCK_CONFIG)
+        gc["prep"][0].pop("profile")
+        broken = gc["prep"][0]["name"]
+        checker = make_checker(global_config=gc, tmp_path=tmp_path)
+        checker.check_schema()
+        assert any(
+            i.severity == "ERROR" and broken in i.message and "no resource profile" in i.message
+            for i in checker._issues
+        )
+
+    def test_profile_checked_without_a_project_config_entry(self, tmp_path):
+        """A task is submittable with no project entry, so it must still be checked."""
+        gc = copy.deepcopy(MOCK_CONFIG)
+        gc["prep"][0].pop("profile")
+        broken = gc["prep"][0]["name"]
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {}}
+        checker = make_checker(project_config=pc, global_config=gc, tmp_path=tmp_path)
+        checker.check_schema()
+        assert any(
+            i.severity == "ERROR" and broken in i.message for i in checker._issues
+        )
 
 
 # ===========================================================================

@@ -72,22 +72,15 @@ class PreflightChecker:
     def _warn(self, category: str, message: str) -> None:
         self._issues.append(Issue("WARNING", category, message))
 
-    def _all_global_task_names(self) -> set:
-        names = set()
+    def _all_global_tasks(self):
         for section_tasks in self.global_config.values():
             if isinstance(section_tasks, list):
                 for task in section_tasks:
                     if isinstance(task, dict) and "name" in task:
-                        names.add(task["name"])
-        return names
+                        yield task
 
-    def _global_task(self, name: str) -> Optional[Dict[str, Any]]:
-        for section_tasks in self.global_config.values():
-            if isinstance(section_tasks, list):
-                for task in section_tasks:
-                    if isinstance(task, dict) and task.get("name") == name:
-                        return task
-        return None
+    def _all_global_task_names(self) -> set:
+        return {task["name"] for task in self._all_global_tasks()}
 
     # Schema/reference validation
 
@@ -118,6 +111,22 @@ class PreflightChecker:
         # global task names
         global_task_names = self._all_global_task_names()
 
+        # Checked over every registered task, not only those the project config
+        # overrides: a task is submittable without a project entry, and profile
+        # has no default, so anything missed here surfaces only at submission.
+        for gtask in self._all_global_tasks():
+            profile = gtask.get("profile")
+            if not profile:
+                self._err(
+                    "schema",
+                    f"global config.yaml: task '{gtask['name']}' sets no resource profile",
+                )
+            elif profile not in global_profiles:
+                self._err(
+                    "schema",
+                    f"task '{gtask['name']}': resource profile '{profile}' is not defined in resource_profiles",
+                )
+
         # Validate each tasks entry
         tasks = pc.get("tasks") or {}
         if not isinstance(tasks, dict):
@@ -134,16 +143,6 @@ class PreflightChecker:
                         "schema",
                         f"tasks entry '{name}' is not defined in global config.yaml",
                     )
-
-                # Resource profile must exist (profile lives in global config)
-                gtask = self._global_task(name)
-                if gtask:
-                    profile = gtask.get("profile")
-                    if profile and profile not in global_profiles:
-                        self._err(
-                            "schema",
-                            f"task '{name}': resource profile '{profile}' is not defined in resource_profiles",
-                        )
 
                 # environ references must be defined in project config modules
                 for mod in entry.get("environ") or []:

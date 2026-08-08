@@ -4,18 +4,21 @@
 ## [Unreleased]
 
 ### Changed
-- `profile` is now required on every task. It used to fall back to a profile literally named `standard`, so a task that omitted it, or misspelled it, silently ran on whatever resources that profile happened to define. A task without `profile` now raises, listing the available profile names. This also means `standard` is no longer a name the code depends on, and profiles can be renamed freely.
-- Array concurrency is now set per resource profile. Add `array_limit: N` to a profile in `hpc_config.yaml` and every task using that profile caps its array at N concurrent subjects. A profile without `array_limit` submits an unthrottled array. This replaces the single global cap, so a 64 GB task and a 16 GB task no longer have to share one number.
+- `profile` is now required on every task. It used to fall back to a profile named `standard`, so an omitted or misspelled name silently ran on whatever that profile defined. Missing profiles now raise, listing the available names, and `standard` is no longer a name the code depends on.
+- Array concurrency moved from one global cap to `array_limit: N` per resource profile in `hpc_config.yaml`, so a 64 GB task and a 16 GB task no longer share one number. A profile without it submits an unthrottled array.
 
 ### Fixed
-- PBS `array_flag` was defined as `-J 1-{array}` while `{array}` already carried the full range, producing `-J 1-1-50%15`. The template is now `-J {array}`, matching how the SLURM backend treats the placeholder. The test covering this asserted only that `-J` appeared somewhere in the arguments, which is why it passed.
-- `hpc_config.yaml` was read once per process and cached forever, so switching the config directory inside a long-running process (the Dash app) kept serving the previous project's resource profiles. `set_config_dir` now drops that cache alongside reloading `config.yaml`. The CLI was never affected, since each run is a fresh process.
+- PBS `array_flag` was `-J 1-{array}` while `{array}` already carried the full range, producing `-J 1-1-50%15`. Now `-J {array}`, matching the SLURM backend.
+- `hpc_config.yaml` was cached for the life of the process, so switching config directory in the Dash app kept serving the previous project's profiles. `set_config_dir` now drops that cache. The CLI was never affected.
+- Pre-flight accepted a task with no `profile` while rejecting a misspelled one, and only examined tasks the project config overrode. Every task in `config.yaml` is now checked.
 
 ### Tests
-- Switching config directory twice within one process is now covered, asserting the second project's profiles take effect.
+- `array_flag` is asserted as a whole argument rather than a substring, which is why the PBS bug passed before.
+- Switching config directory twice within one process.
+- Pre-flight on a task with no `profile`, including when it has no project config entry.
 
 ### Removed
-- `array_config` in `config.yaml`. **Migration:** delete the `array_config` block from your `config.yaml`, then set `array_limit` on the profiles in `hpc_config.yaml` that need a cap. Carrying the number over unchanged means putting the old `%N` value on every profile. Leaving the block in place is harmless but has no effect.
+- `array_config` in `config.yaml`. **Migration:** delete the block and set `array_limit` on the profiles that need a cap. Carrying the old `%N` over means setting it on every profile. Leaving the block in place is harmless but has no effect.
 
 ---
 ## [0.17.0-alpha] – 2026-07-29

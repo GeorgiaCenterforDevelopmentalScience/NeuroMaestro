@@ -117,7 +117,7 @@ Open `config.yaml` in your `--config-dir` and add your task as a new top-level s
 flanker:
   - name: flanker_preprocess
     stage: prep
-    profile: standard          # resource profile
+    profile: standard          # resource profile (required, no default)
     array: true                # true = one array job per subject
     multi_stage: true          # staged pipeline: depends on intermed if requested
     scripts: [afni_flanker_preprocess.sh]
@@ -129,7 +129,7 @@ flanker:
 
 | Field | Description |
 |-------|-------------|
-| `profile` | Resource profile from the `resource_profiles` section in `hpc_config.yaml` — `standard`, `heavy_long`, `light_short`, etc. |
+| `profile` | **Required.** Resource profile from the `resource_profiles` section in `hpc_config.yaml`, such as `standard`, `heavy_long`, or `light_short`. There is no default: a task without it fails at submission, listing the available profile names. |
 | `array` | `true` = SLURM array job (one task per subject). `false` = single job for all subjects. |
 | `scripts` | List of shell scripts to run, relative to `scripts_dir`. |
 | `input_from` | Name of an upstream task. The pipeline adds `--dependency=afterany:{upstream_job_id}` automatically. |
