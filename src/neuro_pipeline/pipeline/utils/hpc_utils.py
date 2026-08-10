@@ -134,10 +134,19 @@ class SLURMBackend(HPCBackend):
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             # Parse job id according to hpc_config job_id_parse strategy
             parse = self._cfg.get("job_id_parse", "last_word")
+            words = result.stdout.strip().split()
+            if not words:
+                # exit 0 with nothing usable on stdout is still a failed submission
+                typer.echo(
+                    f"Job submission returned no job id (exit 0). "
+                    f"STDOUT: {result.stdout!r} STDERR: {result.stderr!r}",
+                    err=True,
+                )
+                return None
             if parse == "last_word":
-                job_id = result.stdout.strip().split()[-1]
+                job_id = words[-1]
             elif parse == "first_word":
-                job_id = result.stdout.strip().split()[0]
+                job_id = words[0]
             else:
                 job_id = result.stdout.strip()
             typer.echo(f"Job submitted: {job_id}")
@@ -253,10 +262,19 @@ class PBSBackend(HPCBackend):
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             parse = self._cfg.get("job_id_parse", "first_word")
+            words = result.stdout.strip().split()
+            if not words:
+                # exit 0 with nothing usable on stdout is still a failed submission
+                typer.echo(
+                    f"Job submission returned no job id (exit 0). "
+                    f"STDOUT: {result.stdout!r} STDERR: {result.stderr!r}",
+                    err=True,
+                )
+                return None
             if parse == "last_word":
-                job_id = result.stdout.strip().split()[-1]
+                job_id = words[-1]
             elif parse == "first_word":
-                job_id = result.stdout.strip().split()[0]
+                job_id = words[0]
             else:
                 job_id = result.stdout.strip()
             typer.echo(f"Job submitted: {job_id}")
