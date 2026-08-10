@@ -150,8 +150,13 @@ class TestDAGExecutorResume:
         wait_jobs = post_fc_call[1]["wait_jobs"]
         assert any("rest_preprocess" in j for j in wait_jobs)
 
-    def test_resume_task_with_no_checks_config_runs_normally(self):
-        """Task with no checks entry still submits all subjects."""
+    def test_resume_with_nothing_completed_submits_every_subject(self):
+        """get_pending_subjects returning the full list must not filter anything.
+
+        This is also what an unconfigured task looks like from here: the real
+        OutputChecker returns no completed subjects for a task absent from the
+        checks YAML (see test_output_checker.TestPendingCompleted).
+        """
         _, all_job_ids, mock_execute, mock_checker = self._run_execute(
             requested_tasks=["rest_preprocess"],
             completed_map={},
@@ -161,6 +166,7 @@ class TestDAGExecutorResume:
         _, kwargs = mock_execute.call_args
         submitted = set(kwargs["subjects"].split(","))
         assert submitted == set(self.SUBJECTS)
+        mock_checker.get_pending_subjects.assert_called_once()
 
     def test_resume_skips_group_task_when_group_result_passes(self):
         """A group-scope task with a passing group result is skipped whole."""

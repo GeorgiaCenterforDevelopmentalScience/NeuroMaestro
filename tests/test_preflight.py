@@ -192,10 +192,14 @@ class TestRunAll:
         assert isinstance(result, PreflightResult)
 
     def test_clean_state_resets_between_calls(self):
-        checker = make_checker()
+        # a config that produces issues: comparing two empty lists would pass
+        # even if _issues accumulated across calls
+        checker = make_checker(project_config={"prefix": "sub-"})
         r1 = checker.run_all()
         r2 = checker.run_all()
-        assert len(r1.issues) == len(r2.issues)
+        assert len(r1.issues) > 0
+        assert [(i.severity, i.category, i.message) for i in r1.issues] == \
+               [(i.severity, i.category, i.message) for i in r2.issues]
 
     def test_bad_config_produces_errors(self):
         pc = {"prefix": "sub-"}  # missing most keys

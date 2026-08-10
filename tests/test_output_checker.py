@@ -179,6 +179,96 @@ class TestCountCheck:
         rows = checker.check_subject("recon", "001")
         assert "too many" in rows[0]["status"]
 
+    def test_missing_output_directory_fails_rather_than_raising(self, tmp_path):
+        checker = make_checker(tmp_path, {
+            "recon": {
+                "output_path": str(tmp_path / "never_created"),
+                "count_check": {
+                    "anat": {"pattern": "*.nii.gz", "expected_count": 1, "tolerance": 0}
+                },
+            }
+        })
+        rows = checker.check_subject("recon", "001")
+        assert rows[0]["status"].startswith("FAIL")
+
+
+# ---------------------------------------------------------------------------
+# 2b. group-scope tasks
+#
+# DAGExecutor branches on is_group() during resume, and test_resume.py mocks
+# both methods out, so this is the only place the real behaviour is exercised.
+# ---------------------------------------------------------------------------
+
+class TestGroupScope:
+
+    def _config(self, out, scope=None):
+        task = {
+            "output_path": str(out),
+            "required_files": ["group_report.html"],
+        }
+        if scope is not None:
+            task["scope"] = scope
+        return {"mriqc_post": task}
+
+    def test_scope_group_is_recognised(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        checker = make_checker(tmp_path, self._config(out, scope="group"))
+        assert checker.is_group("mriqc_post") is True
+
+    def test_task_without_scope_is_not_group(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        checker = make_checker(tmp_path, self._config(out))
+        assert checker.is_group("mriqc_post") is False
+
+    def test_unconfigured_task_is_not_group(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        checker = make_checker(tmp_path, self._config(out, scope="group"))
+        assert checker.is_group("ghost_task") is False
+
+    def test_check_group_passes_when_the_file_exists(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "group_report.html").write_text("ok")
+        checker = make_checker(tmp_path, self._config(out, scope="group"))
+        rows = checker.check_group("mriqc_post")
+        assert len(rows) == 1
+        assert rows[0]["status"] == "PASS"
+
+    def test_check_group_fails_when_the_file_is_missing(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        checker = make_checker(tmp_path, self._config(out, scope="group"))
+        assert checker.check_group("mriqc_post")[0]["status"].startswith("FAIL")
+
+    def test_check_group_labels_the_subject_as_group(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "group_report.html").write_text("ok")
+        checker = make_checker(tmp_path, self._config(out, scope="group"))
+        assert checker.check_group("mriqc_post")[0]["subject"] == "GROUP"
+
+    def test_check_all_evaluates_a_group_task_once(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "group_report.html").write_text("ok")
+        checker = make_checker(tmp_path, self._config(out, scope="group"))
+        df = checker.check_all(["mriqc_post"], ["001", "002", "003"])
+        # one row for the whole task, not one per subject
+        assert len(df) == 1
+        assert set(df["subject"]) == {"GROUP"}
+
+    def test_check_all_still_fans_out_for_a_non_group_task(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "group_report.html").write_text("ok")
+        checker = make_checker(tmp_path, self._config(out))
+        df = checker.check_all(["mriqc_post"], ["001", "002", "003"])
+        assert len(df) == 3
+        assert set(df["subject"]) == {"001", "002", "003"}
+
 
 # ---------------------------------------------------------------------------
 # 3 & 4. get_pending / get_completed

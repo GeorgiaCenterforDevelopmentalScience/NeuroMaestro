@@ -238,10 +238,18 @@ class TestFullPipelineSelection:
         assert "mriqc_indiv" in ids
         assert "mriqc_group" in ids
 
-    def test_full_pipeline_edge_count_reasonable(self):
+    def test_full_pipeline_edges_are_exactly_these(self):
         elements = build_dag_elements(
             "unzip_recon", ["volume"],
             ["rest"], ["rest"], ["cards"], ["cards"], "all",
         )
-        edges = edge_pairs(elements)
-        assert len(edges) >= 6
+        assert edge_pairs(elements) == {
+            ("unzip", "recon"),
+            ("recon", "intermed"),
+            ("recon", "bids_prep_rest"),
+            ("bids_prep_rest", "bids_post_rest"),
+            ("intermed", "staged_prep_cards"),
+            ("staged_prep_cards", "staged_post_cards"),
+            ("recon", "mriqc_indiv"),
+            ("mriqc_indiv", "mriqc_group"),
+        }

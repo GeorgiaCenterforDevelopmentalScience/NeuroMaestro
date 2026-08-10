@@ -147,7 +147,7 @@ class TestTaskNameHelpers:
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names("cards")
-        assert names == ["cards_preprocess"]
+        assert names == ["cards_preprocess", "cards_postprocess"]
 
     def test_get_all_task_names_unknown_category_returns_empty(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
@@ -162,10 +162,16 @@ class TestTaskNameHelpers:
         assert "cards_preprocess" in names
         assert "kidvid_preprocess" in names
 
-    def test_get_tasks_by_suffix_no_match(self):
+    def test_get_tasks_by_suffix_postprocess(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import get_tasks_by_suffix
             names = get_tasks_by_suffix("_postprocess")
+        assert names == ["cards_postprocess"]
+
+    def test_get_tasks_by_suffix_no_match(self):
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.utils.config_utils import get_tasks_by_suffix
+            names = get_tasks_by_suffix("_nosuchsuffix")
         assert names == []
 
 

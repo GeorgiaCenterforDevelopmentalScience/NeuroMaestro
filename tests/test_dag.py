@@ -141,10 +141,14 @@ class TestIntermedDependencies:
         assert order.index("volume") < order.index("cards_preprocess")
 
     def test_intermed_does_not_wire_to_staged_post_directly(self):
-        """staged_post has no prep in this request — intermed must NOT connect to it."""
-        executor, _ = build(["volume", "kidvid_preprocess"])
-        # there is no kidvid_post in MOCK_CONFIG so we verify intermed only touches prep
-        assert "volume" in deps(executor, "kidvid_preprocess")
+        """A staged post task depends on its own prep, never on intermed."""
+        executor, _ = build(["volume", "cards_preprocess", "cards_postprocess"])
+        assert "volume" not in deps(executor, "cards_postprocess")
+        assert "cards_preprocess" in deps(executor, "cards_postprocess")
+
+    def test_staged_post_without_its_prep_gets_no_intermed_dep(self):
+        executor, _ = build(["volume", "cards_postprocess"])
+        assert deps(executor, "cards_postprocess") == set()
 
     def test_both_staged_preps_depend_on_intermed(self):
         executor, order = build(["volume", "cards_preprocess", "kidvid_preprocess"])
@@ -363,6 +367,15 @@ class TestTaskRegistry:
     def test_staged_prep_multiple(self):
         result = expand(self.registry, staged_prep=["cards", "kidvid"])
         assert result == ["cards_preprocess", "kidvid_preprocess"]
+
+    def test_staged_post_cards(self):
+        result = expand(self.registry, staged_post=["cards"])
+        assert result == ["cards_postprocess"]
+
+    def test_staged_post_without_a_post_task_yields_nothing(self):
+        # kidvid has no post task in MOCK_CONFIG
+        result = expand(self.registry, staged_post=["kidvid"])
+        assert result == []
 
     # --- intermed ---
 

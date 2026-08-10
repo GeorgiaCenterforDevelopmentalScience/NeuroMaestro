@@ -12,11 +12,10 @@ Covers:
 """
 
 import os
-import time
 import pytest
 import yaml
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 
 
@@ -27,18 +26,6 @@ from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
 HPC_CONFIG_PATH      = "neuro_pipeline.pipeline.utils.hpc_utils.hpc_config"
 CONFIG_UTILS_PATH    = "neuro_pipeline.pipeline.utils.config_utils.config"
-
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
-def import_hpc():
-    """Import hpc_utils with mock configs injected."""
-    with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
-        import importlib
-        import neuro_pipeline.pipeline.utils.hpc_utils as mod
-        importlib.reload(mod)
-        return mod
 
 
 # ===========================================================================
@@ -69,12 +56,10 @@ class TestGetHPCResources:
         assert resources.memory == "2gb"
         assert resources.time == "00:20:00"
 
-    def test_array_param_substituted_correctly(self):
-        """array: true + 5 subjects  →  pattern becomes '1-5%15'"""
+    def test_array_pattern_carries_the_profile_limit(self):
+        # the raw pattern is stored here; {num} is substituted in submit_slurm_job
         resources = self._get({"profile": "standard", "array": True})
-        assert resources.array is not None
-        # The raw pattern is stored; num substitution happens in submit_slurm_job
-        assert "{num}" in resources.array
+        assert resources.array == "1-{num}%15"
 
     def test_non_array_task_has_no_array_param(self):
         resources = self._get({"profile": "standard", "array": False})
@@ -261,17 +246,27 @@ class TestCreateWrapperScript:
 
     # ---- core path variables -----------------------------------------------
 
+    @staticmethod
+    def _exported(content, name):
+        """The value of `export NAME='...'`, or None when the line is absent."""
+        prefix = f"export {name}="
+        line = next((l for l in content.splitlines() if l.startswith(prefix)), None)
+        return None if line is None else line[len(prefix):].strip().strip("'")
+
+    # create_wrapper_script passes these through verbatim; output_pattern is
+    # applied upstream in submit_slurm_job, not here.
+
     def test_input_dir_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert "export INPUT_DIR=" in content
+        assert self._exported(content, "INPUT_DIR") == "/data/input"
 
     def test_output_dir_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert "export OUTPUT_DIR=" in content
+        assert self._exported(content, "OUTPUT_DIR") == str(tmp_path / "output")
 
     def test_work_dir_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert "export WORK_DIR=" in content
+        assert self._exported(content, "WORK_DIR") == str(tmp_path / "work")
 
     def test_task_name_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
@@ -279,7 +274,9 @@ class TestCreateWrapperScript:
 
     def test_db_path_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert "export DB_PATH=" in content
+        assert self._exported(content, "DB_PATH") == str(
+            tmp_path / "work" / "pipeline_jobs.db"
+        )
 
     # ---- environment module commands ---------------------------------------
 
@@ -335,8 +332,7 @@ class TestCreateWrapperScript:
 
     def test_sources_wrapper_functions(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert "source" in content
-        assert "wrapper_functions.sh" in content
+        assert 'source "$SCRIPT_DIR/utils/wrapper_functions.sh"' in content
 
     def test_execute_wrapper_called(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
@@ -547,6 +543,41 @@ class TestSLURMBackendSubmitJob:
             job_id = backend.submit_job(["--partition=batch"], fake_script)
         assert job_id == "99999"
 
+    def test_raw_parse_strategy_keeps_the_whole_line(self, tmp_path):
+        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        cfg = {**MOCK_HPC_CONFIG["slurm"], "job_id_parse": "whole_output"}
+        backend = SLURMBackend(cfg)
+        fake_script = tmp_path / "wrapper.sh"
+        fake_script.write_text("#!/bin/bash\n")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="  12345  \n")
+            job_id = backend.submit_job(["--partition=batch"], fake_script)
+        assert job_id == "12345"
+
+    def test_submit_command_is_built_from_config(self, tmp_path):
+        backend = self._backend()
+        fake_script = tmp_path / "wrapper.sh"
+        fake_script.write_text("#!/bin/bash\n")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="Submitted batch job 1\n")
+            backend.submit_job(["--partition=batch", "--mem=32gb"], fake_script)
+        cmd = mock_run.call_args.args[0]
+        assert cmd == ["sbatch", "--partition=batch", "--mem=32gb", str(fake_script)]
+
+    def test_exit_zero_with_no_parsable_id_returns_none(self, tmp_path):
+        """sbatch can exit 0 and print nothing usable (a warning-only run).
+
+        Only CalledProcessError is caught, so an unparsable stdout must not be
+        allowed to escape as an IndexError from split()[-1].
+        """
+        backend = self._backend()
+        fake_script = tmp_path / "wrapper.sh"
+        fake_script.write_text("#!/bin/bash\n")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="   \n")
+            job_id = backend.submit_job(["--partition=batch"], fake_script)
+        assert job_id is None
+
 
 # ===========================================================================
 # 7. SLURMBackend.wait_for_jobs — mock subprocess
@@ -557,6 +588,10 @@ class TestSLURMBackendWaitForJobs:
     def _backend(self):
         from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
         return SLURMBackend(MOCK_HPC_CONFIG["slurm"])
+
+    # Every test here must bound the poll loop: a missing `break` in the
+    # implementation would otherwise hang pytest instead of failing it.
+    # pytest.mark.timeout is not available, so each case asserts call_count.
 
     def test_empty_job_list_skips_subprocess(self):
         backend = self._backend()
@@ -574,18 +609,64 @@ class TestSLURMBackendWaitForJobs:
     def test_job_not_in_queue_breaks(self):
         import subprocess
         backend = self._backend()
-        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "squeue")):
-            backend.wait_for_jobs(["12345"], polling_interval=0)
+        err = subprocess.CalledProcessError(1, "squeue")
+        with patch("subprocess.run", side_effect=err) as mock_run, \
+             patch("time.sleep") as mock_sleep:
+            backend.wait_for_jobs(["12345"], polling_interval=1)
+        assert mock_run.call_count == 1
+        mock_sleep.assert_not_called()
 
     def test_running_then_done(self):
-        import time
         backend = self._backend()
         responses = [
             MagicMock(stdout="12345 RUNNING\n"),
             MagicMock(stdout=""),
         ]
-        with patch("subprocess.run", side_effect=responses), patch("time.sleep"):
+        with patch("subprocess.run", side_effect=responses) as mock_run, \
+             patch("time.sleep") as mock_sleep:
+            backend.wait_for_jobs(["12345"], polling_interval=7)
+        assert mock_run.call_count == 2
+        mock_sleep.assert_called_once_with(7)
+
+    def test_inactive_state_ends_the_wait_without_sleeping(self):
+        # squeue still lists the job, but COMPLETING is not in active_states
+        backend = self._backend()
+        with patch("subprocess.run") as mock_run, patch("time.sleep") as mock_sleep:
+            mock_run.return_value = MagicMock(stdout="12345 COMPLETING\n")
             backend.wait_for_jobs(["12345"], polling_interval=1)
+        assert mock_run.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_one_active_job_keeps_the_others_waiting(self):
+        backend = self._backend()
+        responses = [
+            MagicMock(stdout="12345 COMPLETING\n12346 PENDING\n"),
+            MagicMock(stdout="12345 COMPLETING\n12346 COMPLETING\n"),
+        ]
+        with patch("subprocess.run", side_effect=responses) as mock_run, \
+             patch("time.sleep") as mock_sleep:
+            backend.wait_for_jobs(["12345", "12346"], polling_interval=1)
+        assert mock_run.call_count == 2
+        assert mock_sleep.call_count == 1
+
+    def test_malformed_status_line_is_ignored_not_treated_as_active(self):
+        # a single-column line has no state to compare against active_states
+        backend = self._backend()
+        with patch("subprocess.run") as mock_run, patch("time.sleep") as mock_sleep:
+            mock_run.return_value = MagicMock(stdout="12345\n")
+            backend.wait_for_jobs(["12345"], polling_interval=1)
+        assert mock_run.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_status_command_comes_from_the_config(self):
+        backend = self._backend()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="")
+            backend.wait_for_jobs(["12345", "12346"], polling_interval=0)
+        cmd = mock_run.call_args.args[0]
+        assert cmd[0] == "squeue"
+        assert "12345,12346" in cmd
+        assert "--noheader" in cmd
 
 
 # ===========================================================================

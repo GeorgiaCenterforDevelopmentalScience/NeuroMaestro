@@ -19,6 +19,11 @@ def _is_figure(obj):
     return isinstance(obj, Figure)
 
 
+def _placeholder_text(fig):
+    """The annotation a chart falls back to when it has nothing to plot."""
+    return " ".join(a.text or "" for a in fig.layout.annotations)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -58,18 +63,23 @@ class TestCreateTimelineChart:
         from neuro_pipeline.interface.utils.plot_utils import create_timeline_chart
         fig = create_timeline_chart(pd.DataFrame())
         assert _is_figure(fig)
+        # a blank Figure with no trace and no message would also pass isinstance
+        assert _placeholder_text(fig).strip()
+        assert fig.data == ()
 
     def test_returns_figure_when_start_time_missing(self):
         from neuro_pipeline.interface.utils.plot_utils import create_timeline_chart
         df = pd.DataFrame([{"subject": "001", "status": "SUCCESS"}])
         fig = create_timeline_chart(df)
         assert _is_figure(fig)
+        assert _placeholder_text(fig).strip()
 
     def test_returns_figure_for_invalid_dates(self):
         from neuro_pipeline.interface.utils.plot_utils import create_timeline_chart
         df = pd.DataFrame([{"start_time": "not-a-date"}, {"start_time": "also-bad"}])
         fig = create_timeline_chart(df)
         assert _is_figure(fig)
+        assert _placeholder_text(fig).strip()
 
     def test_has_at_least_one_trace_for_valid_data(self, job_status_df):
         from neuro_pipeline.interface.utils.plot_utils import create_timeline_chart
@@ -124,12 +134,15 @@ class TestCreateStatusDonut:
         from neuro_pipeline.interface.utils.plot_utils import create_status_donut
         fig = create_status_donut(pd.DataFrame())
         assert _is_figure(fig)
+        assert "No status data available" in _placeholder_text(fig)
+        assert fig.data == ()
 
     def test_returns_figure_when_status_missing(self):
         from neuro_pipeline.interface.utils.plot_utils import create_status_donut
         df = pd.DataFrame([{"subject": "001"}])
         fig = create_status_donut(df)
         assert _is_figure(fig)
+        assert "No status data available" in _placeholder_text(fig)
 
     def test_has_pie_trace_for_valid_data(self, job_status_df):
         from neuro_pipeline.interface.utils.plot_utils import create_status_donut
@@ -208,12 +221,15 @@ class TestCreateDurationRadar:
         from neuro_pipeline.interface.utils.plot_utils import create_duration_radar
         fig = create_duration_radar(pd.DataFrame())
         assert _is_figure(fig)
+        assert "No duration data available" in _placeholder_text(fig)
+        assert fig.data == ()
 
     def test_returns_figure_when_columns_missing(self):
         from neuro_pipeline.interface.utils.plot_utils import create_duration_radar
         df = pd.DataFrame([{"subject": "001", "status": "SUCCESS"}])
         fig = create_duration_radar(df)
         assert _is_figure(fig)
+        assert "No duration data available" in _placeholder_text(fig)
 
     def test_returns_figure_when_all_durations_zero(self):
         from neuro_pipeline.interface.utils.plot_utils import create_duration_radar
@@ -223,6 +239,10 @@ class TestCreateDurationRadar:
         ])
         fig = create_duration_radar(df)
         assert _is_figure(fig)
+        # every row is filtered out, so the chart must say so rather than
+        # render an empty radar
+        assert "No valid duration data" in _placeholder_text(fig)
+        assert fig.data == ()
 
     def test_single_task_does_not_crash(self):
         from neuro_pipeline.interface.utils.plot_utils import create_duration_radar
@@ -271,12 +291,15 @@ class TestCreateExitCodeBar:
         from neuro_pipeline.interface.utils.plot_utils import create_exit_code_bar
         fig = create_exit_code_bar(pd.DataFrame())
         assert _is_figure(fig)
+        assert "No exit code data available" in _placeholder_text(fig)
+        assert fig.data == ()
 
     def test_returns_figure_when_exit_code_missing(self):
         from neuro_pipeline.interface.utils.plot_utils import create_exit_code_bar
         df = pd.DataFrame([{"subject": "001"}])
         fig = create_exit_code_bar(df)
         assert _is_figure(fig)
+        assert "No exit code data available" in _placeholder_text(fig)
 
     def test_has_bar_trace_for_valid_data(self, command_outputs_df):
         from neuro_pipeline.interface.utils.plot_utils import create_exit_code_bar

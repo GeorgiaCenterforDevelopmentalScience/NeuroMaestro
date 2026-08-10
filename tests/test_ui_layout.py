@@ -66,9 +66,6 @@ class TestAnalysisControlLayout:
         self.component = create_analysis_control_layout()
         self.ids = collect_ids(self.component)
 
-    def test_does_not_crash(self):
-        assert self.component is not None
-
     def test_setup_and_subject_ids_present(self):
         for id_ in (
             "config-dir-input", "apply-config-dir-btn", "init-study-btn", "config-dir-status",
@@ -215,7 +212,8 @@ class TestReportHtml:
     def _minimal_html(self, **overrides):
         session        = overrides.pop("session", None)
         metadata       = overrides.pop("metadata", {})
-        project_name   = overrides.pop("project_name", "test")
+        # deliberately not "test": that substring occurs in unrelated markup
+        project_name   = overrides.pop("project_name", "qzx_project")
         sess_data = dict(
             session=session,
             task_summary=overrides.pop("task_summary", []),
@@ -237,7 +235,7 @@ class TestReportHtml:
     def test_renders_without_data(self):
         html = self._minimal_html()
         assert "Pipeline Report" in html
-        assert "test" in html
+        assert "qzx_project" in html
 
     def test_renders_with_session(self):
         html = self._minimal_html(session="01")

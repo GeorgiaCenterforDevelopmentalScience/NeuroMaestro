@@ -208,9 +208,9 @@ class TestRunOutputCheckCallback:
         fake_df = pd.DataFrame([
             {"task": "t", "subject": "007", "session": "01", "status": "PASS"},
         ])
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.detect_subjects",
-                   return_value=["007"], create=True), \
-             patch("neuro_pipeline.pipeline.utils.detect_subjects.detect_subjects",
+        # detect_subjects is imported inside the callback, so the source module
+        # is the only patch point; there is no module-level name to override.
+        with patch("neuro_pipeline.pipeline.utils.detect_subjects.detect_subjects",
                    return_value=["007"]), \
              patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \

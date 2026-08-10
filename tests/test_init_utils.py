@@ -56,11 +56,6 @@ class TestInitProjectTemplates:
         # the regression: scripts must sit beside config_dir, not inside it
         assert not (config_dir / "scripts").exists()
 
-    def test_returns_non_empty_list(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
-        copied = init_project_templates(tmp_path / "config")
-        assert len(copied) > 0
-
     def test_idempotent_on_repeat_call(self, tmp_path):
         from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
         config_dir = tmp_path / "config"

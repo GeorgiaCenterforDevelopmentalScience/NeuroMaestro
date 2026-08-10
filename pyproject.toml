@@ -11,15 +11,18 @@ maintainers = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" }
 ]
 dependencies = [
-  "typer",
-  "PyYAML",
-  "dash",
-  "dash-cytoscape",
-  "dash-bootstrap-components",
-  "plotly",
-  "pandas",
-  "matplotlib",
-  "pybids"
+  "typer>=0.12",
+  "PyYAML>=6.0",
+  # dash/plotly/dbc had breaking major releases and only the current major is exercised
+  "dash>=4.0",
+  "dash-cytoscape>=1.0",
+  "dash-bootstrap-components>=2.0",
+  "plotly>=6.0",
+  # pandas 3.x and matplotlib 3.11 need Python >=3.11, so these stay one major back
+  # to keep requires-python = ">=3.10" honest
+  "pandas>=2.2",
+  "matplotlib>=3.8",
+  "pybids>=0.17"
 ]
 
 [project.optional-dependencies]

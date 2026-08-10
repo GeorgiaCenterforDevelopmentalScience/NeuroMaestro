@@ -26,11 +26,7 @@ Assumed package layout:
         test_hpc_utils.py
 """
 
-import copy
 import pytest
-import yaml
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +159,17 @@ MOCK_CONFIG = {
             "scripts": ["afni_cards_preprocessing.sh"],
             "output_pattern": "{base_output}/AFNI_derivatives",
         },
+        # the only staged post task in the mock: without it the "intermed must
+        # not wire to staged post" rule has nothing to assert against
+        {
+            "name": "cards_postprocess",
+            "stage": "post",
+            "multi_stage": True,
+            "profile": "standard",
+            "input_from": "cards_preprocess",
+            "scripts": ["afni_cards_postprocessing.sh"],
+            "output_pattern": "{base_output}/postprocessing/group/cards",
+        },
     ],
     "kidvid": [
         {
@@ -263,29 +270,6 @@ MOCK_PROJECT_CONFIG = {
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture
-def mock_config():
-    """Return a copy of the in-memory global config."""
-    # deep, not shallow: the nested task dicts are shared across every test
-    return copy.deepcopy(MOCK_CONFIG)
-
-
-@pytest.fixture
-def mock_project_config():
-    """Return a copy of the in-memory project config."""
-    return copy.deepcopy(MOCK_PROJECT_CONFIG)
-
-
-
-@pytest.fixture
-def config_yaml_file(tmp_path):
-    """Write MOCK_CONFIG to a real YAML file and return its Path."""
-    cfg_file = tmp_path / "config.yaml"
-    with open(cfg_file, "w") as f:
-        yaml.dump(MOCK_CONFIG, f)
-    return cfg_file
-
-
 def mock_script_names():
     """Every script MOCK_CONFIG references."""
     names = []
@@ -309,30 +293,3 @@ def scripts_dir(tmp_path):
     for name in mock_script_names():
         (s_dir / name).write_text("#!/bin/bash\necho mock script\n")
     return s_dir
-
-
-@pytest.fixture
-def work_dir(tmp_path):
-    """Return a temporary work directory."""
-    d = tmp_path / "work"
-    d.mkdir()
-    return d
-
-
-@pytest.fixture
-def output_dir(tmp_path):
-    """Return a temporary output directory."""
-    d = tmp_path / "output"
-    d.mkdir()
-    return d
-
-
-@pytest.fixture
-def input_dir(tmp_path):
-    """Return a temporary input directory with some fake subject folders."""
-    d = tmp_path / "input"
-    d.mkdir()
-    for sub in ["sub-001", "sub-002", "sub-003"]:
-        (d / sub).mkdir()
-    (d / "not_a_subject.txt").write_text("ignore me")
-    return d

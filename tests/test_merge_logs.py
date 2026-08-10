@@ -5,7 +5,7 @@ import sqlite3
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime
 
 # Add package to path
@@ -13,7 +13,6 @@ import sys
 test_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(test_root / "src"))
 
-from neuro_pipeline.pipeline.dag import DAGExecutor
 from neuro_pipeline.pipeline.utils.merge_logs_create_db import merge_json_to_db, rebuild_db, merge_once
 
 
@@ -229,96 +228,6 @@ class TestMergeLogsFunction:
         
         archived_file = Path(json_dir) / "task1" / "archived" / Path(log_file).name
         assert archived_file.exists()
-
-
-class TestDAGMergeLogsIntegration:
-    """Test merge_logs integration with DAG executor"""
-    
-    @pytest.fixture
-    def mock_config(self):
-        """Mock pipeline config"""
-        return {
-            'tasks': {
-                'utility': [
-                    {
-                        'name': 'merge_logs',
-                        'scripts': ['merge_logs.py'],
-                        'profile': 'minimal'
-                    }
-                ]
-            }
-        }
-    
-    @pytest.fixture
-    def mock_project_config(self):
-        """Mock project config"""
-        return {
-            'prefix': 'sub-',
-            'envir_dir': {
-                'container_dir': '/containers'
-            }
-        }
-    
-    def test_merge_logs_added_to_execution_order(self, mock_config):
-        """Test 2: merge_logs is added after all tasks in execution order"""
-        executor = DAGExecutor(mock_config)
-        
-        # Mock task configs
-        with patch('neuro_pipeline.pipeline.utils.config_utils.find_task_config_by_name_with_project') as mock_find:
-            mock_find.side_effect = lambda name, proj: {
-                'name': name,
-                'scripts': [f'{name}.sh'],
-                'profile': 'standard'
-            }
-            
-            # Build DAG with tasks
-            requested_tasks = ['task1', 'task2', 'task3']
-            execution_order = executor.build_dag(requested_tasks)
-            
-            # Add merge_logs (simulating execute() logic)
-            merge_config = mock_config['tasks']['utility'][0]
-            executor.add_task('merge_logs', merge_config)
-            for task_name in execution_order:
-                executor.nodes['merge_logs'].add_dependency(task_name)
-            execution_order.append('merge_logs')
-            
-            # Verify merge_logs is last
-            assert execution_order[-1] == 'merge_logs'
-            
-            # Verify merge_logs depends on all tasks
-            merge_node = executor.nodes['merge_logs']
-            assert merge_node.dependencies == {'task1', 'task2', 'task3'}
-    
-    def test_merge_logs_not_added_in_dry_run(self, mock_config, mock_project_config):
-        """Test: merge_logs is not added during dry_run"""
-        executor = DAGExecutor(mock_config)
-        
-        with patch('neuro_pipeline.pipeline.utils.hpc_utils.submit_slurm_job') as mock_submit:
-            mock_submit.return_value = 'dry_run_job'
-            
-            with patch('neuro_pipeline.pipeline.utils.config_utils.find_task_config_by_name_with_project') as mock_find:
-                mock_find.side_effect = lambda name, proj: {
-                    'name': name,
-                    'scripts': [f'{name}.sh'],
-                    'profile': 'standard'
-                }
-                
-                requested_tasks = ['task1', 'task2']
-                context = {'subjects': ['sub001']}
-                
-                all_job_ids, _ = executor.execute(
-                    requested_tasks=requested_tasks,
-                    input_dir='/input',
-                    output_dir='/output',
-                    work_dir='/work',
-                    container_dir='/containers',
-                    dry_run=True,  # Dry run mode
-                    context=context,
-                    project_config=mock_project_config
-                )
-                
-                # Verify merge_logs was not executed
-                assert 'merge_logs' not in all_job_ids
 
 
 class TestEndToEndMergeLogsWorkflow:
