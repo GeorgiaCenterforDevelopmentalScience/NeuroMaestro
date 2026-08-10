@@ -1,7 +1,7 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
-## [Unreleased]
+## [0.18.0-alpha] – 2026-08-10
 
 ### Changed
 - `profile` is now required on every task. It used to fall back to a profile named `standard`, so an omitted or misspelled name silently ran on whatever that profile defined. Missing profiles now raise, listing the available names, and `standard` is no longer a name the code depends on.
@@ -11,11 +11,17 @@
 - PBS `array_flag` was `-J 1-{array}` while `{array}` already carried the full range, producing `-J 1-1-50%15`. Now `-J {array}`, matching the SLURM backend.
 - `hpc_config.yaml` was cached for the life of the process, so switching config directory in the Dash app kept serving the previous project's profiles. `set_config_dir` now drops that cache. The CLI was never affected.
 - Pre-flight accepted a task with no `profile` while rejecting a misspelled one, and only examined tasks the project config overrode. Every task in `config.yaml` is now checked.
+- A submit command that exited 0 without printing a parsable job id raised `IndexError` out of `submit_job`, escaping the DAG executor's check that aborts a run on a failed submission. Both backends now report no job id instead. Reachable when the confirmation line is suppressed, for example `sbatch -Q`.
 
 ### Tests
 - `array_flag` is asserted as a whole argument rather than a substring, which is why the PBS bug passed before.
 - Switching config directory twice within one process.
 - Pre-flight on a task with no `profile`, including when it has no project config entry.
+- `wait_for_jobs` on both backends. Two cases previously ran without a single assertion, so a missing `break` would have hung the suite rather than failed it.
+- First coverage of `PBSBackend.submit_job` and `PBSBackend.wait_for_jobs`, and of `OutputChecker.is_group` and `check_group`, which the resume tests had only ever mocked.
+- Wrapper path exports and chart fallbacks are asserted by value, not by the presence of an `export NAME=` prefix or a returned `Figure`.
+- `MOCK_CONFIG` gained `cards_postprocess`. Without a staged post task, the rule that intermediate tasks never wire to one had nothing to assert against, and the test covering it asserted the opposite of its name.
+- Dropped the DAG tests for the `merge_logs` task, removed in 0.16.0-alpha. One asserted state the test itself had written.
 
 ### Removed
 - `array_config` in `config.yaml`. **Migration:** delete the block and set `array_limit` on the profiles that need a cap. Carrying the old `%N` over means setting it on every profile. Leaving the block in place is harmless but has no effect.
