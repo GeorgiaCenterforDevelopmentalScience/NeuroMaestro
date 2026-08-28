@@ -44,6 +44,10 @@ Multiple staged tasks run in parallel with each other — they are independent o
 neuropipe run ... --intermed volume --staged-prep cards,kidvid
 ```
 
+:::{note}
+The `cards` and `kidvid` sections used as examples below come from the `branch` bundle, which runs against a restricted-access dataset. `config.yaml` also ships `emomatching`, `stopsignal`, and `workingmemory`, which follow the same structure and run against public data. If you want to execute a staged pipeline rather than just read about one, use those and follow [Reproduce the Published Example](../getting-started/reproduce-ds027.md).
+:::
+
 ---
 
 ## Built-in staged tasks (AFNI example)

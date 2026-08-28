@@ -51,11 +51,11 @@ The pipeline uses two categories of multi-step pipelines:
 | `--intermed` | `volume` \| `volume,bfc` \| ... | Intermed tasks (comma-separated); required before `--staged-prep` |
 | `--bids-prep` | `rest` \| `dwi` \| `rest,dwi` | BIDS pipeline preprocessing |
 | `--bids-post` | `rest` \| `dwi` \| `rest,dwi` | BIDS pipeline postprocessing |
-| `--staged-prep` | `cards` \| `kidvid` \| `cards,kidvid` | Staged pipeline preprocessing |
-| `--staged-post` | `cards` \| `kidvid` \| `cards,kidvid` | Staged pipeline postprocessing |
+| `--staged-prep` | `emomatching` \| `stopsignal` \| `emomatching,stopsignal,workingmemory` | Staged pipeline preprocessing |
+| `--staged-post` | `emomatching` \| `stopsignal` \| `emomatching,stopsignal,workingmemory` | Staged pipeline postprocessing |
 | `--mriqc` | `individual` \| `group` \| `all` | Quality control (MRIQC) |
 
-Pipeline section names (e.g. `rest`, `dwi`, `cards`) must match section names defined in `config.yaml`.
+Pipeline section names (e.g. `rest`, `dwi`, `emomatching`) must match section names defined in `config.yaml`.
 
 ---
 
@@ -87,8 +87,8 @@ For full dependency and parallel execution behavior, see [Pipeline Reference →
 
 **Repeated flags (both forms are equivalent):**
 ```bash
---staged-prep cards,kidvid
---staged-prep cards --staged-prep kidvid
+--staged-prep emomatching,stopsignal
+--staged-prep emomatching --staged-prep stopsignal
 ```
 
 **From a text file (one ID per line, or comma-separated):**

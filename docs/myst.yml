@@ -14,6 +14,7 @@ project:
       children:
         - file: getting-started/index.md
         - file: getting-started/full-pipeline.md
+        - file: getting-started/reproduce-ds027.md
     - title: Configuration Guide
       children:
         - file: configuration/pipeline-config.md

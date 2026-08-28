@@ -112,10 +112,10 @@ See [Output Checks Configuration](../configuration/output-checks.md) for how res
 
 ### Step 1: Build the task list
 
-When you run `neuropipe run`, the pipeline reads your flags and builds a list of tasks to execute. For example, `--prep unzip_recon --intermed volume --bids-prep rest --staged-prep cards` produces:
+When you run `neuropipe run`, the pipeline reads your flags and builds a list of tasks to execute. For example, `--prep unzip_recon --intermed volume --bids-prep rest --staged-prep emomatching` produces:
 
 ```
-[unzip, recon, volume, rest_preprocess, cards_preprocess]
+[unzip, recon, volume, rest_preprocess, emomatching_preprocess]
 ```
 
 ### Step 2: Resolve dependencies
@@ -128,7 +128,7 @@ The pipeline applies a fixed set of dependency rules to wire tasks together:
 
 **Rule 3 — intermed tasks run in parallel:** Multiple intermed tasks (e.g. `volume` and `bfc`) both depend on `recon` but not on each other. They are submitted simultaneously and run on the cluster at the same time.
 
-**Rule 4 — staged tasks wait for ALL intermed:** A staged task (marked `multi_stage: true` in `config.yaml`) waits for every intermed task you requested. If you run `--intermed volume,bfc --staged-prep cards`, then `cards_preprocess` only starts after both `volume` **and** `bfc` have finished (in any state, including failed). If you omit `--intermed`, staged tasks depend directly on `recon` instead.
+**Rule 4 — staged tasks wait for ALL intermed:** A staged task (marked `multi_stage: true` in `config.yaml`) waits for every intermed task you requested. If you run `--intermed volume,bfc --staged-prep emomatching`, then `emomatching_preprocess` only starts after both `volume` **and** `bfc` have finished (in any state, including failed). If you omit `--intermed`, staged tasks depend directly on `recon` instead.
 
 **Rule 5 — post follows prep within a section:** `rest_post` waits for `rest_preprocess`. `mriqc_post` waits for `mriqc_preprocess`. This is automatic; you don't need to specify the order.
 
@@ -145,7 +145,7 @@ DAG execution plan:
   volume           <- recon
   rest_preprocess  <- recon
   rest_post        <- rest_preprocess
-  cards_preprocess <- volume
+  emomatching_preprocess <- volume
 ```
 
 If the plan looks wrong (e.g. a task is missing, or dependencies are not what you expected), stop here and check your flags before anything is submitted to the cluster.
@@ -201,7 +201,7 @@ Each page below documents the tasks for one CLI flag group: what each task does,
 output_directory/
 ├── raw/                        # unzip output
 ├── BIDS/                       # recon output
-├── AFNI_derivatives/           # volume, cards_preprocess, kidvid_preprocess output
+├── AFNI_derivatives/           # volume and staged preprocess output
 ├── BIDS_derivatives/
 │   ├── fmriprep/               # rest_preprocess output
 │   ├── xcpd/                   # rest_post output

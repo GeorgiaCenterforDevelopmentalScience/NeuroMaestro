@@ -6,7 +6,7 @@ title: Neuroimage Pipeline
 
 A lightweight **meta-pipeline** — a pipeline that manages other pipelines. Rather than reimplementing any analysis, it sits above your existing tools and scripts and handles the orchestration layer: dependency ordering, job submission, subject-level parallelism, output verification, logging, and summary HTML reports.
 
-Designed for small to mid-size labs that run multiple modalities and want to go from raw DICOMs to processed outputs without writing custom job management code from scratch.
+Designed for labs that run multiple modalities and want to go from raw DICOMs to processed outputs without writing custom job management code from scratch.
 
 Supports both a web-based GUI and a command-line interface (CLI).
 
@@ -87,6 +87,10 @@ Install the pipeline and run your first job in 5 minutes.
 :::{card} Complete Pipeline Walkthrough
 :link: getting-started/full-pipeline
 End-to-end example: config → submit → verify → re-run.
+:::
+:::{card} Reproduce the Published Example
+:link: getting-started/reproduce-ds027
+Run the AOMIC-PIOP2 demonstration from public data.
 :::
 :::{card} Configuration Guide
 :link: configuration/project-config

@@ -56,11 +56,17 @@ This creates:
 ├── config/                    ← pass this to --config-dir
 │   ├── config.yaml
 │   ├── hpc_config.yaml
-│   └── project_config/
-│       └── my_study_config.yaml   (starter template)
+│   ├── project_config/
+│   │   ├── template_config.yaml   (start from this one)
+│   │   └── (the other bundled configs)
+│   └── results_check/
+│       ├── template_checks.yaml
+│       └── (the other bundled checks)
 └── scripts/
     └── (template .sh scripts)
 ```
+
+All bundled config and check files are copied, not just the template. Copy `template_config.yaml` to `{your_project}_config.yaml` and `template_checks.yaml` to `{your_project}_checks.yaml`, then edit those. The rest are reference bundles and are described in [Dev & Test Config Modes](../internals/dev-test-configs.md). One of them, `ds027`, is a complete published run you can reproduce from public data (see [Reproduce the Published Example](reproduce-ds027.md)).
 
 You then pass `--config-dir /scratch/my_study/config` to every `neuropipe` command. The pipeline uses four config files split into two tiers:
 
