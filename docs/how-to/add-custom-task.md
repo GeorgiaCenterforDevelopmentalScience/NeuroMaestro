@@ -170,12 +170,12 @@ At runtime the pipeline inserts those `ml` commands into the wrapper script's en
 
 ## Step 4: Wire the CLI flag
 
-The pipeline routes `--staged-prep flanker` to `flanker_preprocess` by looking up the `flanker` section in `config.yaml` and selecting tasks with `stage: prep`. Run `neuropipe list-tasks` to verify.
+The pipeline routes `--staged-prep flanker` to `flanker_preprocess` by looking up the `flanker` section in `config.yaml` and selecting tasks with `stage: prep`. Run `neuromaestro list-tasks` to verify.
 
 ## Step 5: Run a Dry-Run Test
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001 \
   --input /data/BIDS \
   --output /data/processed \

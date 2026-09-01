@@ -11,7 +11,7 @@ _config_dir: Optional[Path] = None
 def get_config_dir() -> Path:
     if _config_dir is None:
         raise RuntimeError(
-            "Config directory not set. Pass --config-dir or set NEUROPIPE_CONFIG_DIR."
+            "Config directory not set. Pass --config-dir or set NEUROMAESTRO_CONFIG_DIR."
         )
     return _config_dir
 

@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from neuro_pipeline.pipeline.utils.detect_subjects import (
+from neuromaestro.pipeline.utils.detect_subjects import (
     detect_subjects,
     parse_subjects_input,
     save_subjects_to_file,

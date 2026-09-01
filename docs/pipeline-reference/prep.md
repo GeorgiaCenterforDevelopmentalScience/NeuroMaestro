@@ -52,7 +52,7 @@ The `config` file maps DICOM series descriptions to BIDS modality labels. Store 
 
 ```bash
 # Unzip and convert in one step
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/zip_files \
   --output /data/processed \
@@ -62,8 +62,8 @@ neuropipe run \
   --prep unzip_recon
 
 # Unzip only
-neuropipe run ... --prep unzip
+neuromaestro run ... --prep unzip
 
 # Convert already-unzipped data
-neuropipe run ... --prep recon
+neuromaestro run ... --prep recon
 ```

@@ -44,7 +44,7 @@ tasks:
 
 ```bash
 # Run both individual and group QC
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/BIDS \
   --output /data/processed \
@@ -54,10 +54,10 @@ neuropipe run \
   --mriqc all
 
 # Individual QC only
-neuropipe run ... --mriqc individual
+neuromaestro run ... --mriqc individual
 
 # Group report only (individual already done)
-neuropipe run ... --mriqc group
+neuromaestro run ... --mriqc group
 ```
 
 :::{tip}

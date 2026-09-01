@@ -71,11 +71,11 @@ afni_proc.py --help     # should print help if loaded correctly
 Windows line endings cause `$'\r': command not found` errors:
 
 ```bash
-file src/neuro_pipeline/pipeline/scripts/branch/afni_cards_preprocessing.sh
+file src/neuromaestro/pipeline/scripts/branch/afni_cards_preprocessing.sh
 # Should say "POSIX shell script" or "Bourne-Again shell script", NOT "CRLF"
 
 # Fix if needed:
-dos2unix src/neuro_pipeline/pipeline/scripts/branch/*.sh
+dos2unix src/neuromaestro/pipeline/scripts/branch/*.sh
 ```
 
 ---
@@ -85,7 +85,7 @@ dos2unix src/neuro_pipeline/pipeline/scripts/branch/*.sh
 If the database is missing jobs (e.g., after a cluster crash), merge the raw JSONL logs manually:
 
 ```bash
-neuropipe merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work/my_study
 ```
 
 JSONL event logs in `{work_dir}/database/json/` accumulate independently of the SQLite database. Merging re-processes any unarchived files and fills in gaps.
@@ -93,7 +93,7 @@ JSONL event logs in `{work_dir}/database/json/` accumulate independently of the 
 If the JSONL files were already archived by a previous merge and the database is still incomplete (e.g., after restoring from backup), use `force-rebuild` to create a fresh database from all logs including archived ones:
 
 ```bash
-neuropipe force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work/my_study
 # → writes pipeline_jobs_rebuild_{timestamp}.db next to the original
 ```
 
@@ -118,7 +118,7 @@ neuropipe force-rebuild /data/work/my_study
 **"No subjects found"**
 - Check that `prefix` in your project config (`prefix: "sub-"`) matches your directory naming
 - Verify `--input` points to the correct directory
-- Run `neuropipe detect-subjects /data/BIDS` to preview what the pipeline sees
+- Run `neuromaestro detect-subjects /data/BIDS` to preview what the pipeline sees
 
 **"Project configuration not found"**
 - The config file must be named exactly `{project}_config.yaml`
@@ -128,12 +128,12 @@ neuropipe force-rebuild /data/work/my_study
 **"Task not found" / task name mismatch**
 - Task names are case-sensitive — `cards_preprocess` ≠ `Cards_Preprocess`
 - The name must match exactly between `config.yaml` and your project config `tasks` section
-- Run `neuropipe list-tasks` to see all registered task names
+- Run `neuromaestro list-tasks` to see all registered task names
 
 **GUI won't start**
 - Check if port 8050 is already in use: `lsof -i :8050`
-- Try a different port: `neuropipe-gui --port 8051`
-- Verify the package is installed: `pip show neuro-pipeline`
+- Try a different port: `neuromaestro-gui --port 8051`
+- Verify the package is installed: `pip show neuromaestro`
 
 ### SLURM & Job Submission
 

@@ -10,10 +10,10 @@ For user-facing behavior (dependency rules, output checks config syntax, pre-fli
 
 ---
 
-## Lifecycle of a `neuropipe run` Call
+## Lifecycle of a `neuromaestro run` Call
 
 ```
-neuropipe run [flags]
+neuromaestro run [flags]
       │
       ▼
  1. Parse flags; validate --input directory exists
@@ -43,7 +43,7 @@ neuropipe run [flags]
 Key points:
 
 - Steps 4–6 all run **before** any database or JSONL files are touched. A preflight failure exits cleanly with no side effects.
-- `pipeline_start` (step 9) is written to **JSONL only — not directly to SQLite**. SQLite gets it later via `neuropipe merge-logs`. See [Logging System & Resume](logging-resume.md#jsonl-vs-sqlite).
+- `pipeline_start` (step 9) is written to **JSONL only — not directly to SQLite**. SQLite gets it later via `neuromaestro merge-logs`. See [Logging System & Resume](logging-resume.md#jsonl-vs-sqlite).
 - The execution plan (step 11) is built and printed **before** the first job is submitted, so you can verify dependencies before anything hits the cluster.
 
 ---
@@ -52,7 +52,7 @@ Key points:
 
 Every task has a **global config** entry in `config/config.yaml` (shared across all projects) and an optional **project override** in `config/project_config/{project}_config.yaml` under the `tasks:` key.
 
-At submission time, `find_task_config_by_name_with_project()` in [config_utils.py](../../src/neuro_pipeline/pipeline/utils/config_utils.py) merges the two layers:
+At submission time, `find_task_config_by_name_with_project()` in [config_utils.py](../../src/neuromaestro/pipeline/utils/config_utils.py) merges the two layers:
 
 ```python
 merged_config = global_task_config.copy()
@@ -83,7 +83,7 @@ Fields absent from the project override are inherited unchanged from the global 
 
 ## DAG: Code Walkthrough
 
-> For what the dependency rules *mean* from a user perspective, see [How the DAG works](../pipeline-reference/index.md#how-the-dag-works). This section covers the implementation in [dag.py](../../src/neuro_pipeline/pipeline/dag.py).
+> For what the dependency rules *mean* from a user perspective, see [How the DAG works](../pipeline-reference/index.md#how-the-dag-works). This section covers the implementation in [dag.py](../../src/neuromaestro/pipeline/dag.py).
 
 ### Step 1: Task name expansion (`TaskRegistry`)
 
@@ -122,7 +122,7 @@ Four private methods are called in sequence to populate each node's `dependencie
 
 ## Preflight: Implementation Notes
 
-`PreflightChecker` in [preflight.py](../../src/neuro_pipeline/pipeline/utils/preflight.py) validates the project config structure before any jobs are submitted. For the list of checks and example output, see [Pre-flight Checks](../pipeline-reference/index.md#pre-flight-checks).
+`PreflightChecker` in [preflight.py](../../src/neuromaestro/pipeline/utils/preflight.py) validates the project config structure before any jobs are submitted. For the list of checks and example output, see [Pre-flight Checks](../pipeline-reference/index.md#pre-flight-checks).
 
 ### Why there are no filesystem checks
 

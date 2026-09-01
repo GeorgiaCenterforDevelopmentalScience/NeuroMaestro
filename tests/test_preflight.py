@@ -2,7 +2,7 @@
 test_preflight.py
 
 Tests for the pre-flight schema validation and filesystem checks
-in neuro_pipeline.pipeline.utils.preflight.
+in neuromaestro.pipeline.utils.preflight.
 """
 
 import copy
@@ -12,7 +12,7 @@ import yaml
 from pathlib import Path
 
 from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
-from neuro_pipeline.pipeline.utils.preflight import (
+from neuromaestro.pipeline.utils.preflight import (
     PreflightChecker,
     PreflightResult,
     Issue,

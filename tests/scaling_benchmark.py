@@ -33,9 +33,9 @@ from pathlib import Path
 
 import yaml
 
-from neuro_pipeline.pipeline.dag import DAGExecutor, TaskRegistry
-from neuro_pipeline.pipeline.utils.config_utils import get_config, get_config_dir
-from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, _expand_path
+from neuromaestro.pipeline.dag import DAGExecutor, TaskRegistry
+from neuromaestro.pipeline.utils.config_utils import get_config, get_config_dir
+from neuromaestro.pipeline.utils.output_checker import OutputChecker, _expand_path
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -67,7 +67,7 @@ def subject_ids(n):
 
 
 def resolve_tasks():
-    from neuro_pipeline.pipeline.utils.config_utils import MRIQCChoice
+    from neuromaestro.pipeline.utils.config_utils import MRIQCChoice
 
     kwargs = dict(REQUESTED)
     kwargs["mriqc"] = MRIQCChoice(kwargs["mriqc"])
@@ -100,7 +100,7 @@ def phase_dag(tasks, repeats):
 
 
 def phase_submit(tasks, subjects, project_config, run_root, repeats):
-    """Everything neuropipe run does before it calls sbatch. Each repeat gets a
+    """Everything neuromaestro run does before it calls sbatch. Each repeat gets a
     fresh directory so the per-subject log mkdir loop is exercised rather than
     hitting directories that already exist."""
     samples = []
@@ -201,7 +201,7 @@ def main():
                     help="leave the run directory in place instead of removing it")
     args = ap.parse_args()
 
-    from neuro_pipeline.pipeline.utils.config_utils import set_config_dir
+    from neuromaestro.pipeline.utils.config_utils import set_config_dir
     set_config_dir(args.config_dir)
 
     config_dir = get_config_dir()

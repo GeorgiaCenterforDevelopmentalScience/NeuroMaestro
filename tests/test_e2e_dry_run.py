@@ -1,8 +1,8 @@
 """
 test_e2e_dry_run.py
 
-End-to-end smoke test: `neuropipe init` to lay down a study, then
-`neuropipe run --dry-run` through the real Typer app, the real config loader,
+End-to-end smoke test: `neuromaestro init` to lay down a study, then
+`neuromaestro run --dry-run` through the real Typer app, the real config loader,
 the real TaskRegistry, the real DAG and the real wrapper builder.
 
 Every other test drives these layers in isolation with mocks, so the wiring
@@ -70,8 +70,8 @@ def _write_project_config(config_dir: Path, scripts_dir: Path, envir: Path) -> N
 @pytest.fixture(scope="module")
 def dry_run(tmp_path_factory):
     """Run the CLI once; the tests below inspect different parts of the result."""
-    from neuro_pipeline.pipeline.utils import config_utils, hpc_utils
-    from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+    from neuromaestro.pipeline.utils import config_utils, hpc_utils
+    from neuromaestro.pipeline.utils.init_utils import init_project_templates
 
     tmp = tmp_path_factory.mktemp("e2e")
 
@@ -98,10 +98,10 @@ def dry_run(tmp_path_factory):
     # set_config_dir and _ensure_hpc_config mutate module globals; other tests
     # rely on them being untouched (including the "config dir not set" paths)
     saved = (config_utils._config_dir, config_utils.config, hpc_utils.hpc_config)
-    saved_env = os.environ.get("NEUROPIPE_CONFIG_DIR")
-    os.environ["NEUROPIPE_CONFIG_DIR"] = str(config_dir)
+    saved_env = os.environ.get("NEUROMAESTRO_CONFIG_DIR")
+    os.environ["NEUROMAESTRO_CONFIG_DIR"] = str(config_dir)
 
-    from neuro_pipeline.pipeline.core import app
+    from neuromaestro.pipeline.core import app
 
     try:
         with patch("subprocess.run") as mock_subprocess:
@@ -137,9 +137,9 @@ def dry_run(tmp_path_factory):
     finally:
         config_utils._config_dir, config_utils.config, hpc_utils.hpc_config = saved
         if saved_env is None:
-            os.environ.pop("NEUROPIPE_CONFIG_DIR", None)
+            os.environ.pop("NEUROMAESTRO_CONFIG_DIR", None)
         else:
-            os.environ["NEUROPIPE_CONFIG_DIR"] = saved_env
+            os.environ["NEUROMAESTRO_CONFIG_DIR"] = saved_env
 
 
 # ---------------------------------------------------------------------------

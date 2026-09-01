@@ -60,10 +60,10 @@ The resulting `ds002790/` directory is what you pass as `--input`.
 ## Step 2: Create the config directory
 
 ```bash
-neuropipe init /path/to/ds027_study
+neuromaestro init /path/to/ds027_study
 ```
 
-`neuropipe init` copies every bundled project config and check file, so `ds027_config.yaml` and `ds027_checks.yaml` are already in place:
+`neuromaestro init` copies every bundled project config and check file, so `ds027_config.yaml` and `ds027_checks.yaml` are already in place:
 
 ```
 /path/to/ds027_study/
@@ -103,10 +103,10 @@ Resource profiles come from `hpc_config.yaml`, which is cluster-wide rather than
 
 ## Step 3: Install the analysis scripts
 
-`neuropipe init` copies only the `template` scripts. The `ds027` scripts ship inside the installed package and need to be copied out:
+`neuromaestro init` copies only the `template` scripts. The `ds027` scripts ship inside the installed package and need to be copied out:
 
 ```bash
-python -c "import neuro_pipeline, pathlib; print(pathlib.Path(neuro_pipeline.__file__).parent / 'scripts' / 'ds027')"
+python -c "import neuromaestro, pathlib; print(pathlib.Path(neuromaestro.__file__).parent / 'scripts' / 'ds027')"
 ```
 
 Copy that directory to wherever you pointed `scripts_dir`. It contains 13 scripts, one per task.
@@ -132,7 +132,7 @@ This conversion step is dataset-specific and lives with the AOMIC materials rath
 ## Step 5: Build the subject list
 
 ```bash
-neuropipe detect-subjects /path/to/ds002790 --prefix "sub-" --output subjects.txt
+neuromaestro detect-subjects /path/to/ds002790 --prefix "sub-" --output subjects.txt
 ```
 
 This writes bare IDs (`0001`, `0002`, ...). The reference run used the first 30.
@@ -142,7 +142,7 @@ This writes bare IDs (`0001`, `0002`, ...). The reference run used the first 30.
 ## Step 6: Dry-run
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /path/to/ds002790 \
   --output /path/to/ds027_out \
@@ -166,7 +166,7 @@ The printed DAG plan should list 13 tasks. Preflight catches missing modules, un
 Drop `--dry-run` and the same command submits the run:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /path/to/ds002790 \
   --output /path/to/ds027_out \
@@ -189,13 +189,13 @@ Nine tasks are submitted as 30-element array jobs. The three staged postprocess 
 **Merge the JSONL logs into the database.** The positional argument is the directory that contains `database/`. With the bundle's default `db_path` of `$WORK_DIR/database/pipeline_jobs.db`, that is your `--work` value **without** the project name appended:
 
 ```bash
-neuropipe merge-logs /path/to/ds027_work
+neuromaestro merge-logs /path/to/ds027_work
 ```
 
 **Check the outputs.** Here `--work` is the output data root, meaning your `--output` value **with** the project name appended. It is the directory that directly contains `AFNI_derivatives/`, `BIDS_derivatives/`, and `quality_control/`:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project ds027 \
   --work /path/to/ds027_out/ds027 \
   --config-dir /path/to/ds027_study/config \
@@ -208,7 +208,7 @@ This writes `check_results_{timestamp}.csv` into that same directory.
 **Generate the report**, passing the CSV from the previous step:
 
 ```bash
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /path/to/ds027_work/database/pipeline_jobs.db \
   --project ds027 \
   --session 01 \

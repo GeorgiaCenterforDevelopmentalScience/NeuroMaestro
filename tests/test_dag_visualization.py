@@ -7,7 +7,7 @@ for different pipeline selections.
 """
 
 import pytest
-from neuro_pipeline.interface.components.analysis_control import build_dag_elements
+from neuromaestro.interface.components.analysis_control import build_dag_elements
 
 
 def node_ids(elements):

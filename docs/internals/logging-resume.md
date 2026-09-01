@@ -10,7 +10,7 @@ This page covers the dual JSONL/SQLite logging architecture, the merge and force
 
 ## Logging System
 
-The pipeline uses a **dual logging** approach: raw JSONL event files are written immediately on compute nodes (crash-safe), and a SQLite database is built from them via `neuropipe merge-logs`.
+The pipeline uses a **dual logging** approach: raw JSONL event files are written immediately on compute nodes (crash-safe), and a SQLite database is built from them via `neuromaestro merge-logs`.
 
 ### Directory structure
 
@@ -49,7 +49,7 @@ Every significant event is written as a JSON line (JSONL) with `fsync()` to surv
 
 | Event | Written by | Trigger | Key fields |
 |-------|-----------|---------|-----------|
-| `pipeline_start` | Python (submit host) | `neuropipe run` begins | command line, subjects, tasks, dry_run |
+| `pipeline_start` | Python (submit host) | `neuromaestro run` begins | command line, subjects, tasks, dry_run |
 | `pipeline_update` | Python (submit host) | All tasks submitted | status (COMPLETED/FAILED), total_jobs |
 | `wrapper_script` | Python (submit host) | Immediately after `sbatch` | task_name, job_id, full wrapper content split by section |
 | `start` | Bash → Python CLI (compute node) | Subject begins executing | subject, task, job_id, node |
@@ -79,7 +79,7 @@ CREATE TABLE job_status (
     node_name      TEXT
 );
 
--- One row per neuropipe run invocation
+-- One row per neuromaestro run invocation
 CREATE TABLE pipeline_executions (
     id             INTEGER PRIMARY KEY,
     execution_id   INTEGER,    -- timestamp-based ID; join target for job_status and wrapper_scripts
@@ -141,7 +141,7 @@ CREATE TABLE wrapper_scripts (
 | Written by | compute nodes + submit host, in real time | populated from JSONL after jobs complete |
 | Survives cluster crash? | Yes (fsync'd immediately) | Only if merge has run |
 | Queryable with SQL? | No | Yes |
-| Source of truth | Yes | Derived — re-buildable via `neuropipe force-rebuild` |
+| Source of truth | Yes | Derived — re-buildable via `neuromaestro force-rebuild` |
 
 ### Signal handling
 
@@ -160,7 +160,7 @@ trap 'cleanup_on_signal SIGHUP 129'  SIGHUP
 
 ## Merge Logs: Implementation
 
-`neuropipe merge-logs` reads unprocessed JSONL files and populates the SQLite database.
+`neuromaestro merge-logs` reads unprocessed JSONL files and populates the SQLite database.
 
 ### Three merge functions
 
@@ -177,7 +177,7 @@ Handles `_pipeline/wrapper_*.jsonl` files. Each file contains a single `wrapper_
 
 ### `merge_once` vs `rebuild_db`
 
-| | `merge_once` (via `neuropipe merge-logs`) | `rebuild_db` (via `neuropipe force-rebuild`) |
+| | `merge_once` (via `neuromaestro merge-logs`) | `rebuild_db` (via `neuromaestro force-rebuild`) |
 |--|------------------------------------------|----------------------------------------------|
 | Scans | Active files only (`json/**/*.jsonl`) | Active + `archived/` subdirectories |
 | Output | Updates existing `pipeline_jobs.db` | Creates a new `pipeline_jobs_rebuild_{ts}.db` |
@@ -188,17 +188,17 @@ Use `force-rebuild` when the database is corrupted, accidentally deleted, or mis
 
 ```bash
 # Normal post-run merge
-neuropipe merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work/my_study
 
 # Full rebuild from all historical JSONL (original db untouched)
-neuropipe force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work/my_study
 ```
 
 ---
 
 ## Auto-Backup
 
-Every time `neuropipe merge-logs` runs, if `pipeline_jobs.db` already exists, it is copied to:
+Every time `neuromaestro merge-logs` runs, if `pipeline_jobs.db` already exists, it is copied to:
 
 ```
 {db_dir}/backup/pipeline_jobs.backup_{timestamp}.db

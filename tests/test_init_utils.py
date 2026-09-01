@@ -10,7 +10,7 @@ import pytest
 class TestInitProjectTemplates:
 
     def test_copies_global_config_files(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+        from neuromaestro.pipeline.utils.init_utils import init_project_templates
         config_dir = tmp_path / "config"
         copied = init_project_templates(config_dir)
 
@@ -20,7 +20,7 @@ class TestInitProjectTemplates:
         assert (config_dir / "hpc_config.yaml").exists()
 
     def test_copies_project_config_subdir(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+        from neuromaestro.pipeline.utils.init_utils import init_project_templates
         config_dir = tmp_path / "config"
         copied = init_project_templates(config_dir)
 
@@ -29,7 +29,7 @@ class TestInitProjectTemplates:
         assert any((config_dir / "project_config").iterdir())
 
     def test_copies_results_check_subdir(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+        from neuromaestro.pipeline.utils.init_utils import init_project_templates
         config_dir = tmp_path / "config"
         copied = init_project_templates(config_dir)
 
@@ -38,14 +38,14 @@ class TestInitProjectTemplates:
         assert any((config_dir / "results_check").iterdir())
 
     def test_creates_config_dir_if_missing(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+        from neuromaestro.pipeline.utils.init_utils import init_project_templates
         config_dir = tmp_path / "deep" / "nested" / "config"
         assert not config_dir.exists()
         init_project_templates(config_dir)
         assert config_dir.is_dir()
 
     def test_scripts_placed_next_to_config(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+        from neuromaestro.pipeline.utils.init_utils import init_project_templates
         config_dir = tmp_path / "study" / "config"
         copied = init_project_templates(config_dir)
 
@@ -57,7 +57,7 @@ class TestInitProjectTemplates:
         assert not (config_dir / "scripts").exists()
 
     def test_idempotent_on_repeat_call(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+        from neuromaestro.pipeline.utils.init_utils import init_project_templates
         config_dir = tmp_path / "config"
         init_project_templates(config_dir)
         copied2 = init_project_templates(config_dir)

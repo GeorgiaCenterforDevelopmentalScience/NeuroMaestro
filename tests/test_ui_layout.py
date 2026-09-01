@@ -23,7 +23,7 @@ class TestJobMonitorLayout:
 
     @pytest.fixture(autouse=True)
     def layout(self):
-        from neuro_pipeline.interface.components.job_monitor import create_job_monitor_layout
+        from neuromaestro.interface.components.job_monitor import create_job_monitor_layout
         self.component = create_job_monitor_layout()
         self.ids = collect_ids(self.component)
 
@@ -62,7 +62,7 @@ class TestAnalysisControlLayout:
 
     @pytest.fixture(autouse=True)
     def layout(self):
-        from neuro_pipeline.interface.components.analysis_control import create_analysis_control_layout
+        from neuromaestro.interface.components.analysis_control import create_analysis_control_layout
         self.component = create_analysis_control_layout()
         self.ids = collect_ids(self.component)
 
@@ -97,7 +97,7 @@ class TestProjectConfigLayout:
 
     @pytest.fixture(autouse=True)
     def layout(self):
-        from neuro_pipeline.interface.components.project_config import create_project_config_page
+        from neuromaestro.interface.components.project_config import create_project_config_page
         self.component = create_project_config_page()
         self.ids = collect_ids(self.component)
 
@@ -132,7 +132,7 @@ class TestCallbackIdsExistInLayouts:
 
     @pytest.fixture(autouse=True)
     def app_ids(self):
-        import neuro_pipeline.interface.app as app_module
+        import neuromaestro.interface.app as app_module
         self.layout_ids = collect_ids(app_module.app.layout)
 
     @staticmethod
@@ -159,7 +159,7 @@ class TestCallbackIdsExistInLayouts:
             def clientside_callback(self, _js, *args, **kwargs):
                 self.callback(*args, **kwargs)
 
-        from neuro_pipeline.interface.callbacks import register_callbacks
+        from neuromaestro.interface.callbacks import register_callbacks
         register_callbacks(RecordingApp())
         return seen
 
@@ -172,7 +172,7 @@ class TestAppRouting:
 
     @pytest.fixture(autouse=True)
     def setup(self):
-        import neuro_pipeline.interface.app as app_module
+        import neuromaestro.interface.app as app_module
         self._display_page = app_module.display_page
         self._SHOW = app_module._SHOW
         self._HIDE = app_module._HIDE
@@ -206,7 +206,7 @@ class TestReportHtml:
 
     @pytest.fixture(autouse=True)
     def imports(self):
-        from neuro_pipeline.pipeline.utils.report_html import render_html
+        from neuromaestro.pipeline.utils.report_html import render_html
         self.render_html = render_html
 
     def _minimal_html(self, **overrides):

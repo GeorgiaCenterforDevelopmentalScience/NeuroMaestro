@@ -2,10 +2,10 @@
 version: 1
 project:
   id: 67753c61-a96e-410d-8b00-da07295c9d65
-  title: Neuroimage Pipeline
+  title: NeuroMaestro
   description: A comprehensive neuroimaging data processing pipeline for fMRI, structural MRI, DWI, and quality control on HPC clusters.
   keywords: [neuroimaging, fMRI, AFNI, fMRIPrep, SLURM, HPC, pipeline]
-  github: https://github.com/GeorgiaCenterforDevelopmentalScience/Neuro-Pipeline
+  github: https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro
   authors:
     - name: Qiuyu Yu
   toc:

@@ -8,7 +8,7 @@ Commands for verifying outputs, managing the job log database, and generating re
 
 ---
 
-## `neuropipe check-outputs`
+## `neuromaestro check-outputs`
 
 Verifies task outputs for a set of subjects without submitting any jobs.
 
@@ -18,21 +18,21 @@ Subjects are auto-detected from `--work` when `--subjects` is omitted.
 
 ```bash
 # Auto-detect subjects, check one session
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
   --session 01
 
 # Check multiple sessions in one run
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
   --session 01,02
 
 # Filter to specific subjects and tasks
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -42,14 +42,14 @@ neuropipe check-outputs \
   --task volume
 
 # Project without sessions: pass any value, it is unused by the path templates
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project ds027 \
   --work /data/work \
   --config-dir /data/config \
   --session 01
 
 # Use a custom checks directory
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -75,16 +75,16 @@ Terminal output shows only subjects with issues, grouped by task. A full CSV is 
 
 ---
 
-## `neuropipe merge-logs`
+## `neuromaestro merge-logs`
 
 Merges JSONL job logs into the SQLite database. Must be run manually after jobs complete.
 
 ```bash
 # work_dir is a positional argument (no flag)
-neuropipe merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work/my_study
 
 # Specify database path explicitly
-neuropipe merge-logs /data/work/my_study \
+neuromaestro merge-logs /data/work/my_study \
   --db-path /data/work/my_study/database/pipeline_jobs.db
 ```
 
@@ -111,16 +111,16 @@ use `check-outputs` to see whether their outputs are complete.
 
 ---
 
-## `neuropipe force-rebuild`
+## `neuromaestro force-rebuild`
 
 Rebuilds a fresh SQLite database from all JSONL logs, including files already moved to `archived/` subdirectories by a previous `merge-logs`. The original database is never modified.
 
 ```bash
 # Auto-detect database path from work directory
-neuropipe force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work/my_study
 
 # Specify database path explicitly
-neuropipe force-rebuild /data/work/my_study \
+neuromaestro force-rebuild /data/work/my_study \
   --db-path /data/work/my_study/database/pipeline_jobs.db
 ```
 
@@ -141,33 +141,33 @@ Use this when:
 
 ---
 
-## `neuropipe generate-report`
+## `neuromaestro generate-report`
 
 Generates a standalone HTML report from the job tracking database: summary statistics, per-subject status heatmap, and task durations.
 
 ```bash
 # Minimal — report saved next to the database
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --check-results /data/work/my_study/check_results_20260401_120000.csv
 
 # With --config-dir so tasks are listed in pipeline order
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --config-dir /data/config \
   --check-results /data/work/my_study/check_results_20260401_120000.csv
 
 # Filter by session
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
   --check-results /data/work/my_study/check_results_20260401_120000.csv
 
 # Save to a specific path
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
@@ -184,7 +184,7 @@ neuropipe generate-report \
 | `--session` | Filter by session ID (recommended when multiple projects share a database) |
 | `--output` / `-o` | Output HTML file, or a directory (the `pipeline_report_{project}_{timestamp}.html` name is added inside it). Defaults to that name next to the database |
 | `--check-results` | Path to a `check_results_*.csv` from `check-outputs` (required). Run `check-outputs` first to generate this file. |
-| `--config-dir` | Path to config directory. Used to list report tasks in pipeline order instead of alphabetically. Defaults to `$NEUROPIPE_CONFIG_DIR`; the report still renders without it. |
+| `--config-dir` | Path to config directory. Used to list report tasks in pipeline order instead of alphabetically. Defaults to `$NEUROMAESTRO_CONFIG_DIR`; the report still renders without it. |
 
 → See [Post-Run Verification](../how-to/post-run-verification.md) for a full workflow and report contents description.
 
@@ -220,7 +220,7 @@ The job tracking SQLite database (`{work_dir}/database/pipeline_jobs.db`) has fo
 | `id` | INTEGER | Auto-increment primary key (row number) |
 | `execution_id` | INTEGER | Timestamp-based ID generated at submission time; used to link `job_status` and `wrapper_scripts` |
 | `execution_time` | TIMESTAMP | When the run was submitted |
-| `command_line` | TEXT | Full `neuropipe run` command |
+| `command_line` | TEXT | Full `neuromaestro run` command |
 | `project_name` | TEXT | Project name |
 | `session` | TEXT | Session label |
 | `input_dir` | TEXT | `--input` path |
@@ -315,5 +315,5 @@ ORDER BY j.task_name, j.subject;
 ```
 
 :::{note}
-The database is **automatically backed up** before every `neuropipe merge-logs`. Backups are stored in `{db_dir}/backup/` with a timestamp suffix; the last 10 are kept.
+The database is **automatically backed up** before every `neuromaestro merge-logs`. Backups are stored in `{db_dir}/backup/` with a timestamp suffix; the last 10 are kept.
 :::

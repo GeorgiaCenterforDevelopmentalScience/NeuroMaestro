@@ -12,10 +12,10 @@ The pipeline is structured as a DAG of tasks. You choose which tasks to run via 
 
 ## 1. Configure
 
-Run `neuropipe init` once to create a config directory with template files:
+Run `neuromaestro init` once to create a config directory with template files:
 
 ```bash
-neuropipe init /scratch/my_study
+neuromaestro init /scratch/my_study
 ```
 
 Then edit the two per-project files inside the generated config directory:
@@ -45,14 +45,14 @@ if you want them fully isolated.
 ## 2. Detect subjects
 
 ```bash
-neuropipe detect-subjects /data/raw --prefix "sub-" --output subjects.txt
+neuromaestro detect-subjects /data/raw --prefix "sub-" --output subjects.txt
 ```
 
 This scans a directory for subject folders and writes bare IDs (prefix stripped) to a file, e.g. `sub-001` → `001`. Pass these to `--subjects subjects.txt` in all subsequent commands. The pipeline re-applies the prefix internally using the `prefix` field in your project config, so each script receives `$PREFIX` and `$SUBJECT_ID` separately and constructs the full ID (`sub-001`, `001`, etc.) itself.
 
 If your data has no prefix (folders named `001`, `002`, ...), use `--prefix ""` here and set `prefix: ""` in your project config.
 
-See [CLI Reference](../cli-reference/index.md#neuropipe-detect-subjects).
+See [CLI Reference](../cli-reference/index.md#neuromaestro-detect-subjects).
 
 ---
 
@@ -61,7 +61,7 @@ See [CLI Reference](../cli-reference/index.md#neuropipe-detect-subjects).
 Before submitting to the cluster, run with `--dry-run` to validate your config, generate wrapper scripts, and print the full SLURM submission plan, without queuing anything.
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /data/raw --output /data/processed --work /data/work \
   --config-dir /scratch/my_study/config \
@@ -85,7 +85,7 @@ Check the printed **DAG execution plan** to verify task order and dependencies b
 Remove `--dry-run`. Preflight and BIDS validation run again automatically.
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /data/raw --output /data/processed --work /data/work \
   --config-dir /scratch/my_study/config \
@@ -102,7 +102,7 @@ Each task is submitted as a SLURM array job (one element per subject). Downstrea
 **Submitting in stages.** You don't need to submit everything at once. For initial validation, go stage by stage: submit `--prep unzip_recon`, verify the BIDS output, then submit `--intermed`/`--bids-prep`, and so on. Once the pipeline is stable for your dataset, you can submit all stages in a single command.
 
 :::{important}
-**Always submit `--bids-prep` and `--bids-post` in the same command.** The `input_from` mechanism that sets `rest_post`'s `$INPUT_DIR` to the fMRIPrep output directory only activates when the upstream task is included in the same `neuropipe run` invocation. If you submit `--bids-post rest` alone, `$INPUT_DIR` falls back to your `--input` value and your scripts run against the wrong data without any warning. The same applies to `--bids-post dwi`.
+**Always submit `--bids-prep` and `--bids-post` in the same command.** The `input_from` mechanism that sets `rest_post`'s `$INPUT_DIR` to the fMRIPrep output directory only activates when the upstream task is included in the same `neuromaestro run` invocation. If you submit `--bids-post rest` alone, `$INPUT_DIR` falls back to your `--input` value and your scripts run against the wrong data without any warning. The same applies to `--bids-post dwi`.
 :::
 
 *`--wait` blocks the terminal and polls until all submitted jobs finish. Only useful in automated scripts; for interactive use you don't need it.*
@@ -116,7 +116,7 @@ See [Pipeline Reference](../pipeline-reference/index.md) for per-task details (i
 Compute nodes write JSONL event logs in real time. Once jobs finish, merge them into the SQLite database:
 
 ```bash
-neuropipe merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work/my_study
 ```
 
 This is required before `generate-report` can show job durations and status. The database is backed up automatically before each merge. `check-outputs` checks the filesystem directly and does not need the database.
@@ -124,7 +124,7 @@ This is required before `generate-report` can show job durations and status. The
 If the database is missing records after a cluster crash, use `force-rebuild` to reconstruct it from all JSONL logs including archived ones:
 
 ```bash
-neuropipe force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work/my_study
 ```
 
 See [Logging System](../internals/logging-resume.md#merge-logs-implementation) for how merging works.
@@ -136,7 +136,7 @@ See [Logging System](../internals/logging-resume.md#merge-logs-implementation) f
 Check that all expected output files exist for every subject:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study --work /data/processed \
   --config-dir /scratch/my_study/config \
   --subjects subjects.txt --session 01
@@ -145,7 +145,7 @@ neuropipe check-outputs \
 Prints a terminal summary and saves a full CSV to `{work_dir}/check_results_{timestamp}.csv`. Then generate an HTML report combining job status and output check results:
 
 ```bash
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study --session 01
 ```
@@ -159,7 +159,7 @@ See [Post-run Verification](../how-to/post-run-verification.md) and [Output Chec
 Use `--resume` to skip subjects whose outputs already pass the output checks and resubmit only the rest:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /data/processed --output /data/processed --work /data/work \
   --config-dir /scratch/my_study/config \

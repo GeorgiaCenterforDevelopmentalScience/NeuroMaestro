@@ -16,7 +16,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
-from neuro_pipeline.pipeline.utils.report_html import render_html
+from neuromaestro.pipeline.utils.report_html import render_html
 
 # ---------------------------------------------------------------------------
 # Mock data
@@ -30,7 +30,7 @@ TASKS = ["recon", "volume", "rest_preprocess", "rest_post",
 METADATA = {
     "execution_id":    20260401120000,
     "execution_time":  "2026-04-01 12:00:00",
-    "command_line":    "neuropipe run --subjects subjects.txt --input /data/BIDS "
+    "command_line":    "neuromaestro run --subjects subjects.txt --input /data/BIDS "
                        "--output /data/processed --work /data/work --project GCDS --session 01,02 "
                        "--bids-prep rest,dwi --staged-prep cards",
     "project_name":    "GCDS",
@@ -81,7 +81,7 @@ def _make_job_status(session_filter=None):
 
 
 def _make_task_summary(sess_jobs, sess_subjects):
-    from neuro_pipeline.pipeline.utils.report_generator import compute_task_summary
+    from neuromaestro.pipeline.utils.report_generator import compute_task_summary
     return compute_task_summary(sess_jobs, sess_subjects)
 
 

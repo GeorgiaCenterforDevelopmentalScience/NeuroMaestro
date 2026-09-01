@@ -1,5 +1,5 @@
 """
-preflight.py — Schema validation for neuropipe run.
+preflight.py — Schema validation for neuromaestro run.
 
 Validates project config structure and references against global config
 before job submission. Filesystem checks are intentionally omitted:

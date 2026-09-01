@@ -12,9 +12,9 @@ from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 
 # hpc_utils reads the pipeline config through config_utils, so that is
 # the single place to patch.
-PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
-HPC_CONFIG_PATH      = "neuro_pipeline.pipeline.utils.hpc_utils.hpc_config"
-CONFIG_UTILS_PATH    = "neuro_pipeline.pipeline.utils.config_utils.config"
+PIPELINE_CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
+HPC_CONFIG_PATH      = "neuromaestro.pipeline.utils.hpc_utils.hpc_config"
+CONFIG_UTILS_PATH    = "neuromaestro.pipeline.utils.config_utils.config"
 
 
 def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
@@ -32,8 +32,8 @@ def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
     with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), \
          patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
          patch(CONFIG_UTILS_PATH, MOCK_CONFIG), \
-         patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
-        from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+         patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+        from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
         submit_slurm_job(
             script_name=task_config["scripts"][0],
             subjects="001,002",

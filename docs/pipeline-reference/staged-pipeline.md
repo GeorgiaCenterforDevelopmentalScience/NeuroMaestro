@@ -41,7 +41,7 @@ With --intermed:               Without --intermed:
 Multiple staged tasks run in parallel with each other — they are independent of each other, both waiting for the same set of intermed tasks:
 
 ```bash
-neuropipe run ... --intermed volume --staged-prep cards,kidvid
+neuromaestro run ... --intermed volume --staged-prep cards,kidvid
 ```
 
 :::{note}
@@ -120,7 +120,7 @@ This works the same regardless of the underlying tool — an FSL or SPM script w
 
 ```bash
 # Both tasks, with intermed (staged tasks wait for volume)
-neuropipe run \
+neuromaestro run \
   --subjects 001,002 \
   --input /data/BIDS \
   --output /data/processed \
@@ -131,10 +131,10 @@ neuropipe run \
   --staged-prep cards,kidvid
 
 # Multiple intermed tasks (staged tasks wait for ALL of them)
-neuropipe run ... --intermed volume,bfc --staged-prep cards,kidvid
+neuromaestro run ... --intermed volume,bfc --staged-prep cards,kidvid
 
 # Without intermed (staged tasks depend directly on recon)
-neuropipe run ... --staged-prep cards,kidvid
+neuromaestro run ... --staged-prep cards,kidvid
 ```
 
 ---
@@ -172,7 +172,7 @@ The steps below use AFNI as an example, but the same pattern applies to any tool
 
 4. Run:
    ```bash
-   neuropipe run ... --intermed volume --staged-prep my_task
+   neuromaestro run ... --intermed volume --staged-prep my_task
    ```
 
 The key field is `multi_stage: true` — this tells the DAG that the task belongs to a staged pipeline and should wait for all requested intermed tasks. Without it, the task would run in parallel with `recon` regardless of `--intermed`. See [How-To: Add a Custom Task](../how-to/add-custom-task.md) for a full walkthrough.

@@ -192,7 +192,7 @@ resource_flags:
 
 ### Job monitoring (`--wait`)
 
-These fields are used when `--wait` is passed to `neuropipe run`:
+These fields are used when `--wait` is passed to `neuromaestro run`:
 
 | Key | Description |
 |-----|-------------|

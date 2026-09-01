@@ -3,7 +3,7 @@ title: Common Scenarios
 ---
 # Common Scenarios
 
-Quick reference for the most common `neuropipe run` workflows. All examples use generic paths — substitute your actual directories and subject list.
+Quick reference for the most common `neuromaestro run` workflows. All examples use generic paths — substitute your actual directories and subject list.
 
 ---
 
@@ -12,7 +12,7 @@ Quick reference for the most common `neuropipe run` workflows. All examples use 
 Run everything from raw data to postprocessing in a single command:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /data/raw_zip_files \
   --output /data/processed \
@@ -35,7 +35,7 @@ neuropipe run \
 **Unzip raw data:**
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/raw_zip_files \
   --output /data/processed \
@@ -49,7 +49,7 @@ neuropipe run \
 **Reconstruct to BIDS (assumes raw data already extracted):**
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/raw \
   --output /data/processed \
@@ -63,7 +63,7 @@ neuropipe run \
 **Unzip then reconstruct in one go:**
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/raw_zip_files \
   --output /data/processed \
@@ -83,7 +83,7 @@ If you already have a BIDS dataset and only need to run downstream processing:
 **Intermediate structural processing only:**
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/BIDS \
   --output /data/processed \
@@ -97,7 +97,7 @@ neuropipe run \
 **Resting-state fMRI:**
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/BIDS \
   --output /data/processed \
@@ -112,7 +112,7 @@ neuropipe run \
 **DWI:**
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/BIDS \
   --output /data/processed \
@@ -127,7 +127,7 @@ neuropipe run \
 **Task fMRI (staged — requires intermed first):**
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/BIDS \
   --output /data/processed \
@@ -146,7 +146,7 @@ neuropipe run \
 Run MRIQC on existing BIDS data:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/BIDS \
   --output /data/processed \
@@ -161,10 +161,10 @@ Individual and group reports separately:
 
 ```bash
 # Individual subject reports first
-neuropipe run ... --config-dir /data/config --mriqc individual
+neuromaestro run ... --config-dir /data/config --mriqc individual
 
 # Then group report (after individual jobs finish)
-neuropipe run ... --config-dir /data/config --mriqc group
+neuromaestro run ... --config-dir /data/config --mriqc group
 ```
 
 ---
@@ -172,7 +172,7 @@ neuropipe run ... --config-dir /data/config --mriqc group
 ## Workflow 5: BIDS conversion through to task fMRI (recon → intermed → staged)
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/raw \
   --output /data/processed \
@@ -190,7 +190,7 @@ neuropipe run \
 ## Workflow 6: BIDS conversion through to fMRI preprocessing and postprocessing (recon → bids-prep → bids-post)
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/raw \
   --output /data/processed \
@@ -210,7 +210,7 @@ neuropipe run \
 Check the execution plan and generated wrapper scripts without submitting anything to SLURM:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/BIDS \
   --output /data/processed \
@@ -232,7 +232,7 @@ Wrapper scripts are written to `{work_dir}/log/wrapper/` so you can inspect the 
 If a previous run was interrupted or some subjects failed, resubmit only the subjects with incomplete outputs:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /data/BIDS \
   --output /data/processed \

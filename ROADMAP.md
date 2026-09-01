@@ -1,6 +1,6 @@
-# Project Roadmap – GCDS-Neuro-Pipeline
+# Project Roadmap – NeuroMaestro
 
-This document outlines the planned development path for the GCDS-Neuro-Pipeline.  
+This document outlines the planned development path for NeuroMaestro.  
 It is intended to guide future contributions and provide clarity for collaborators and users.  
 
 Version numbers follow semantic versioning; "x" denotes future patch-level releases within the minor version series.

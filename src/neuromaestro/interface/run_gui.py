@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GCDS Neuro Pipeline GUI Launcher"""
+"""NeuroMaestro GUI Launcher"""
 
 import logging
 import os
@@ -9,7 +9,7 @@ from pathlib import Path
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 def main():
-    parser = argparse.ArgumentParser(description="Launch GCDS Neuro Pipeline GUI")
+    parser = argparse.ArgumentParser(description="Launch NeuroMaestro GUI")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8050, help="Port to bind to")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -22,11 +22,11 @@ def main():
     config_dir.mkdir(parents=True, exist_ok=True)
     os.environ['CONFIG_DIR'] = str(config_dir)
     
-    print(f"Starting GCDS Neuro Pipeline GUI...")
+    print(f"Starting NeuroMaestro GUI...")
     print(f"Access the GUI at: http://{args.host}:{args.port}")
     
     try:
-        from neuro_pipeline.interface.app import app
+        from neuromaestro.interface.app import app
         app.run(
             debug=args.debug,
             host=args.host,

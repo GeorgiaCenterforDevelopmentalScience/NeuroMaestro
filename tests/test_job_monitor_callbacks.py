@@ -43,7 +43,7 @@ class FakeApp:
 def callbacks():
     """Register all job monitor callbacks once and return the FakeApp."""
     fake_app = FakeApp()
-    from neuro_pipeline.interface.callbacks.job_monitor_callbacks import register_job_monitor_callbacks
+    from neuromaestro.interface.callbacks.job_monitor_callbacks import register_job_monitor_callbacks
     register_job_monitor_callbacks(fake_app)
     return fake_app
 
@@ -56,7 +56,7 @@ class TestRenderCheckTable:
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _render_check_table
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import _render_check_table
         self.render = _render_check_table
 
     def _make_df(self, rows):
@@ -128,7 +128,7 @@ class TestMergeLogsCallback:
         mock_result.returncode = 0
         mock_result.stdout = "Merged 5 records."
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.subprocess.run",
                    return_value=mock_result):
             result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
@@ -142,7 +142,7 @@ class TestMergeLogsCallback:
         mock_result.stderr = "merge failed"
         mock_result.stdout = ""
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.subprocess.run",
                    return_value=mock_result):
             result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
@@ -153,18 +153,18 @@ class TestMergeLogsCallback:
         import subprocess
         fn = callbacks.get("merge_logs_callback")
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
-                   side_effect=subprocess.TimeoutExpired(cmd="neuropipe", timeout=120)):
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.subprocess.run",
+                   side_effect=subprocess.TimeoutExpired(cmd="neuromaestro", timeout=120)):
             result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
         assert "timed out" in str(result.children).lower()
 
-    def test_neuropipe_not_found_returns_danger(self, callbacks, tmp_path):
+    def test_neuromaestro_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("merge_logs_callback")
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.subprocess.run",
                    side_effect=FileNotFoundError):
             result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
@@ -210,11 +210,11 @@ class TestRunOutputCheckCallback:
         ])
         # detect_subjects is imported inside the callback, so the source module
         # is the only patch point; there is no module-level name to override.
-        with patch("neuro_pipeline.pipeline.utils.detect_subjects.detect_subjects",
+        with patch("neuromaestro.pipeline.utils.detect_subjects.detect_subjects",
                    return_value=["007"]), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["t"], [])) as mock_run:
             fn(1, project="myproject", work_dir=str(tmp_path), subjects_raw="",
                task_filter="", session="01", prefix="sub-")
@@ -224,7 +224,7 @@ class TestRunOutputCheckCallback:
     def test_checks_config_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("run_output_check_callback")
         with patch(
-            "neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+            "neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
             side_effect=FileNotFoundError("no checks file"),
         ):
             result = fn(1, project="ghost", work_dir=str(tmp_path),
@@ -239,9 +239,9 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 1, "status": "PASS"},
         ])
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["my_task"], [])):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -255,9 +255,9 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 1, "status": "PASS"},
         ])
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["t"], [])):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -272,9 +272,9 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 0, "status": "FAIL - file not found"},
         ])
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["t"], [])):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -289,9 +289,9 @@ class TestRunOutputCheckCallback:
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 1, "status": "PASS"},
         ])
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["specific_task"], [])) as mock_run:
             fn(1, project="myproject", work_dir=str(tmp_path),
                subjects_raw="001,002", task_filter="specific_task",
@@ -326,11 +326,11 @@ class TestExportCheckCsvCallback:
         mock_checker = MagicMock()
         mock_checker.save_csv.return_value = fake_csv
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["t"], [])), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -342,7 +342,7 @@ class TestExportCheckCsvCallback:
     def test_file_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("export_check_csv_callback")
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    side_effect=FileNotFoundError("no file")):
             result = fn(1, project="ghost", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -353,9 +353,9 @@ class TestExportCheckCsvCallback:
     def test_exception_while_running_checks_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("export_check_csv_callback")
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    side_effect=RuntimeError("checks blew up")):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -367,7 +367,7 @@ class TestExportCheckCsvCallback:
     def test_separator_only_subjects_returns_warning(self, callbacks, tmp_path):
         # run_output_check_callback already guarded this; the export path did not
         fn = callbacks.get("export_check_csv_callback")
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker") as mock_cls:
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.OutputChecker") as mock_cls:
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw=" , ", task_filter="", session="01", prefix="sub-")
 
@@ -381,11 +381,11 @@ class TestExportCheckCsvCallback:
         mock_checker = MagicMock()
         mock_checker.save_csv.side_effect = OSError("disk full")
 
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.run_output_checks",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["t"], [])), \
-             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -407,7 +407,7 @@ class TestParseSessions:
 
     @staticmethod
     def _parse(value):
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _parse_sessions
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import _parse_sessions
         return _parse_sessions(value)
 
     def test_single_session_parsed(self):
@@ -460,7 +460,7 @@ class TestOutputCheckRequiresSession:
 
     def test_blank_session_does_not_reach_the_checker(self, callbacks, tmp_path):
         fn = callbacks.get("run_output_check_callback")
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker") as mock_cls:
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.OutputChecker") as mock_cls:
             fn(1, project="myproject", work_dir=str(tmp_path),
                subjects_raw="001", task_filter="", session="", prefix="sub-")
         mock_cls.assert_not_called()
@@ -474,7 +474,7 @@ class TestWrapperInspectorShowsProvenance:
 
     @staticmethod
     def _db(tmp_path, with_execution=True):
-        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        from neuromaestro.pipeline.utils.job_db import get_db_connection
         db_path = str(tmp_path / "wrap.db")
         conn = get_db_connection(db_path)
         if with_execution:
@@ -534,18 +534,18 @@ class TestBuildQuery:
 
     @staticmethod
     def _build(*args, **kwargs):
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _build_query
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import _build_query
         return _build_query(*args, **kwargs)
 
     @staticmethod
     def _specs():
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
         return _QUERY_SPECS
 
     @pytest.fixture
     def db(self, tmp_path):
         """One row per table, all stamped 2026-07-28 09:00:00."""
-        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        from neuromaestro.pipeline.utils.job_db import get_db_connection
         conn = get_db_connection(str(tmp_path / "q.db"))
         conn.execute("INSERT INTO pipeline_executions "
                      "(execution_id, project_name, session, status, execution_time) "
@@ -658,7 +658,7 @@ class TestStatusOptions:
 
     @staticmethod
     def _options(query_type):
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import status_options_for
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import status_options_for
         return status_options_for(query_type)
 
     @staticmethod
@@ -696,10 +696,10 @@ class TestStatusOptions:
 
     def test_every_offered_value_exists_in_the_database(self, tmp_path):
         """The regression itself: an option the table can never contain."""
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import (
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import (
             _build_query, _QUERY_SPECS,
         )
-        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        from neuromaestro.pipeline.utils.job_db import get_db_connection
         conn = get_db_connection(str(tmp_path / "s.db"))
         checked = 0
         try:
@@ -734,7 +734,7 @@ class TestStatusOptions:
         A value the table can hold but the dropdown does not offer hides those
         rows entirely, which is worse than an option that matches nothing.
         """
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
         for query_type, expected in self._WRITTEN_BY_THE_PIPELINE.items():
             offered = set(_QUERY_SPECS[query_type]["status_values"])
             assert offered == expected, query_type
@@ -779,7 +779,7 @@ class TestExecuteSqlQueryPaging:
 
     @staticmethod
     def _db(tmp_path, n_rows):
-        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        from neuromaestro.pipeline.utils.job_db import get_db_connection
         db_path = str(tmp_path / "paging.db")
         conn = get_db_connection(db_path)
         conn.executemany(
@@ -794,7 +794,7 @@ class TestExecuteSqlQueryPaging:
 
     @staticmethod
     def _view_limit(query_type):
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import _QUERY_SPECS
         return _QUERY_SPECS[query_type]["view_limit"]
 
     @staticmethod
@@ -845,7 +845,7 @@ class TestExportCsvDestination:
 
     @staticmethod
     def _db(tmp_path):
-        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        from neuromaestro.pipeline.utils.job_db import get_db_connection
         db_path = tmp_path / "pipeline_jobs.db"
         conn = get_db_connection(str(db_path))
         conn.execute("INSERT INTO job_status "
@@ -877,7 +877,7 @@ class TestExportCsvDestination:
         assert os.path.exists(reported)
 
     def test_export_is_not_truncated_by_the_view_limit(self, callbacks, tmp_path):
-        from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+        from neuromaestro.pipeline.utils.job_db import get_db_connection
         db_path = tmp_path / "big.db"
         conn = get_db_connection(str(db_path))
         conn.executemany(
@@ -906,7 +906,7 @@ class TestCreateQueryCharts:
 
     @staticmethod
     def _charts(df, query_type):
-        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import create_query_charts
+        from neuromaestro.interface.callbacks.job_monitor_callbacks import create_query_charts
         return create_query_charts(df, query_type)
 
     @pytest.fixture
@@ -954,7 +954,7 @@ class TestCreateQueryCharts:
         assert self._charts(pd.DataFrame([{"a": 1}]), "bogus") == ""
 
     def test_a_failing_chart_is_reported_inline_not_raised(self, job_status_df):
-        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.create_status_donut",
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.create_status_donut",
                    side_effect=RuntimeError("plotly blew up")):
             result = self._charts(job_status_df, "pipeline_executions")
         assert "plotly blew up" in str(result)

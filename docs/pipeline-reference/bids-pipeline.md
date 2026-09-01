@@ -32,7 +32,7 @@ Both steps run as SLURM array jobs (one job per subject) and are independent of 
 You can run prep and post together or separately, and combine multiple modalities in one command:
 
 ```bash
-neuropipe run ... --bids-prep rest,dwi --bids-post rest,dwi
+neuromaestro run ... --bids-prep rest,dwi --bids-post rest,dwi
 ```
 
 Any containerized two-step pipeline that follows this `recon → prep → post` pattern can be added as a new BIDS section in `config.yaml` — the tool inside the container is irrelevant to the framework.
@@ -92,7 +92,7 @@ tasks:
 
 ```bash
 # Full resting-state pipeline
-neuropipe run \
+neuromaestro run \
   --subjects 001,002 \
   --input /data/BIDS \
   --output /data/processed \
@@ -103,7 +103,7 @@ neuropipe run \
   --bids-post rest
 
 # XCP-D only (fMRIPrep already complete)
-neuropipe run ... --bids-post rest
+neuromaestro run ... --bids-post rest
 ```
 
 ---
@@ -144,7 +144,7 @@ neuropipe run ... --bids-post rest
 
 ```bash
 # Full DWI pipeline
-neuropipe run \
+neuromaestro run \
   --subjects 001,002 \
   --input /data/BIDS \
   --output /data/processed \
@@ -155,10 +155,10 @@ neuropipe run \
   --bids-post dwi
 
 # Preprocessing only
-neuropipe run ... --bids-prep dwi
+neuromaestro run ... --bids-prep dwi
 
 # QSIRecon only (QSIPrep already complete)
-neuropipe run ... --bids-post dwi
+neuromaestro run ... --bids-post dwi
 ```
 
 ---

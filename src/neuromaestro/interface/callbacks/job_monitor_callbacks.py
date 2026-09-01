@@ -6,7 +6,7 @@ from datetime import datetime
 from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
-from neuro_pipeline.pipeline.utils.output_checker import (
+from neuromaestro.pipeline.utils.output_checker import (
     OutputChecker,
     load_checks_config,
     run_output_checks,
@@ -323,7 +323,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Directory not found: {work_dir}", color="danger")
 
         try:
-            cmd = ["neuropipe", "force-rebuild", work_dir]
+            cmd = ["neuromaestro", "force-rebuild", work_dir]
             if db_path and db_path.strip():
                 cmd += ["--db-path", db_path.strip()]
             result = subprocess.run(
@@ -345,7 +345,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert("force-rebuild timed out after 300 seconds.", color="danger")
         except FileNotFoundError:
             return dbc.Alert(
-                "neuropipe command not found. Make sure the package is installed in the active environment.",
+                "neuromaestro command not found. Make sure the package is installed in the active environment.",
                 color="danger"
             )
         except Exception as e:
@@ -366,7 +366,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Directory not found: {work_dir}", color="danger")
 
         try:
-            cmd = ["neuropipe", "merge-logs", work_dir]
+            cmd = ["neuromaestro", "merge-logs", work_dir]
             if db_path and db_path.strip():
                 cmd += ["--db-path", db_path.strip()]
             result = subprocess.run(
@@ -388,7 +388,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert("merge-logs timed out after 600 seconds.", color="danger")
         except FileNotFoundError:
             return dbc.Alert(
-                "neuropipe command not found. Make sure the package is installed in the active environment.",
+                "neuromaestro command not found. Make sure the package is installed in the active environment.",
                 color="danger"
             )
         except Exception as e:
@@ -642,7 +642,7 @@ def register_job_monitor_callbacks(app):
         if not os.path.exists(db_path):
             return dbc.Alert(f"Database not found: {db_path}", color="danger")
         try:
-            from neuro_pipeline.pipeline.utils.report_generator import generate_report
+            from neuromaestro.pipeline.utils.report_generator import generate_report
             out = generate_report(
                 db_path=db_path,
                 project_name=project.strip(),

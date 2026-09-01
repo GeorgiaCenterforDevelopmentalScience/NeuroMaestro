@@ -1,7 +1,7 @@
 [project]
-name = "neuroimage-pipe"
+name = "neuromaestro"
 version = "0.18.0-alpha"
-description = "Neuroimage pipeline"
+description = "A meta-pipeline for automated multi-modal neuroimaging processing on HPC clusters"
 readme = "readme.md"
 requires-python = ">=3.10"
 authors = [
@@ -40,7 +40,7 @@ addopts = "--strict-markers --strict-config"
 filterwarnings = ["error"]
 
 [tool.coverage.run]
-source = ["neuro_pipeline"]
+source = ["neuromaestro"]
 # this codebase branches heavily on config, so line coverage alone overstates it
 branch = true
 
@@ -58,11 +58,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["neuro_pipeline*"]
+include = ["neuromaestro*"]
 
 [tool.setuptools.package-data]
-"neuro_pipeline" = ["config/**/*.yaml", "scripts/**/*.sh"]
+"neuromaestro" = ["config/**/*.yaml", "scripts/**/*.sh"]
 
 [project.scripts]
-neuropipe = "neuro_pipeline.pipeline.core:app"
-neuropipe-gui = "neuro_pipeline.interface.run_gui:main"
+neuromaestro = "neuromaestro.pipeline.core:app"
+neuromaestro-gui = "neuromaestro.interface.run_gui:main"

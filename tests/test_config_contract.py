@@ -24,7 +24,7 @@ from tests.conftest import (
     mock_script_names,
 )
 
-_PKG = Path(__file__).resolve().parent.parent / "src" / "neuro_pipeline"
+_PKG = Path(__file__).resolve().parent.parent / "src" / "neuromaestro"
 
 
 def _load_yaml(name):
@@ -147,7 +147,7 @@ class TestMockHpcConfigTracksTheRealConfig:
 class TestTheShippedHpcConfigResolves:
 
     def test_every_profile_yields_complete_resources(self, real_hpc_config):
-        from neuro_pipeline.pipeline.utils import hpc_utils
+        from neuromaestro.pipeline.utils import hpc_utils
 
         profiles = list(real_hpc_config["resource_profiles"])
         assert profiles
@@ -159,7 +159,7 @@ class TestTheShippedHpcConfigResolves:
                     assert getattr(res, field), f"{profile}.{field}"
 
     def test_unknown_profile_is_rejected(self, real_hpc_config):
-        from neuro_pipeline.pipeline.utils import hpc_utils
+        from neuromaestro.pipeline.utils import hpc_utils
 
         with patch.object(hpc_utils, "hpc_config", real_hpc_config):
             with pytest.raises(ValueError):

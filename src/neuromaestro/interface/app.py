@@ -39,13 +39,13 @@ app.index_string = '''
 </html>
 '''
 
-app.title = "GCDS Neuro Pipeline"
+app.title = "NeuroMaestro"
 
 def create_sidebar():
     """Create the sidebar navigation"""
     return html.Div([
         html.Div([
-            html.H2("GCDS Neuro Pipeline", className="text-white mb-4"),
+            html.H2("NeuroMaestro", className="text-white mb-4"),
             html.Hr(className="text-white"),
             dbc.Nav([
                 dbc.NavLink([

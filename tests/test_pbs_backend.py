@@ -41,12 +41,12 @@ MOCK_RESOURCES_KWARGS = dict(
 
 
 def make_backend():
-    from neuro_pipeline.pipeline.utils.hpc_utils import PBSBackend
+    from neuromaestro.pipeline.utils.hpc_utils import PBSBackend
     return PBSBackend(PBS_CONFIG)
 
 
 def make_resources(**overrides):
-    from neuro_pipeline.pipeline.utils.hpc_utils import HPCResources
+    from neuromaestro.pipeline.utils.hpc_utils import HPCResources
     kwargs = {**MOCK_RESOURCES_KWARGS, **overrides}
     return HPCResources(**kwargs)
 

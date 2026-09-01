@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import Optional
 
 import yaml as _yaml
-from neuro_pipeline.pipeline.utils.config_utils import get_config_dir
-from neuro_pipeline.pipeline.utils.generate_results_check import RESULTS_CHECK_TEMPLATE
+from neuromaestro.pipeline.utils.config_utils import get_config_dir
+from neuromaestro.pipeline.utils.generate_results_check import RESULTS_CHECK_TEMPLATE
 
 # Overridden by tests to redirect config reads and writes at a tmp_path.
 # Production always resolves through CONFIG_DIR or get_config_dir().
@@ -116,7 +116,7 @@ def generate_new_config_callback(_n_clicks, project_name):
         return _alert_warn(cfg_err)
 
     try:
-        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
+        from neuromaestro.pipeline.utils.generate_project_config import generate_project_config
 
         resolved_dir = str(config_dir / "project_config")
         generate_project_config(project_name, resolved_dir)

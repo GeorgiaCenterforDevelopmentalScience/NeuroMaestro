@@ -16,12 +16,12 @@ import pytest
 from unittest.mock import patch, MagicMock
 from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
 
-CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
+CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
 
 
 def make_executor():
     with patch(CONFIG_PATH, MOCK_CONFIG):
-        from neuro_pipeline.pipeline.dag import DAGExecutor
+        from neuromaestro.pipeline.dag import DAGExecutor
         executor = DAGExecutor(MOCK_CONFIG)
         executor.project_config = MOCK_PROJECT_CONFIG
         return executor
@@ -47,14 +47,14 @@ class TestTopologicalSort:
     def test_single_node(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.dag import TaskNode
+            from neuromaestro.pipeline.dag import TaskNode
             executor.nodes = {"unzip": TaskNode("unzip", {}, dependencies=set())}
             assert executor._topological_sort() == ["unzip"]
 
     def test_linear_chain(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.dag import TaskNode
+            from neuromaestro.pipeline.dag import TaskNode
             executor.nodes = {
                 "A": TaskNode("A", {}, dependencies=set()),
                 "B": TaskNode("B", {}, dependencies={"A"}),
@@ -66,7 +66,7 @@ class TestTopologicalSort:
     def test_circular_dependency_raises(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.dag import TaskNode
+            from neuromaestro.pipeline.dag import TaskNode
             executor.nodes = {
                 "X": TaskNode("X", {}, dependencies={"Y"}),
                 "Y": TaskNode("Y", {}, dependencies={"X"}),
@@ -77,7 +77,7 @@ class TestTopologicalSort:
     def test_diamond_dependency(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.dag import TaskNode
+            from neuromaestro.pipeline.dag import TaskNode
             executor.nodes = {
                 "root":  TaskNode("root",  {}, dependencies=set()),
                 "left":  TaskNode("left",  {}, dependencies={"root"}),
@@ -285,7 +285,7 @@ class TestFullChain:
 
 def make_registry():
     with patch(CONFIG_PATH, MOCK_CONFIG):
-        from neuro_pipeline.pipeline.dag import TaskRegistry
+        from neuromaestro.pipeline.dag import TaskRegistry
         return TaskRegistry()
 
 
@@ -298,7 +298,7 @@ class TestTaskRegistry:
 
     def setup_method(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import PrepChoice, MRIQCChoice
+            from neuromaestro.pipeline.utils.config_utils import PrepChoice, MRIQCChoice
             self.PrepChoice = PrepChoice
             self.MRIQCChoice = MRIQCChoice
         self.registry = make_registry()
@@ -439,7 +439,7 @@ class TestMissingTaskConfig:
     def test_dangling_dependency_is_pruned(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.dag import TaskNode
+            from neuromaestro.pipeline.dag import TaskNode
             executor.nodes = {"A": TaskNode("A", {}, dependencies={"ghost"})}
             executor._prune_dangling_dependencies()
             assert executor.nodes["A"].dependencies == set()
@@ -448,7 +448,7 @@ class TestMissingTaskConfig:
     def test_real_cycle_still_detected_after_pruning(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.dag import TaskNode
+            from neuromaestro.pipeline.dag import TaskNode
             executor.nodes = {
                 "X": TaskNode("X", {}, dependencies={"Y"}),
                 "Y": TaskNode("Y", {}, dependencies={"X"}),
@@ -470,7 +470,7 @@ class TestSubmissionFailureAborts:
     entirely, so it started while its input was still missing.
     """
 
-    SUBMIT_PATH = "neuro_pipeline.pipeline.utils.hpc_utils.submit_slurm_job"
+    SUBMIT_PATH = "neuromaestro.pipeline.utils.hpc_utils.submit_slurm_job"
 
     def _execute(self, submit_mock):
         executor = make_executor()

@@ -16,9 +16,9 @@ After your SLURM jobs finish, three commands help you verify results and documen
 
 | Step | Command | Purpose |
 |------|---------|---------|
-| 1 | `neuropipe check-outputs` | Verify which subjects have complete outputs |
-| 2 | `neuropipe merge-logs` | Sync JSONL logs into the database (if needed) |
-| 3 | `neuropipe generate-report` | Generate a standalone HTML report |
+| 1 | `neuromaestro check-outputs` | Verify which subjects have complete outputs |
+| 2 | `neuromaestro merge-logs` | Sync JSONL logs into the database (if needed) |
+| 3 | `neuromaestro generate-report` | Generate a standalone HTML report |
 
 Steps 1 and 3 are the most common. Step 2 is only needed if the database looks incomplete.
 
@@ -52,7 +52,7 @@ You do not have to cross-reference the two by hand. When you pass `--check-resul
 Before generating any report, confirm which subjects actually have valid output files on disk. This is independent of SLURM job status — a job can exit successfully but still produce incomplete output.
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/processed/my_study \
   --config-dir /data/config \
@@ -67,7 +67,7 @@ neuropipe check-outputs \
 To check multiple sessions at once, pass them comma-separated:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -78,7 +78,7 @@ neuropipe check-outputs \
 If your subject list is in a file:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -89,7 +89,7 @@ neuropipe check-outputs \
 To check only specific tasks rather than all configured tasks:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -127,7 +127,7 @@ The `check_results_*.csv` file will also be used in Step 3 to overlay output val
 The pipeline writes JSONL logs during each job and you merge them manually afterwards with:
 
 ```bash
-neuropipe merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work/my_study
 ```
 
 This scans `{work_dir}/database/json/` for unprocessed JSONL files, inserts them into `pipeline_jobs.db`, and moves processed files to `archived/` subdirectories.
@@ -148,7 +148,7 @@ The GUI **Sync Database from JSONL Logs** button runs this same command but is c
 If the database path is not in the default location:
 
 ```bash
-neuropipe merge-logs /data/work/my_study \
+neuromaestro merge-logs /data/work/my_study \
   --db-path /data/work/my_study/database/pipeline_jobs.db
 ```
 
@@ -181,7 +181,7 @@ If jobs appear to have run but are not showing up in the database, the JSONL fil
 If the database file is corrupted or you want a clean copy that includes all historical runs (including previously archived JSONL files), use `force-rebuild`:
 
 ```bash
-neuropipe force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work/my_study
 ```
 
 This creates a new `pipeline_jobs_rebuild_{timestamp}.db` next to the original. The original database is never modified. The rebuild scans both active and archived JSONL files, so it recovers the full history.
@@ -193,7 +193,7 @@ This creates a new `pipeline_jobs_rebuild_{timestamp}.db` next to the original. 
 Generate a standalone HTML report from the job database. `--check-results` is required — run `check-outputs` first (Step 1) to produce the CSV:
 
 ```bash
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
@@ -204,7 +204,7 @@ The report is saved as `pipeline_report_{project}_{timestamp}.html` next to the 
 
 ```bash
 # Full file path, saved exactly there
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
@@ -212,7 +212,7 @@ neuropipe generate-report \
   -o /data/reports/my_study_wave01.html
 
 # Directory: auto-named pipeline_report_my_study_<timestamp>.html inside it
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
@@ -260,18 +260,18 @@ SESSION=01
 PROJECT=my_study
 
 # 1. Verify outputs — saves check_results_<timestamp>.csv to $WORK
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project $PROJECT \
   --work $WORK \
   --subjects $SUBJECTS \
   --session $SESSION
 
 # 2. Sync the database (if needed)
-neuropipe merge-logs $WORK
+neuromaestro merge-logs $WORK
 
 # 3. Generate the report — pass the CSV from Step 1 explicitly
 CHECK_CSV=$(ls -t $WORK/check_results_*.csv | head -1)
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path $DB \
   --project $PROJECT \
   --session $SESSION \
@@ -285,7 +285,7 @@ neuropipe generate-report \
 
 After a successful run and merge, the database contains records like these.
 
-**`pipeline_executions`** — one row per `neuropipe run` call:
+**`pipeline_executions`** — one row per `neuromaestro run` call:
 
 ```
 id | execution_id      | execution_time      | project   | session | status    | total_jobs
@@ -335,7 +335,7 @@ subject | task_name       | exit_code | job_id      | script_name
 `check-outputs` is the fastest way to confirm whether the expected files are on disk, without writing any SQL:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -346,7 +346,7 @@ neuropipe check-outputs \
 To narrow down to specific tasks:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -391,7 +391,7 @@ Other statuses to be aware of:
 Use `-o` to save to a path outside the work directory:
 
 ```bash
-neuropipe generate-report \
+neuromaestro generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
@@ -405,8 +405,8 @@ The HTML file is fully standalone — pure HTML and inline CSS, no external depe
 
 ```bash
 # Merge any unprocessed JSONL logs
-neuropipe merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work/my_study
 
 # Or rebuild from scratch (including archived logs) into a new file
-neuropipe force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work/my_study
 ```

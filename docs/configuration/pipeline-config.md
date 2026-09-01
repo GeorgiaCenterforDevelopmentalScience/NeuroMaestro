@@ -176,10 +176,10 @@ The `intermed` section supports multiple tasks. All tasks listed under `intermed
 
 ```bash
 # Single intermed task
-neuropipe run ... --intermed volume --staged-prep cards
+neuromaestro run ... --intermed volume --staged-prep cards
 
 # Two intermed tasks in parallel
-neuropipe run ... --intermed volume,bfc --staged-prep cards
+neuromaestro run ... --intermed volume,bfc --staged-prep cards
 ```
 
 **Dependency rules when multiple intermed tasks are requested:**

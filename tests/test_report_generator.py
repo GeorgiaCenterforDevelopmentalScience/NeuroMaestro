@@ -14,8 +14,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.conftest import MOCK_CONFIG
-from neuro_pipeline.pipeline.utils.job_db import get_db_connection
-from neuro_pipeline.pipeline.utils.report_generator import (
+from neuromaestro.pipeline.utils.job_db import get_db_connection
+from neuromaestro.pipeline.utils.report_generator import (
     compute_task_summary,
     compute_suspicious_jobs,
     _wrappers_for_session,
@@ -25,7 +25,7 @@ from neuro_pipeline.pipeline.utils.report_generator import (
     _build_sessions_data,
 )
 
-TASK_ORDER_PATH = "neuro_pipeline.pipeline.utils.report_generator.get_all_task_names"
+TASK_ORDER_PATH = "neuromaestro.pipeline.utils.report_generator.get_all_task_names"
 MOCK_TASK_ORDER = ["recon", "volume", "rest_preprocess", "rest_post"]
 
 
@@ -451,7 +451,7 @@ class TestGenerateReport:
         db_path = _make_db(tmp_path)
         csv_path = self._make_check_csv(tmp_path)
         with patch(TASK_ORDER_PATH, _mock_task_order), \
-             patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
+             patch("neuromaestro.pipeline.utils.report_generator.render_html",
                    return_value="<html>mock</html>"):
             out = generate_report(
                 db_path=db_path,
@@ -467,7 +467,7 @@ class TestGenerateReport:
         csv_path = self._make_check_csv(tmp_path)
         out_path = str(tmp_path / "my_report.html")
         with patch(TASK_ORDER_PATH, _mock_task_order), \
-             patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
+             patch("neuromaestro.pipeline.utils.report_generator.render_html",
                    return_value="<html>mock</html>"):
             out = generate_report(
                 db_path=db_path,
@@ -485,7 +485,7 @@ class TestGenerateReport:
         out_dir = tmp_path / "reports"
         out_dir.mkdir()
         with patch(TASK_ORDER_PATH, _mock_task_order), \
-             patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
+             patch("neuromaestro.pipeline.utils.report_generator.render_html",
                    return_value="<html>mock</html>"):
             out = generate_report(
                 db_path=db_path,
@@ -510,7 +510,7 @@ class TestTaskOrderResolvedAtCallTime:
     CLI silently fell back to alphabetical order.
     """
 
-    CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
+    CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
 
     # volume precedes bfc in config order but follows it alphabetically
     JOB_STATUS = [
@@ -699,7 +699,7 @@ class TestCheckCsvSubjectDtype:
             return "<html>mock</html>"
 
         with patch(TASK_ORDER_PATH, _mock_task_order), \
-             patch("neuro_pipeline.pipeline.utils.report_generator.render_html",
+             patch("neuromaestro.pipeline.utils.report_generator.render_html",
                    side_effect=fake_render):
             generate_report(
                 db_path=db_path, project_name="proj",

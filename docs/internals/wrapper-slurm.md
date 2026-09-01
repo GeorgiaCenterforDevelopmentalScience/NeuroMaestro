@@ -12,7 +12,7 @@ For configuring SLURM/PBS resource profiles and flag templates, see [HPC Configu
 
 ## HPC Backend: Adding a New Scheduler
 
-Internally, all scheduler interaction goes through the abstract base class `HPCBackend` in [hpc_utils.py](../../src/neuro_pipeline/pipeline/utils/hpc_utils.py). The active backend is selected at runtime by `get_hpc_backend()`, which reads `scheduler:` from `hpc_config.yaml` and instantiates the matching class.
+Internally, all scheduler interaction goes through the abstract base class `HPCBackend` in [hpc_utils.py](../../src/neuromaestro/pipeline/utils/hpc_utils.py). The active backend is selected at runtime by `get_hpc_backend()`, which reads `scheduler:` from `hpc_config.yaml` and instantiates the matching class.
 
 To add support for a new scheduler (e.g. LSF):
 
@@ -58,7 +58,7 @@ export WORK_DIR='/data/work/my_study'
 export LOG_DIR='/data/work/my_study/log'
 export DB_PATH='/data/work/my_study/database/pipeline_jobs.db'
 export TASK_NAME='flanker_preprocess'
-export SCRIPT_DIR='/home/user/GCDS_Neuro_Pipeline/src/neuro_pipeline/pipeline'
+export SCRIPT_DIR='/home/user/NeuroMaestro/src/neuromaestro/pipeline'
 
 # ── Global Python environment (from global_python in project config) ──────────
 export GLOBAL_PYTHON_COMMANDS=$(cat << "PYTHON_EOF"
@@ -117,7 +117,7 @@ Keys consumed by the pipeline itself and **not** exported: `name`, `environ`, `s
 
 When a task declares `input_from: <upstream_task>` in `config.yaml`, the pipeline may override the wrapper's `$INPUT_DIR` to point at the upstream task's output directory instead of the `--input` CLI value.
 
-The substitution logic in `submit_slurm_job()` ([hpc_utils.py](../../src/neuro_pipeline/pipeline/utils/hpc_utils.py)):
+The substitution logic in `submit_slurm_job()` ([hpc_utils.py](../../src/neuromaestro/pipeline/utils/hpc_utils.py)):
 
 ```python
 actual_input_dir = input_dir   # default: the --input CLI value
@@ -130,7 +130,7 @@ if task_config and 'input_from' in task_config:
             actual_input_dir = upstream_config['output_pattern'].format(base_output=output_dir)
 ```
 
-**The substitution only fires when the upstream task is in `requested_tasks` for the current invocation.** `requested_tasks` is the flat list of task names built from the CLI flags of that specific `neuropipe run` call.
+**The substitution only fires when the upstream task is in `requested_tasks` for the current invocation.** `requested_tasks` is the flat list of task names built from the CLI flags of that specific `neuromaestro run` call.
 
 **Worked example — `rest_post`:**
 
@@ -139,7 +139,7 @@ if task_config and 'input_from' in task_config:
 | `--bids-prep rest --bids-post rest` | `[rest_preprocess, rest_post]` | Yes | `{output_dir}/BIDS_derivatives/fmriprep` ✓ |
 | `--bids-post rest` alone | `[rest_post]` | No | `--input` value (e.g. `/data/BIDS`) ✗ |
 
-In the second scenario, `rest_post` silently receives the raw BIDS directory as its input instead of the fMRIPrep output. The scripts will fail or process the wrong data. **Always include `--bids-prep` and `--bids-post` in the same `neuropipe run` call.** The same applies to `dwi_post`/`dwi_preprocess` and any other post task.
+In the second scenario, `rest_post` silently receives the raw BIDS directory as its input instead of the fMRIPrep output. The scripts will fail or process the wrong data. **Always include `--bids-prep` and `--bids-post` in the same `neuromaestro run` call.** The same applies to `dwi_post`/`dwi_preprocess` and any other post task.
 
 This is a known limitation of the current implementation: the substitution is scoped to a single invocation rather than resolved globally from `config.yaml` regardless of what was requested.
 
@@ -192,12 +192,12 @@ The script receives the subject ID as `$1`; everything else comes through the en
 The logging functions (`log_start`, `log_end`, `log_command_output`) are **not imported as a Python library** on compute nodes. `wrapper_functions.sh` calls them as CLI commands:
 
 ```bash
-python -m neuro_pipeline.pipeline.utils.job_db log_start \
+python -m neuromaestro.pipeline.utils.job_db log_start \
     "$SUBJECT_ID" "$TASK_NAME" --session "$SESSION" \
     --job-id "$SLURM_JOB_ID" --db-path "$DB_PATH"
 ```
 
-This means the compute node must have Python and the `neuro_pipeline` package available — which is why `$GLOBAL_PYTHON_COMMANDS` (the `module load` + `activate` block) is sourced first. The `$DB_PATH` variable carries the SQLite path, but `log_start` and `log_end` **only write JSONL files** at that location — they never open or write to the SQLite database directly.
+This means the compute node must have Python and the `neuromaestro` package available — which is why `$GLOBAL_PYTHON_COMMANDS` (the `module load` + `activate` block) is sourced first. The `$DB_PATH` variable carries the SQLite path, but `log_start` and `log_end` **only write JSONL files** at that location — they never open or write to the SQLite database directly.
 
 ---
 

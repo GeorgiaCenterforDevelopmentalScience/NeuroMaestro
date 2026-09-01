@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 WRAPPER = (Path(__file__).resolve().parent.parent
-           / "src" / "neuro_pipeline" / "pipeline" / "utils" / "wrapper_functions.sh")
+           / "src" / "neuromaestro" / "pipeline" / "utils" / "wrapper_functions.sh")
 
 
 def run_bash(script: str, env: dict = None) -> subprocess.CompletedProcess:

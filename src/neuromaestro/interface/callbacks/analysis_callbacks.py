@@ -223,7 +223,7 @@ def register_analysis_callbacks(app):
             cmd_parts.append(f'work_dir="{work_dir}"')
             cmd_parts.append('')
 
-            cmd_parts.append('neuropipe run \\')
+            cmd_parts.append('neuromaestro run \\')
 
             if config_dir:
                 cmd_parts.append(f'  --config-dir "{config_dir}" \\')
@@ -328,7 +328,7 @@ def register_analysis_callbacks(app):
             ], color="warning")
 
         try:
-            cmd = ["neuropipe", "run"]
+            cmd = ["neuromaestro", "run"]
 
             if command_data.get("config_dir"):
                 cmd.extend(["--config-dir", command_data["config_dir"]])
@@ -391,7 +391,7 @@ def register_analysis_callbacks(app):
         except FileNotFoundError:
             return dbc.Alert([
                 html.I(className="fas fa-exclamation-triangle me-2"),
-                "neuropipe command not found. Make sure the package is installed in the active environment.",
+                "neuromaestro command not found. Make sure the package is installed in the active environment.",
             ], color="danger")
         except Exception as e:
             return dbc.Alert([

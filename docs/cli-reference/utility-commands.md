@@ -6,25 +6,25 @@ title: Utility Commands
 
 ---
 
-## `neuropipe detect-subjects`
+## `neuromaestro detect-subjects`
 
 Scans a directory for subject folders matching the given prefix.
 
 ```bash
 # Print detected subjects to stdout
-neuropipe detect-subjects /data/BIDS
+neuromaestro detect-subjects /data/BIDS
 
 # Save to a text file (comma-separated, one line)
-neuropipe detect-subjects /data/BIDS --output subjects.txt
+neuromaestro detect-subjects /data/BIDS --output subjects.txt
 
 # With explicit prefix (default is "sub-")
-neuropipe detect-subjects /data/raw --prefix "sub-" -o subjects.txt
+neuromaestro detect-subjects /data/raw --prefix "sub-" -o subjects.txt
 ```
 
-The saved file can be passed directly to `--subjects` in `neuropipe run`:
+The saved file can be passed directly to `--subjects` in `neuromaestro run`:
 
 ```bash
-neuropipe run --subjects subjects.txt ...
+neuromaestro run --subjects subjects.txt ...
 ```
 
 **Arguments / Options:**
@@ -37,12 +37,12 @@ neuropipe run --subjects subjects.txt ...
 
 ---
 
-## `neuropipe init`
+## `neuromaestro init`
 
 Initialises a new project directory with config and script templates copied from the package defaults.
 
 ```bash
-neuropipe init /scratch/my_study
+neuromaestro init /scratch/my_study
 ```
 
 Creates the following layout under the given directory:
@@ -57,7 +57,7 @@ Creates the following layout under the given directory:
     └── (template .sh scripts)
 ```
 
-Pass `--config-dir /scratch/my_study/config` in all subsequent `neuropipe` commands, or set `$NEUROPIPE_CONFIG_DIR` once to skip it (see [Getting Started](../getting-started/index.md#step-1-initialise-your-config-directory)).
+Pass `--config-dir /scratch/my_study/config` in all subsequent `neuromaestro` commands, or set `$NEUROMAESTRO_CONFIG_DIR` once to skip it (see [Getting Started](../getting-started/index.md#step-1-initialise-your-config-directory)).
 
 **Arguments / Options:**
 
@@ -67,29 +67,29 @@ Pass `--config-dir /scratch/my_study/config` in all subsequent `neuropipe` comma
 
 ---
 
-## `neuropipe list-tasks`
+## `neuromaestro list-tasks`
 
 Lists all task names, scripts, and dependencies from `config.yaml`.
 
 ```bash
-neuropipe list-tasks --config-dir /data/config
+neuromaestro list-tasks --config-dir /data/config
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
+| `--config-dir` | Path to config directory. Optional if `$NEUROMAESTRO_CONFIG_DIR` is set. |
 
 ---
 
-## `neuropipe-gui`
+## `neuromaestro-gui`
 
 Launches the web dashboard.
 
 ```bash
-neuropipe-gui                 # default port 8050
-neuropipe-gui --port 8051     # if 8050 is in use
+neuromaestro-gui                 # default port 8050
+neuromaestro-gui --port 8051     # if 8050 is in use
 ```
 
 Open `http://localhost:8050`. The GUI has three tabs:
@@ -102,15 +102,15 @@ Open `http://localhost:8050`. The GUI has three tabs:
 
 ---
 
-## `neuropipe generate-config`
+## `neuromaestro generate-config`
 
 Generate a blank project config template (`{project}_config.yaml`). Equivalent to clicking **Generate Template** in the GUI Project Config tab.
 
 ```bash
-neuropipe generate-config branch --config-dir /data/config
+neuromaestro generate-config branch --config-dir /data/config
 
 # Write to a custom directory
-neuropipe generate-config branch --config-dir /data/config \
+neuromaestro generate-config branch --config-dir /data/config \
   --output-dir /scratch/my_project/config/project_config
 ```
 
@@ -119,7 +119,7 @@ neuropipe generate-config branch --config-dir /data/config \
 | | Description |
 |---|-------------|
 | `PROJECT_NAME` | Project name — determines the output filename |
-| `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
+| `--config-dir` | Path to config directory. Optional if `$NEUROMAESTRO_CONFIG_DIR` is set. |
 | `--output-dir` / `-o` | Output directory (default: `<config-dir>/project_config/`) |
 | `--force` | Overwrite an existing config file |
 
@@ -131,15 +131,15 @@ The generated file is a fully-commented YAML template. Open it in the GUI editor
 
 ---
 
-## `neuropipe generate-checks`
+## `neuromaestro generate-checks`
 
 Generate a blank results-check config template (`{project}_checks.yaml`). Equivalent to clicking **New** in the GUI Results Check Config tab.
 
 ```bash
-neuropipe generate-checks branch --config-dir /data/config
+neuromaestro generate-checks branch --config-dir /data/config
 
 # Write to a custom directory
-neuropipe generate-checks branch --config-dir /data/config \
+neuromaestro generate-checks branch --config-dir /data/config \
   --output-dir /scratch/my_project/config/results_check
 ```
 
@@ -148,7 +148,7 @@ neuropipe generate-checks branch --config-dir /data/config \
 | | Description |
 |---|-------------|
 | `PROJECT_NAME` | Project name — determines the output filename |
-| `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
+| `--config-dir` | Path to config directory. Optional if `$NEUROMAESTRO_CONFIG_DIR` is set. |
 | `--output-dir` / `-o` | Output directory (default: `<config-dir>/results_check/`) |
 | `--force` | Overwrite an existing checks file |
 

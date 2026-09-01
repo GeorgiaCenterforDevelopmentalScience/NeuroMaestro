@@ -1,4 +1,12 @@
-# Dev Log - [Neuroimage-Pipeline]
+# Dev Log - [NeuroMaestro]
+
+---
+## [Unreleased]
+
+### Changed
+- **Renamed the project to NeuroMaestro.** The distribution is now `neuromaestro` (was `neuroimage-pipe`), the import package is `neuromaestro` (was `neuro_pipeline`), and the console entry points are `neuromaestro` and `neuromaestro-gui` (were `neuropipe` and `neuropipe-gui`).
+- `NEUROPIPE_CONFIG_DIR` is now `NEUROMAESTRO_CONFIG_DIR`. The old name is no longer read, so an existing shell profile export must be updated.
+- Earlier entries in this log were rewritten to the new names. No release carried the old ones to PyPI.
 
 ---
 ## [0.18.0-alpha] – 2026-08-10
@@ -110,11 +118,11 @@
 ## [0.14.2-alpha] – 2026-05-02
 
 ### Added
-- `NEUROPIPE_CONFIG_DIR` environment variable: all commands that previously required `--config-dir` now fall back to this variable, making it optional. Set it once in `~/.bashrc` to avoid passing `--config-dir` on every command. Explicit `--config-dir` always takes precedence.
-- `neuropipe init` now prints a tip with the exact `export` line to add to `~/.bashrc`.
+- `NEUROMAESTRO_CONFIG_DIR` environment variable: all commands that previously required `--config-dir` now fall back to this variable, making it optional. Set it once in `~/.bashrc` to avoid passing `--config-dir` on every command. Explicit `--config-dir` always takes precedence.
+- `neuromaestro init` now prints a tip with the exact `export` line to add to `~/.bashrc`.
 
 ### Changed
-- `neuropipe init` no longer generates project config files. Copy `template_config.yaml` as a starting point instead.
+- `neuromaestro init` no longer generates project config files. Copy `template_config.yaml` as a starting point instead.
 - Report generation and GUI job monitor further enhanced for multi-session data; related functions and tests refactored for clarity.
 
 ### Docs
@@ -146,7 +154,7 @@
 ## [0.13.2-alpha] – 2026-04-13
 
 ### Changed
-- Database backup now runs on `neuropipe merge-logs` instead of `neuropipe run`. Each merge creates a snapshot of the database before new records are written; the last 10 backups are kept.
+- Database backup now runs on `neuromaestro merge-logs` instead of `neuromaestro run`. Each merge creates a snapshot of the database before new records are written; the last 10 backups are kept.
 - `execution_id` added to database and logging: `job_status`, `command_outputs`, and `wrapper_scripts` tables now link back to the originating `pipeline_executions` row via `execution_id`.
 - Refactored subject parsing and detection; job monitor callbacks now support auto-detection of subjects and wildcard session matching in `check-outputs`.
 - Updated query output format for execution details in `job_db.py`.
@@ -160,7 +168,7 @@
 
 ### Added
 - **Force rebuild:** Database and UI now support a force-rebuild option to regenerate outputs regardless of existing state.
-- **Results-check template generator:** New `neuropipe generate-checks` CLI command scaffolds a blank results-check config template.
+- **Results-check template generator:** New `neuromaestro generate-checks` CLI command scaffolds a blank results-check config template.
 
 ### Changed
 - Renamed task `recon_bids` → `recon` across pipeline for consistency.

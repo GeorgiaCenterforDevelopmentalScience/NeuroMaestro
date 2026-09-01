@@ -13,7 +13,7 @@ import sys
 test_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(test_root / "src"))
 
-from neuro_pipeline.pipeline.utils.merge_logs_create_db import merge_json_to_db, rebuild_db, merge_once
+from neuromaestro.pipeline.utils.merge_logs_create_db import merge_json_to_db, rebuild_db, merge_once
 
 
 @pytest.fixture
@@ -291,7 +291,7 @@ class TestMergeOnce:
         json_dir = temp_workspace['json_dir']
         create_mock_json_log(json_dir, "sub001", "task1", "12345")
 
-        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database") as mock_backup:
+        with patch("neuromaestro.pipeline.utils.db_backup.backup_database") as mock_backup:
             mock_backup.return_value = db_path + ".backup_test"
             merge_once(work_dir, db_path)
 
@@ -305,7 +305,7 @@ class TestMergeOnce:
         assert not Path(db_path).exists()
         create_mock_json_log(json_dir, "sub001", "task1", "12345")
 
-        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database") as mock_backup:
+        with patch("neuromaestro.pipeline.utils.db_backup.backup_database") as mock_backup:
             merge_once(work_dir, db_path)
 
         mock_backup.assert_not_called()
@@ -319,9 +319,9 @@ class TestMergeOnce:
 
         call_order = []
 
-        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database",
+        with patch("neuromaestro.pipeline.utils.db_backup.backup_database",
                    side_effect=lambda *a, **kw: call_order.append("backup") or db_path):
-            with patch("neuro_pipeline.pipeline.utils.merge_logs_create_db.merge_json_to_db",
+            with patch("neuromaestro.pipeline.utils.merge_logs_create_db.merge_json_to_db",
                        side_effect=lambda *a, **kw: call_order.append("merge") or 1):
                 merge_once(work_dir, db_path)
 
@@ -419,7 +419,7 @@ class TestRebuildDb:
 
 @pytest.fixture
 def full_db(temp_workspace):
-    from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+    from neuromaestro.pipeline.utils.job_db import get_db_connection
     db_path = temp_workspace['db_path']
     conn = get_db_connection(db_path)
     conn.close()
@@ -437,7 +437,7 @@ def create_pipeline_log(json_dir, execution_id=1001):
             "execution_id": execution_id,
             "project_name": "test_proj",
             "session": "01",
-            "command_line": "neuropipe run ...",
+            "command_line": "neuromaestro run ...",
             "input_dir": "/data/input",
             "output_dir": "/data/output",
             "work_dir": "/data/work",
@@ -650,7 +650,7 @@ class TestMergeOnceEdgeCases:
         json_dir = temp_workspace['json_dir']
         create_mock_json_log(json_dir, "sub001", "task1", "12345")
 
-        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database",
+        with patch("neuromaestro.pipeline.utils.db_backup.backup_database",
                    side_effect=RuntimeError("disk full")):
             merge_once(work_dir, db_path)
 
@@ -718,7 +718,7 @@ class TestJobStatusRowTargeting:
         json_dir = temp_workspace['json_dir']
         create_mock_json_log(json_dir, "sub001", "task1", "12345")
 
-        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+        from neuromaestro.pipeline.utils import merge_logs_create_db as mod
 
         class FlakyConn:
             def __init__(self, conn, fail_prefix):
@@ -756,7 +756,7 @@ class TestJobStatusRowTargeting:
         json_dir = temp_workspace['json_dir']
         log_file = create_mock_json_log(json_dir, "sub001", "task1", "12345")
 
-        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+        from neuromaestro.pipeline.utils import merge_logs_create_db as mod
 
         class FailingConn:
             def __init__(self, conn):
@@ -848,7 +848,7 @@ class TestPipelineScanIsScopedToExecutionLogs:
     """
 
     def test_wrapper_logs_are_not_touched_by_the_pipeline_pass(self, temp_workspace, full_db):
-        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+        from neuromaestro.pipeline.utils import merge_logs_create_db as mod
         json_dir = temp_workspace['json_dir']
         wrapper_log = create_wrapper_log(json_dir)
 
@@ -891,7 +891,7 @@ class TestArchiveFailureIsVisible:
     """
 
     def _merge_with_broken_move(self, json_dir, db_path):
-        from neuro_pipeline.pipeline.utils import merge_logs_create_db as mod
+        from neuromaestro.pipeline.utils import merge_logs_create_db as mod
         with patch.object(mod.shutil, "move", side_effect=OSError("read-only")):
             return merge_json_to_db(json_dir, db_path)
 

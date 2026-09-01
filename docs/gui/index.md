@@ -7,8 +7,8 @@ title: GUI Reference
 The web-based GUI provides the same functionality as the CLI — submitting jobs, editing config files, monitoring results — through an interactive dashboard.
 
 ```bash
-neuropipe-gui                 # default port 8050
-neuropipe-gui --port 8051     # if 8050 is already in use
+neuromaestro-gui                 # default port 8050
+neuromaestro-gui --port 8051     # if 8050 is already in use
 ```
 
 Open `http://localhost:8050` in your browser. The GUI has three top-level tabs:
@@ -39,17 +39,17 @@ For re-runs after failures: go back to Analysis Control, enable **Resume Mode**,
 
 ![Analysis Control tab](../images/analysis_1.png)
 
-This tab is the GUI equivalent of `neuropipe run`. Configure everything here and click **Execute Pipeline** to submit.
+This tab is the GUI equivalent of `neuromaestro run`. Configure everything here and click **Execute Pipeline** to submit.
 
 ### Config Directory
 
 The config directory must be set before task options (Intermed, BIDS, Staged) can populate. Enter the path to your `config/` folder, then choose one of two actions:
 
-- **Init** — first-time setup for a new study. Copies the package template files (`config.yaml`, `hpc_config.yaml`, script templates) into the given directory, creating it if needed. Equivalent to `neuropipe init`. After Init completes, click **Apply** to load the config.
+- **Init** — first-time setup for a new study. Copies the package template files (`config.yaml`, `hpc_config.yaml`, script templates) into the given directory, creating it if needed. Equivalent to `neuromaestro init`. After Init completes, click **Apply** to load the config.
 - **Apply** — load an existing config directory. Reads `config.yaml` and populates the task checklists (Intermed, BIDS pipelines, Staged pipelines) with the tasks defined in your config.
 
 :::{tip}
-Setting `$NEUROPIPE_CONFIG_DIR` in your shell profile means you never need to fill in this field — it is pre-populated automatically on GUI launch.
+Setting `$NEUROMAESTRO_CONFIG_DIR` in your shell profile means you never need to fill in this field — it is pre-populated automatically on GUI launch.
 :::
 
 ### Subject Selection
@@ -64,7 +64,7 @@ Two ways to specify subjects:
 
 ![Analysis Control tab2](../images/analysis2.png)
 
-Fill in the four path fields (Input, Output, Work, Project Name) and Session ID. These map directly to the `--input`, `--output`, `--work`, `--project`, and `--session` flags of `neuropipe run`.
+Fill in the four path fields (Input, Output, Work, Project Name) and Session ID. These map directly to the `--input`, `--output`, `--work`, `--project`, and `--session` flags of `neuromaestro run`.
 
 Task selection is broken into cards by pipeline type:
 
@@ -93,7 +93,7 @@ Available options are populated automatically from `config.yaml` — any task se
 
 Two buttons:
 
-- **Generate Command** — builds the `neuropipe run` command from your current settings and displays it in the Command Preview panel below. No execution.
+- **Generate Command** — builds the `neuromaestro run` command from your current settings and displays it in the Command Preview panel below. No execution.
 - **Execute Pipeline** — submits the jobs (or runs the dry-run if checked).
 
 :::{important}
@@ -102,13 +102,13 @@ Two buttons:
 
 After clicking **Execute Pipeline**, the execution status area shows:
 
-- **Green** — pipeline submitted successfully; stdout from `neuropipe run` is shown (job IDs, DAG plan, summary)
+- **Green** — pipeline submitted successfully; stdout from `neuromaestro run` is shown (job IDs, DAG plan, summary)
 - **Red** — submission failed; stderr is shown for debugging
 - **Yellow** — no command available; Generate Command has not been clicked yet
 
 ### Command Preview
 
-Shows the exact `neuropipe run` command that would be (or was) executed. Copy this to reproduce the run from the CLI, save it for your records, or share it for debugging.
+Shows the exact `neuromaestro run` command that would be (or was) executed. Copy this to reproduce the run from the CLI, save it for your records, or share it for debugging.
 
 ### DAG Visualization
 
@@ -184,8 +184,8 @@ The work directory and database path are set once at the top and shared across a
 
 Two database maintenance actions:
 
-- **Sync Database from JSONL Logs** — runs `neuropipe merge-logs` to populate the database from raw JSONL event files. Use this after jobs complete or if the database looks incomplete.
-- **Force Rebuild Database** — runs `neuropipe force-rebuild`, which scans all JSONL logs including archived ones and creates a fresh `pipeline_jobs_rebuild_{timestamp}.db` next to the original. The original is never modified.
+- **Sync Database from JSONL Logs** — runs `neuromaestro merge-logs` to populate the database from raw JSONL event files. Use this after jobs complete or if the database looks incomplete.
+- **Force Rebuild Database** — runs `neuromaestro force-rebuild`, which scans all JSONL logs including archived ones and creates a fresh `pipeline_jobs_rebuild_{timestamp}.db` next to the original. The original is never modified.
 
 See [Merge Logs Implementation](../internals/pipeline-backend.md#merge-logs-implementation) for when to use each.
 
@@ -201,7 +201,7 @@ See [Merge Logs Implementation](../internals/pipeline-backend.md#merge-logs-impl
 |-----------|--------------|---------|
 | Job Status | `job_status` | Per-subject success/failure, durations, errors |
 | Command Outputs | `command_outputs` | Captured stdout/stderr for each script run |
-| Pipeline Executions | `pipeline_executions` | History of all `neuropipe run` invocations |
+| Pipeline Executions | `pipeline_executions` | History of all `neuromaestro run` invocations |
 | Wrapper Scripts | `wrapper_scripts` | Submitted wrapper content per job |
 
 Filter by subject, session, task name, status, and date range. Click **Execute Query** to run.
@@ -212,7 +212,7 @@ Results appear as a visualization panel (charts based on query type) and a pagin
 
 ![Database4](../images/job_monitor_QAreport.png)
 
-**Output File Check** — runs `check-outputs` from the GUI. Enter project name, subject list, optional task filter, session, and prefix, then click **Run Output Check**. Results appear inline. **Export Check CSV** saves the full per-subject results, equivalent to the CSV saved by `neuropipe check-outputs`.
+**Output File Check** — runs `check-outputs` from the GUI. Enter project name, subject list, optional task filter, session, and prefix, then click **Run Output Check**. Results appear inline. **Export Check CSV** saves the full per-subject results, equivalent to the CSV saved by `neuromaestro check-outputs`.
 
 **Generate Report** — generates a standalone HTML report from the job database. Enter the project name and optionally a session and check results CSV path (auto-detected if left blank). The output path defaults to next to the database file; you can also give a full file path, or a folder (an auto-named `pipeline_report_{project}_{timestamp}.html` is written inside it). See [Post-Run Verification](../how-to/post-run-verification.md#what-the-report-contains) for a description of report sections.
 

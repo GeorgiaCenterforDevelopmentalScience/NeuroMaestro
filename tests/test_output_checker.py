@@ -29,7 +29,7 @@ def write_checks_yaml(tmp_path: Path, content: dict) -> str:
 
 
 def make_checker(tmp_path, config_content, work_dir=None):
-    from neuro_pipeline.pipeline.utils.output_checker import OutputChecker
+    from neuromaestro.pipeline.utils.output_checker import OutputChecker
     cfg_path = write_checks_yaml(tmp_path, config_content)
     return OutputChecker(
         config_path=cfg_path,
@@ -353,7 +353,7 @@ class TestSessionWildcard:
 
     def test_wildcard_matches_any_session(self, tmp_path):
         """session='*' glob should find files across ses-01 and ses-02."""
-        from neuro_pipeline.pipeline.utils.output_checker import OutputChecker
+        from neuromaestro.pipeline.utils.output_checker import OutputChecker
 
         for ses in ("01", "02"):
             d = tmp_path / f"ses-{ses}"
@@ -382,7 +382,7 @@ class TestSessionWildcard:
 
     def test_wildcard_fails_when_no_files(self, tmp_path):
         """session='*' still reports FAIL when no files match any session."""
-        from neuro_pipeline.pipeline.utils.output_checker import OutputChecker
+        from neuromaestro.pipeline.utils.output_checker import OutputChecker
         import yaml
 
         cfg_path = tmp_path / "checks.yaml"
@@ -459,7 +459,7 @@ class TestRunOutputChecks:
         return str(cfg)
 
     def _run(self, tmp_path, sessions, sessions_with_file=("01",), **kw):
-        from neuro_pipeline.pipeline.utils.output_checker import run_output_checks
+        from neuromaestro.pipeline.utils.output_checker import run_output_checks
         cfg = self._setup(tmp_path, sessions_with_file)
         return run_output_checks(
             config_path=cfg, work_dir=str(tmp_path), sessions=sessions,
@@ -502,7 +502,7 @@ class TestRunOutputChecks:
             self._run(tmp_path, [])
 
     def test_empty_subjects_raises(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.output_checker import run_output_checks
+        from neuromaestro.pipeline.utils.output_checker import run_output_checks
         cfg = self._setup(tmp_path, ("01",))
         with pytest.raises(ValueError, match="subject"):
             run_output_checks(config_path=cfg, work_dir=str(tmp_path),

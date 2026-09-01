@@ -126,9 +126,9 @@ Subject directory prefix. Almost always `"sub-"` for BIDS datasets.
 ### `scripts_dir`
 Directory where your project's shell scripts live. Two forms are accepted:
 
-- **Relative path** — resolved relative to `src/neuro_pipeline/pipeline/`. Use this when scripts are stored inside the package (default for bundled projects):
+- **Relative path** — resolved relative to `src/neuromaestro/pipeline/`. Use this when scripts are stored inside the package (default for bundled projects):
   ```yaml
-  scripts_dir: "scripts/branch"   # → src/neuro_pipeline/pipeline/scripts/branch/
+  scripts_dir: "scripts/branch"   # → src/neuromaestro/pipeline/scripts/branch/
   ```
 - **Absolute path** — use this when scripts live outside the package, e.g. on a shared lab directory:
   ```yaml

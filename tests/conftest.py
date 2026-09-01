@@ -2,7 +2,7 @@
 conftest.py — Shared fixtures for all test modules
 
 Assumed package layout:
-    neuro_pipeline/
+    neuromaestro/
         config/
             config.yaml
             hpc_config.yaml

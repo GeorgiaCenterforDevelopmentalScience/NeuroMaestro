@@ -13,7 +13,7 @@ Some subjects failed or produced incomplete outputs and you want to reprocess on
 Pass only the failing subjects to `--subjects`:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 003,007,012 \
   --input /data/BIDS \
   --output /data/processed \
@@ -38,7 +38,7 @@ sqlite3 /data/work/my_study/database/pipeline_jobs.db \
 Or use `check-outputs` to find subjects with missing files:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -55,7 +55,7 @@ Then create a file with just those IDs and pass it:
 007
 012
 
-neuropipe run --subjects subjects_failed.txt ...
+neuromaestro run --subjects subjects_failed.txt ...
 ```
 
 ## Option 2: `--resume` Flag
@@ -63,7 +63,7 @@ neuropipe run --subjects subjects_failed.txt ...
 If you want the pipeline to automatically skip subjects that already have valid outputs:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003,007,012 \   # pass all subjects
   --input /data/BIDS \
   --output /data/processed \
@@ -86,7 +86,7 @@ The pipeline checks `{project}_checks.yaml` for each task and silently excludes 
 Always validate your subject list before a large rerun:
 
 ```bash
-neuropipe run --subjects subjects_failed.txt \
+neuromaestro run --subjects subjects_failed.txt \
   --project my_study --config-dir /data/config ... \
   --intermed volume --dry-run
 ```

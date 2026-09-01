@@ -18,7 +18,7 @@ import pytest
 import typer
 from pathlib import Path
 
-from neuro_pipeline.pipeline.utils.job_db import (
+from neuromaestro.pipeline.utils.job_db import (
     get_db_connection,
     log_job_start,
     log_job_end,
@@ -182,7 +182,7 @@ class TestLogPipelineExecution:
     def test_returns_integer_execution_id(self, tmp_path):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
         eid = log_pipeline_execution(
-            command_line="neuropipe run",
+            command_line="neuromaestro run",
             project_name="proj",
             input_dir="/in",
             output_dir="/out",

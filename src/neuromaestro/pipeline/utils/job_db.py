@@ -138,7 +138,7 @@ def log_wrapper_script(
     """
     Write wrapper script content to JSONL (crash-safe).
     Sections are passed directly from create_wrapper_script() — no file parsing needed.
-    The JSONL will be merged into SQLite by the user running `neuropipe merge-logs`.
+    The JSONL will be merged into SQLite by the user running `neuromaestro merge-logs`.
     """
     try:
         db_dir = os.path.dirname(db_path)

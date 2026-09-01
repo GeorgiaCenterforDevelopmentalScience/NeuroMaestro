@@ -1,11 +1,11 @@
 ---
-title: "neuropipe run"
+title: "neuromaestro run"
 ---
 
-# `neuropipe run`
+# `neuromaestro run`
 
 ```
-neuropipe run [OPTIONS]
+neuromaestro run [OPTIONS]
 ```
 
 ---
@@ -18,7 +18,7 @@ neuropipe run [OPTIONS]
 | `--input` | Input data directory | `/data/BIDS` |
 | `--output` | Output base directory | `/data/processed` |
 | `--work` | Work base directory (logs, database, temp files) | `/data/work` |
-| `--config-dir` | Path to config directory — must contain `config.yaml`, `hpc_config.yaml`, and `project_config/`. Optional if `$NEUROPIPE_CONFIG_DIR` is set. | `/data/config` |
+| `--config-dir` | Path to config directory — must contain `config.yaml`, `hpc_config.yaml`, and `project_config/`. Optional if `$NEUROMAESTRO_CONFIG_DIR` is set. | `/data/config` |
 | `--project` | Project name — loads `{project}_config.yaml` from `--config-dir/project_config/` | `my_study` |
 | `--session` | Session or wave ID | `01` |
 
@@ -99,7 +99,7 @@ printf "001\n002\n003" > subjects.txt
 # or comma-separated
 echo "001,002,003" > subjects.txt
 
-neuropipe run --subjects subjects.txt ...
+neuromaestro run --subjects subjects.txt ...
 ```
 
 The subject prefix (`sub-`) comes from the project config `prefix` field; do not include it in subject IDs.

@@ -19,7 +19,7 @@ This page will get you from zero to a running pipeline job in about 5 minutes.
 
 ```bash
 git clone <repository-url>
-cd GCDS_Neuro_Pipeline
+cd NeuroMaestro
 ```
 
 **2. Install the package:**
@@ -33,8 +33,8 @@ pip install -e .
 **3. Verify the installation:**
 
 ```bash
-neuropipe --help
-neuropipe-gui --help
+neuromaestro --help
+neuromaestro-gui --help
 ```
 
 ## Minimal Quickstart (5 minutes)
@@ -43,10 +43,10 @@ The fastest way to verify everything works is a **dry-run**: this generates and 
 
 ### Step 1: Initialise your config directory
 
-Run `neuropipe init` once to create a config directory pre-populated with template files:
+Run `neuromaestro init` once to create a config directory pre-populated with template files:
 
 ```bash
-neuropipe init /scratch/my_study
+neuromaestro init /scratch/my_study
 ```
 
 This creates:
@@ -68,17 +68,17 @@ This creates:
 
 All bundled config and check files are copied, not just the template. Copy `template_config.yaml` to `{your_project}_config.yaml` and `template_checks.yaml` to `{your_project}_checks.yaml`, then edit those. The rest are reference bundles and are described in [Dev & Test Config Modes](../internals/dev-test-configs.md). One of them, `ds027`, is a complete published run you can reproduce from public data (see [Reproduce the Published Example](reproduce-ds027.md)).
 
-You then pass `--config-dir /scratch/my_study/config` to every `neuropipe` command. The pipeline uses four config files split into two tiers:
+You then pass `--config-dir /scratch/my_study/config` to every `neuromaestro` command. The pipeline uses four config files split into two tiers:
 
 :::{important}
 **Skip `--config-dir` by exporting an environment variable.**
 If you always work with the same config directory, add this line to your `~/.bashrc` once:
 
 ```bash
-export NEUROPIPE_CONFIG_DIR=/scratch/my_study/config
+export NEUROMAESTRO_CONFIG_DIR=/scratch/my_study/config
 ```
 
-After that, all `neuropipe` commands will pick it up automatically and you can omit `--config-dir`. You can still override it any time by passing `--config-dir` explicitly.
+After that, all `neuromaestro` commands will pick it up automatically and you can omit `--config-dir`. You can still override it any time by passing `--config-dir` explicitly.
 :::
 
 **Required — create one per project:**
@@ -102,11 +102,11 @@ After that, all `neuropipe` commands will pick it up automatically and you can o
 The most common setup task is editing `{project}_config.yaml`. Use the GUI to generate a template:
 
 ```bash
-neuropipe-gui
+neuromaestro-gui
 ```
 
 :::{note}
-`neuropipe-gui` runs a web server **on the HPC login node**. To view it in a browser:
+`neuromaestro-gui` runs a web server **on the HPC login node**. To view it in a browser:
 - **VNC / remote desktop session on the HPC** — open `http://localhost:8050` directly.
 - **Terminal-only SSH from your laptop** — run `ssh -L 8050:localhost:8050 user@cluster` to forward the port, then open `http://localhost:8050` in your local browser.
 
@@ -119,10 +119,10 @@ Go to **Project Config → Project Config tab → Generate Template**, fill in y
 
 ```bash
 # Standard BIDS dataset (folders named sub-001, sub-002, ...)
-neuropipe detect-subjects /data/BIDS --prefix "sub-"
+neuromaestro detect-subjects /data/BIDS --prefix "sub-"
 
 # No prefix (folders named 001, 002, ...)
-neuropipe detect-subjects /data/raw --prefix ""
+neuromaestro detect-subjects /data/raw --prefix ""
 ```
 
 Returns subject IDs with the prefix stripped; pass these bare IDs to `--subjects` in all subsequent commands. See [Complete Pipeline Walkthrough](full-pipeline.md#2-detect-subjects) for how the prefix mechanism works.
@@ -130,7 +130,7 @@ Returns subject IDs with the prefix stripped; pass these bare IDs to `--subjects
 ### Step 3: Dry-run a single subject
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001 \
   --input /data/BIDS \
   --output /data/processed \
@@ -145,7 +145,7 @@ neuropipe run \
 Full pipeline — all stages, multiple subjects:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001,002,003 \
   --input /data/raw \
   --output /data/processed \
@@ -173,7 +173,7 @@ If that looks right, remove `--dry-run` to submit for real. See [run command ref
 
 ```bash
 squeue -u $USER                          # SLURM queue
-neuropipe-gui                            # GUI: Job Monitor tab → http://localhost:8050
+neuromaestro-gui                            # GUI: Job Monitor tab → http://localhost:8050
 ```
 
 ## Next Steps

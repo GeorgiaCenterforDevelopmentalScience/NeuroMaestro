@@ -12,7 +12,7 @@ This page explains how the pipeline works end-to-end: what the CLI flags do, how
 
 Before diving into tasks, it helps to understand where things are configured:
 
-- **CLI flags**: decide *which* tasks to run and in *what order*. These are the `--prep`, `--intermed`, `--bids-prep`, etc. flags you pass to `neuropipe run`. They do not contain paths or tool parameters.
+- **CLI flags**: decide *which* tasks to run and in *what order*. These are the `--prep`, `--intermed`, `--bids-prep`, etc. flags you pass to `neuromaestro run`. They do not contain paths or tool parameters.
 - **Config files**: supply all the actual values: cluster paths, container filenames, module names, tool parameters (e.g. `remove_TRs`, `blur_size`). These live in `config/project_config/{project}_config.yaml`.
 
 In other words: **the CLI selects tasks; the config files configure them.** If a task produces wrong results, check the config. If a task doesn't run at all, check the CLI flags.
@@ -56,7 +56,7 @@ Before any jobs are submitted, the pipeline automatically validates your BIDS da
 To skip validation (e.g. if you have already validated or the BIDS checker is slow on your filesystem):
 
 ```bash
-neuropipe run ... --skip-bids-validation
+neuromaestro run ... --skip-bids-validation
 ```
 
 ---
@@ -91,7 +91,7 @@ Issues are reported as **ERROR** (blocks submission) or **warning** (information
 To bypass preflight (e.g. during development or if you have already verified the config):
 
 ```bash
-neuropipe run ... --skip-preflight
+neuromaestro run ... --skip-preflight
 ```
 
 ---
@@ -101,7 +101,7 @@ neuropipe run ... --skip-preflight
 The `--resume` flag tells the pipeline to skip subjects whose task outputs already exist on disk. This is useful when re-running a partially completed pipeline; only subjects with missing outputs will be submitted.
 
 ```bash
-neuropipe run ... --resume
+neuromaestro run ... --resume
 ```
 
 See [Output Checks Configuration](../configuration/output-checks.md) for how resume works, the checks config syntax, scope rules, what happens when a task is not configured, and the `check-outputs` standalone command.
@@ -112,7 +112,7 @@ See [Output Checks Configuration](../configuration/output-checks.md) for how res
 
 ### Step 1: Build the task list
 
-When you run `neuropipe run`, the pipeline reads your flags and builds a list of tasks to execute. For example, `--prep unzip_recon --intermed volume --bids-prep rest --staged-prep emomatching` produces:
+When you run `neuromaestro run`, the pipeline reads your flags and builds a list of tasks to execute. For example, `--prep unzip_recon --intermed volume --bids-prep rest --staged-prep emomatching` produces:
 
 ```
 [unzip, recon, volume, rest_preprocess, emomatching_preprocess]

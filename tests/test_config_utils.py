@@ -21,7 +21,7 @@ from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
 # Helpers: patch the module-level `config` variable so tests are hermetic
 # ---------------------------------------------------------------------------
 
-CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
+CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
 
 
 # ===========================================================================
@@ -32,7 +32,7 @@ class TestFindTaskConfigByName:
 
     def test_finds_task_in_prep_section(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name
             result = find_task_config_by_name("unzip")
         assert result is not None
         assert result["name"] == "unzip"
@@ -40,7 +40,7 @@ class TestFindTaskConfigByName:
 
     def test_finds_task_in_task_section(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name
             result = find_task_config_by_name("cards_preprocess")
         assert result is not None
         assert result["name"] == "cards_preprocess"
@@ -48,20 +48,20 @@ class TestFindTaskConfigByName:
 
     def test_finds_task_in_qc_section(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name
             result = find_task_config_by_name("mriqc_preprocess")
         assert result is not None
         assert result["name"] == "mriqc_preprocess"
 
     def test_returns_none_for_unknown_task(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name
             result = find_task_config_by_name("nonexistent_task")
         assert result is None
 
     def test_returns_none_when_config_empty(self):
         with patch(CONFIG_PATH, {}):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name
             result = find_task_config_by_name("cards_preprocess")
         assert result is None
 
@@ -74,7 +74,7 @@ class TestFindTaskConfigByNameWithProject:
 
     def test_returns_global_config_when_no_project(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name_with_project
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name_with_project
             result = find_task_config_by_name_with_project("cards_preprocess", project_config=None)
         assert result is not None
         assert result["name"] == "cards_preprocess"
@@ -83,7 +83,7 @@ class TestFindTaskConfigByNameWithProject:
 
     def test_project_config_overrides_global_fields(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name_with_project
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name_with_project
             result = find_task_config_by_name_with_project("cards_preprocess", MOCK_PROJECT_CONFIG)
         assert result is not None
         # Project-specific key is merged in
@@ -94,20 +94,20 @@ class TestFindTaskConfigByNameWithProject:
     def test_global_fields_preserved_when_project_does_not_override(self):
         """Fields only in global config must survive the merge."""
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name_with_project
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name_with_project
             result = find_task_config_by_name_with_project("cards_preprocess", MOCK_PROJECT_CONFIG)
         assert result["profile"] == "standard"
         assert "afni_cards_preprocessing.sh" in result["scripts"]
 
     def test_project_config_adds_container_field(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name_with_project
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name_with_project
             result = find_task_config_by_name_with_project("recon", MOCK_PROJECT_CONFIG)
         assert result["container"] == "dcm2bids_3.2.0.sif"
 
     def test_returns_none_for_unknown_task(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name_with_project
+            from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name_with_project
             result = find_task_config_by_name_with_project("ghost_task", MOCK_PROJECT_CONFIG)
         assert result is None
 
@@ -120,7 +120,7 @@ class TestTaskNameHelpers:
 
     def test_get_all_task_names_all_sections(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
+            from neuromaestro.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names()
         assert "cards_preprocess" in names
         assert "kidvid_preprocess" in names
@@ -130,14 +130,14 @@ class TestTaskNameHelpers:
 
     def test_get_all_task_names_preserves_config_order(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
+            from neuromaestro.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names()
         assert names.index("unzip") < names.index("recon")
         assert names.index("recon") < names.index("rest_preprocess")
 
     def test_get_all_task_names_single_section(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
+            from neuromaestro.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names("qc")
         assert "mriqc_preprocess" in names
         assert "mriqc_post" in names
@@ -145,32 +145,32 @@ class TestTaskNameHelpers:
 
     def test_get_all_task_names_cards_section(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
+            from neuromaestro.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names("cards")
         assert names == ["cards_preprocess", "cards_postprocess"]
 
     def test_get_all_task_names_unknown_category_returns_empty(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
+            from neuromaestro.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names("nonexistent_category")
         assert names == []
 
     def test_get_tasks_by_suffix_preprocess(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_tasks_by_suffix
+            from neuromaestro.pipeline.utils.config_utils import get_tasks_by_suffix
             names = get_tasks_by_suffix("_preprocess")
         assert "cards_preprocess" in names
         assert "kidvid_preprocess" in names
 
     def test_get_tasks_by_suffix_postprocess(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_tasks_by_suffix
+            from neuromaestro.pipeline.utils.config_utils import get_tasks_by_suffix
             names = get_tasks_by_suffix("_postprocess")
         assert names == ["cards_postprocess"]
 
     def test_get_tasks_by_suffix_no_match(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import get_tasks_by_suffix
+            from neuromaestro.pipeline.utils.config_utils import get_tasks_by_suffix
             names = get_tasks_by_suffix("_nosuchsuffix")
         assert names == []
 
@@ -182,17 +182,17 @@ class TestTaskNameHelpers:
 class TestExpandTaskNames:
 
     def test_adds_preprocess_suffix(self):
-        from neuro_pipeline.pipeline.utils.config_utils import expand_task_names
+        from neuromaestro.pipeline.utils.config_utils import expand_task_names
         result = expand_task_names(["cards", "kidvid"], "_preprocess")
         assert result == ["cards_preprocess", "kidvid_preprocess"]
 
     def test_adds_postprocess_suffix(self):
-        from neuro_pipeline.pipeline.utils.config_utils import expand_task_names
+        from neuromaestro.pipeline.utils.config_utils import expand_task_names
         result = expand_task_names(["cards"], "_postprocess")
         assert result == ["cards_postprocess"]
 
     def test_empty_list(self):
-        from neuro_pipeline.pipeline.utils.config_utils import expand_task_names
+        from neuromaestro.pipeline.utils.config_utils import expand_task_names
         assert expand_task_names([], "_preprocess") == []
 
 
@@ -203,22 +203,22 @@ class TestExpandTaskNames:
 class TestCleanAllOnly:
 
     def test_passthrough_when_no_all(self):
-        from neuro_pipeline.pipeline.utils.config_utils import clean_all_only
+        from neuromaestro.pipeline.utils.config_utils import clean_all_only
         result = clean_all_only(["cards", "kidvid"], "task_prep")
         assert result == ["cards", "kidvid"]
 
     def test_passthrough_when_only_all(self):
-        from neuro_pipeline.pipeline.utils.config_utils import clean_all_only
+        from neuromaestro.pipeline.utils.config_utils import clean_all_only
         result = clean_all_only(["all"], "task_prep")
         assert result == ["all"]
 
     def test_strips_others_when_all_mixed_in(self):
-        from neuro_pipeline.pipeline.utils.config_utils import clean_all_only
+        from neuromaestro.pipeline.utils.config_utils import clean_all_only
         result = clean_all_only(["all", "cards"], "task_prep")
         assert result == ["all"]
 
     def test_strips_others_order_independent(self):
-        from neuro_pipeline.pipeline.utils.config_utils import clean_all_only
+        from neuromaestro.pipeline.utils.config_utils import clean_all_only
         result = clean_all_only(["cards", "all", "kidvid"], "task_prep")
         assert result == ["all"]
 
@@ -237,7 +237,7 @@ class TestCLITaskPrepFlow:
 
     def test_cards_becomes_cards_preprocess(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import expand_task_names, validate_task_name
+            from neuromaestro.pipeline.utils.config_utils import expand_task_names, validate_task_name
 
             raw_input = ["cards"]  # what the user types
             parsed = expand_task_names(raw_input, "_preprocess")
@@ -247,7 +247,7 @@ class TestCLITaskPrepFlow:
 
     def test_kidvid_becomes_kidvid_preprocess(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import expand_task_names, validate_task_name
+            from neuromaestro.pipeline.utils.config_utils import expand_task_names, validate_task_name
 
             parsed = expand_task_names(["kidvid"], "_preprocess")
             assert parsed == ["kidvid_preprocess"]
@@ -255,7 +255,7 @@ class TestCLITaskPrepFlow:
 
     def test_unknown_task_fails_validation(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import expand_task_names, validate_task_name
+            from neuromaestro.pipeline.utils.config_utils import expand_task_names, validate_task_name
 
             parsed = expand_task_names(["ghost"], "_preprocess")
             # ghost_preprocess does not exist in config
@@ -264,7 +264,7 @@ class TestCLITaskPrepFlow:
     def test_comma_separated_input_expands_correctly(self):
         """Simulate --task-prep cards,kidvid (single option, comma-separated)."""
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import expand_task_names
+            from neuromaestro.pipeline.utils.config_utils import expand_task_names
 
             raw = "cards,kidvid"
             items = [t.strip() for t in raw.split(",") if t.strip()]

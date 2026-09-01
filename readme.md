@@ -1,8 +1,8 @@
-# GCDS Neuroimaging Pipeline
+# NeuroMaestro
 
 A modular neuroimaging preprocessing pipeline for HPC clusters, with both a GUI and CLI. Pipeline parameters and analysis workflows are configured through YAML files, allowing flexible customization without modifying the underlying code.
 
-Full handbook: https://georgiacenterfordevelopmentalscience.github.io/Neuro-Pipeline/
+Full handbook: https://georgiacenterfordevelopmentalscience.github.io/NeuroMaestro/
 
 ---
 
@@ -28,23 +28,23 @@ The key distinction between pipeline types:
 **Prerequisites:** Python 3.10+, HPC cluster with SLURM or PBS, neuroimaging software installed on the cluster.
 
 ```bash
-git clone https://github.com/GeorgiaCenterforDevelopmentalScience/Neuro-Pipeline.git
-cd GCDS_Neuro_Pipeline
+git clone https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro.git
+cd NeuroMaestro
 pip install -e .
 
 # Or developmental mode
 # pip install -e .[dev]
 
 # Verify
-neuropipe --help
-neuropipe-gui --help
+neuromaestro --help
+neuromaestro-gui --help
 ```
 
 ---
 
 ## Configuration
 
-Each project requires a `{project}_config.yaml` in `src/neuro_pipeline/config/project_config/`. Copy `template_config.yaml` as a starting point, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
+Each project requires a `{project}_config.yaml` in `src/neuromaestro/config/project_config/`. Copy `template_config.yaml` as a starting point, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
 
 Modalities available under `--bids-prep` and `--staged-prep` are declared in `config.yaml`.
 
@@ -59,10 +59,10 @@ HPC scheduler, resource profiles (memory, walltime, CPU), and submission flags a
 **First-time setup:** scaffold config and script templates into your study directory.
 
 ```bash
-neuropipe init /path/to/my_study
+neuromaestro init /path/to/my_study
 # Optionally export to ~/.bashrc so you can omit --config-dir on every command.
 # If you skip this, pass --config-dir /path/to/my_study/config explicitly instead.
-export NEUROPIPE_CONFIG_DIR=/path/to/my_study/config
+export NEUROMAESTRO_CONFIG_DIR=/path/to/my_study/config
 ```
 
 This copies `config.yaml`, `hpc_config.yaml`, `project_config/`, `results_check/`, and script templates. Edit them to match your cluster and project before running.
@@ -71,13 +71,13 @@ This copies `config.yaml`, `hpc_config.yaml`, `project_config/`, `results_check/
 
 ```bash
 # Launch the GUI
-neuropipe-gui   # open http://localhost:8050 in your browser
+neuromaestro-gui   # open http://localhost:8050 in your browser
 ```
 
 Or use the CLI. Start with a dry-run on one subject to verify the plan:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects 001 \
   --input /data/BIDS \
   --output /data/processed \
@@ -92,7 +92,7 @@ neuropipe run \
 Full pipeline — all stages, multiple subjects:
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /data/raw \
   --output /data/processed \
@@ -123,7 +123,7 @@ Dependencies are enforced automatically by the scheduler.
 | `--input` | Input BIDS directory |
 | `--output` | Output directory |
 | `--work` | Work directory (logs, database, intermediate files) |
-| `--config-dir` | Path to config directory (contains `config.yaml`, `hpc_config.yaml`, `project_config/`). Optional if `$NEUROPIPE_CONFIG_DIR` is exported. |
+| `--config-dir` | Path to config directory (contains `config.yaml`, `hpc_config.yaml`, `project_config/`). Optional if `$NEUROMAESTRO_CONFIG_DIR` is exported. |
 | `--project` | Project name (must match a `{project}_config.yaml`) |
 | `--session` | Session label (e.g. `01`) |
 
@@ -152,7 +152,7 @@ Dependencies are enforced automatically by the scheduler.
 ## Resume a Partial Run
 
 ```bash
-neuropipe run \
+neuromaestro run \
   --subjects subjects.txt \
   --input /data/BIDS \
   --output /data/processed \

@@ -13,12 +13,12 @@ from unittest.mock import patch, MagicMock
 
 from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
 
-CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
+CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
 
 
 def make_executor():
     with patch(CONFIG_PATH, MOCK_CONFIG):
-        from neuro_pipeline.pipeline.dag import DAGExecutor
+        from neuromaestro.pipeline.dag import DAGExecutor
         ex = DAGExecutor(MOCK_CONFIG)
         ex.project_config = MOCK_PROJECT_CONFIG
         return ex
@@ -57,7 +57,7 @@ class TestDAGExecutorResume:
         with patch(CONFIG_PATH, MOCK_CONFIG), \
              patch.object(executor, "_execute_single_task", mock_execute), \
              patch(
-                 "neuro_pipeline.pipeline.dag.OutputChecker",
+                 "neuromaestro.pipeline.dag.OutputChecker",
                  return_value=mock_checker,
              ):
             all_job_ids, _ = executor.execute(
@@ -202,7 +202,7 @@ class TestDAGExecutorResume:
 
         with patch(CONFIG_PATH, MOCK_CONFIG), \
              patch.object(executor, "_execute_single_task", mock_execute), \
-             patch("neuro_pipeline.pipeline.dag.OutputChecker") as mock_cls:
+             patch("neuromaestro.pipeline.dag.OutputChecker") as mock_cls:
             executor.execute(
                 requested_tasks=["rest_preprocess"],
                 input_dir="/in", output_dir="/out", work_dir="/work",
@@ -224,7 +224,7 @@ class TestDAGExecutorResume:
 
         with patch(CONFIG_PATH, MOCK_CONFIG), \
              patch.object(executor, "_execute_single_task", mock_execute), \
-             patch("neuro_pipeline.pipeline.dag.OutputChecker", return_value=mock_checker):
+             patch("neuromaestro.pipeline.dag.OutputChecker", return_value=mock_checker):
             executor.execute(
                 requested_tasks=["rest_preprocess"],
                 input_dir="/in", output_dir="/out", work_dir="/work",

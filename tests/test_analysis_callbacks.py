@@ -25,7 +25,7 @@ import dash_bootstrap_components as dbc
 from dash import html
 from dash._callback import NoUpdate
 
-_MOD = "neuro_pipeline.interface.callbacks.analysis_callbacks"
+_MOD = "neuromaestro.interface.callbacks.analysis_callbacks"
 
 
 class FakeApp:
@@ -50,7 +50,7 @@ class FakeApp:
 @pytest.fixture(scope="module")
 def callbacks():
     fake_app = FakeApp()
-    from neuro_pipeline.interface.callbacks.analysis_callbacks import register_analysis_callbacks
+    from neuromaestro.interface.callbacks.analysis_callbacks import register_analysis_callbacks
     register_analysis_callbacks(fake_app)
     return fake_app
 
@@ -64,11 +64,11 @@ def _ctx(component_id, prop="n_clicks"):
 # ---------------------------------------------------------------------------
 # apply_config_dir
 #
-# Every checklist on the page is populated from here, and neuropipe run is
+# Every checklist on the page is populated from here, and neuromaestro run is
 # launched as a subprocess that reads CONFIG_DIR from the environment.
 # ---------------------------------------------------------------------------
 
-_CFG_MOD = "neuro_pipeline.pipeline.utils.config_utils"
+_CFG_MOD = "neuromaestro.pipeline.utils.config_utils"
 
 
 class TestApplyConfigDir:
@@ -136,7 +136,7 @@ class TestApplyConfigDir:
 # init_study
 # ---------------------------------------------------------------------------
 
-_INIT_FN = "neuro_pipeline.pipeline.utils.init_utils.init_project_templates"
+_INIT_FN = "neuromaestro.pipeline.utils.init_utils.init_project_templates"
 
 
 class TestInitStudy:
@@ -205,7 +205,7 @@ class TestDetectSubjectsCallback:
               prefix="sub-", directory="/data", detected=None, side_effect=None):
         fn = callbacks.get("detect_subjects_callback")
         ctx = _ctx(trigger) if trigger else _no_ctx()
-        patcher = patch("neuro_pipeline.pipeline.utils.detect_subjects.detect_subjects",
+        patcher = patch("neuromaestro.pipeline.utils.detect_subjects.detect_subjects",
                         side_effect=side_effect,
                         return_value=detected if detected is not None else [])
         with patch(f"{_MOD}.callback_context", ctx), patcher:
@@ -354,7 +354,7 @@ class TestGenerateCommandCallback:
 
     def test_command_contains_core_flags(self, callbacks):
         text, data = self._call(callbacks)
-        assert "neuropipe run" in text
+        assert "neuromaestro run" in text
         assert "--subjects 001" in text
         assert "--session 01" in text
         assert "--project proj" in text
@@ -469,7 +469,7 @@ class TestExecutePipelineCallback:
         _, mock_run = self._run(callbacks)
         cmd = self._cmd(mock_run)
         assert isinstance(cmd, list)
-        assert cmd[:2] == ["neuropipe", "run"]
+        assert cmd[:2] == ["neuromaestro", "run"]
 
     def test_every_argument_is_a_string(self, callbacks):
         _, mock_run = self._run(callbacks)
@@ -517,7 +517,7 @@ class TestToggleSidebar:
             def clientside_callback(self, *args, **kwargs):
                 pass
 
-        from neuro_pipeline.interface.callbacks.analysis_callbacks import register_analysis_callbacks
+        from neuromaestro.interface.callbacks.analysis_callbacks import register_analysis_callbacks
         register_analysis_callbacks(RecordingApp())
         assert seen["toggle_sidebar"].get("prevent_initial_call") is True
 

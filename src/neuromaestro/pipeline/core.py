@@ -23,10 +23,10 @@ from .utils.detect_subjects import parse_subjects_input as _parse_subjects
 
 
 def _resolve_config_dir(config_dir: Optional[str]) -> str:
-    resolved = config_dir or os.environ.get("NEUROPIPE_CONFIG_DIR")
+    resolved = config_dir or os.environ.get("NEUROMAESTRO_CONFIG_DIR")
     if not resolved:
         typer.echo(
-            "Error: --config-dir is required, or set NEUROPIPE_CONFIG_DIR environment variable.",
+            "Error: --config-dir is required, or set NEUROMAESTRO_CONFIG_DIR environment variable.",
             err=True,
         )
         raise typer.Exit(1)
@@ -34,7 +34,7 @@ def _resolve_config_dir(config_dir: Optional[str]) -> str:
 
 
 def _offer_export_env_var(config_path: str) -> None:
-    export_line = f'export NEUROPIPE_CONFIG_DIR="{config_path}"'
+    export_line = f'export NEUROMAESTRO_CONFIG_DIR="{config_path}"'
     typer.echo(
         f"\nTip: to skip --config-dir on every command, add this to your ~/.bashrc:\n"
         f"  {export_line}"
@@ -91,7 +91,7 @@ def run(
     output_dir: str = typer.Option(..., "--output", help="Output directory"),
     work_dir: str = typer.Option(..., "--work", help="Work directory"),
 
-    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory (contains config.yaml, hpc_config.yaml, project_config/). Defaults to $NEUROPIPE_CONFIG_DIR."),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory (contains config.yaml, hpc_config.yaml, project_config/). Defaults to $NEUROMAESTRO_CONFIG_DIR."),
 
     project: str = typer.Option(..., help="Project name"),
 
@@ -319,11 +319,11 @@ def run(
             typer.echo(f"\nJSON logs location:")
             typer.echo(f"  {os.path.dirname(db_path)}/json/")
             typer.echo(f"\nTo check job status, run:")
-            typer.echo(f"  python -m neuro_pipeline.pipeline.utils.job_db query_jobs --db-path {db_path}")
+            typer.echo(f"  python -m neuromaestro.pipeline.utils.job_db query_jobs --db-path {db_path}")
             typer.echo(f"\nOr check recent jobs:")
-            typer.echo(f"  python -m neuro_pipeline.pipeline.utils.job_db query_jobs --limit 20 --db-path {db_path}")
+            typer.echo(f"  python -m neuromaestro.pipeline.utils.job_db query_jobs --limit 20 --db-path {db_path}")
             typer.echo(f"\nTo manually merge logs (optional):")
-            typer.echo(f"  neuropipe merge-logs {original_work_dir or work_dir}")
+            typer.echo(f"  neuromaestro merge-logs {original_work_dir or work_dir}")
 
         typer.echo("\n=== Completed ===")
     
@@ -341,7 +341,7 @@ def run(
 
 @app.command("list-tasks")
 def list_tasks(
-    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROPIPE_CONFIG_DIR."),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROMAESTRO_CONFIG_DIR."),
 ):
     """List available tasks"""
     set_config_dir(_resolve_config_dir(config_dir))
@@ -372,9 +372,9 @@ def detect_subjects(
     Detect subjects in input directory and optionally save to file.
     
     Examples:
-      neuro-pipeline detect-subjects /data/BIDS
-      neuro-pipeline detect-subjects /data/BIDS --output subjects.txt
-      neuro-pipeline detect-subjects /data/BIDS --prefix "sub-" --output subjects.txt
+      neuromaestro detect-subjects /data/BIDS
+      neuromaestro detect-subjects /data/BIDS --output subjects.txt
+      neuromaestro detect-subjects /data/BIDS --prefix "sub-" --output subjects.txt
     """
     from .utils.detect_subjects import detect_subjects as sd, save_subjects_to_file
 
@@ -418,7 +418,7 @@ def force_rebuild_cmd(
     The original database is never modified.
 
     Example:
-      neuropipe force-rebuild /data/work/my_study
+      neuromaestro force-rebuild /data/work/my_study
     """
     from .utils.merge_logs_create_db import rebuild_db
     try:
@@ -447,17 +447,17 @@ def generate_report_cmd(
     ),
     config_dir: Optional[str] = typer.Option(None, "--config-dir",
         help="Path to config directory. Used to order report tasks by pipeline order. "
-             "Defaults to $NEUROPIPE_CONFIG_DIR; falls back to alphabetical order if unset."
+             "Defaults to $NEUROMAESTRO_CONFIG_DIR; falls back to alphabetical order if unset."
     ),
 ):
     """
     Generate a standalone HTML pipeline report for a project.
     Example:
-      neuropipe generate-report --db-path /scratch/log/database/pipeline_jobs.db \\
+      neuromaestro generate-report --db-path /scratch/log/database/pipeline_jobs.db \\
           --project GCDS --session 01 --check-results /data/work/check_results_20260421.csv
     """
     # Optional: without it the report still renders, just in alphabetical task order
-    resolved_config_dir = config_dir or os.environ.get("NEUROPIPE_CONFIG_DIR")
+    resolved_config_dir = config_dir or os.environ.get("NEUROMAESTRO_CONFIG_DIR")
     if resolved_config_dir:
         try:
             set_config_dir(resolved_config_dir)
@@ -465,7 +465,7 @@ def generate_report_cmd(
             typer.echo(f"Warning: could not load config from {resolved_config_dir} ({e}); "
                        "report tasks will be listed alphabetically.", err=True)
     else:
-        typer.echo("Warning: no --config-dir or $NEUROPIPE_CONFIG_DIR; "
+        typer.echo("Warning: no --config-dir or $NEUROMAESTRO_CONFIG_DIR; "
                    "report tasks will be listed alphabetically.", err=True)
 
     from .utils.report_generator import generate_report
@@ -487,7 +487,7 @@ def generate_report_cmd(
 def check_outputs_cmd(
     project: str = typer.Option(..., help="Project name"),
     work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
-    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROPIPE_CONFIG_DIR."),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROMAESTRO_CONFIG_DIR."),
     subjects: Optional[str] = typer.Option(None, help="Subject list or file path (auto-detected from work_dir if omitted)"),
     session: str = typer.Option(..., help="Session ID(s), comma-separated (e.g. 01,02). Required so each result row is attributable to a session; projects without sessions may pass any value."),
     tasks: Optional[List[str]] = typer.Option(None, "--task",
@@ -508,8 +508,8 @@ def check_outputs_cmd(
     Without --subjects, scans all subjects found in work_dir.
 
     Examples:
-      neuropipe check-outputs --project test --work /data/processed --session 01
-      neuropipe check-outputs --project test --work /data/processed \\
+      neuromaestro check-outputs --project test --work /data/processed --session 01
+      neuromaestro check-outputs --project test --work /data/processed \\
           --subjects 001,002 --session 01,02
     """
     set_config_dir(_resolve_config_dir(config_dir))
@@ -589,7 +589,7 @@ def init(
     results_check/) and bash script templates to output_dir.
 
     Example:
-      neuropipe init /scratch/my_study
+      neuromaestro init /scratch/my_study
     """
     from .utils.init_utils import init_project_templates
 
@@ -607,7 +607,7 @@ def init(
     typer.echo(f"  2. Edit {config_out}/project_config/  — project-specific config")
     typer.echo(f"  3. Edit {scripts_out}/                — adapt .sh scripts to your HPC")
     typer.echo(f"\nThen run:")
-    typer.echo(f"  neuropipe run --config-dir {config_out} ...")
+    typer.echo(f"  neuromaestro run --config-dir {config_out} ...")
 
     _offer_export_env_var(str(config_out))
 
@@ -618,7 +618,7 @@ def generate_config_cmd(
     output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
         help="Output directory (default: <config-dir>/project_config/)"),
     config_dir: Optional[str] = typer.Option(None, "--config-dir",
-        help="Path to config directory (sets default output location). Defaults to $NEUROPIPE_CONFIG_DIR."),
+        help="Path to config directory (sets default output location). Defaults to $NEUROMAESTRO_CONFIG_DIR."),
     force: bool = typer.Option(False, "--force", help="Overwrite an existing config file"),
 ):
     """Generate a blank project config template.
@@ -626,8 +626,8 @@ def generate_config_cmd(
     Refuses to overwrite an existing file unless --force is given.
 
     Example:
-      neuropipe generate-config branch --config-dir /scratch/my_study/config
-      neuropipe generate-config branch --output-dir /scratch/my_project/config/project_config
+      neuromaestro generate-config branch --config-dir /scratch/my_study/config
+      neuromaestro generate-config branch --output-dir /scratch/my_project/config/project_config
     """
     set_config_dir(_resolve_config_dir(config_dir))
     from .utils.generate_project_config import generate_project_config
@@ -644,7 +644,7 @@ def generate_checks_cmd(
     output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
         help="Output directory (default: <config-dir>/results_check/)"),
     config_dir: Optional[str] = typer.Option(None, "--config-dir",
-        help="Path to config directory (sets default output location). Defaults to $NEUROPIPE_CONFIG_DIR."),
+        help="Path to config directory (sets default output location). Defaults to $NEUROMAESTRO_CONFIG_DIR."),
     force: bool = typer.Option(False, "--force", help="Overwrite an existing checks file"),
 ):
     """Generate a blank results-check config template.
@@ -652,8 +652,8 @@ def generate_checks_cmd(
     Refuses to overwrite an existing file unless --force is given.
 
     Example:
-      neuropipe generate-checks branch --config-dir /scratch/my_study/config
-      neuropipe generate-checks branch --output-dir /scratch/my_project/config/results_check
+      neuromaestro generate-checks branch --config-dir /scratch/my_study/config
+      neuromaestro generate-checks branch --output-dir /scratch/my_project/config/results_check
     """
     set_config_dir(_resolve_config_dir(config_dir))
     from .utils.generate_results_check import generate_results_check

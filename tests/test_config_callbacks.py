@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 
 import dash_bootstrap_components as dbc
 
-_CB_MOD = "neuro_pipeline.interface.callbacks.config_callbacks"
+_CB_MOD = "neuromaestro.interface.callbacks.config_callbacks"
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +34,7 @@ class TestResolvedConfigDir:
 
     @staticmethod
     def _resolve():
-        from neuro_pipeline.interface.callbacks.config_callbacks import _resolved_config_dir
+        from neuromaestro.interface.callbacks.config_callbacks import _resolved_config_dir
         return _resolved_config_dir()
 
     def test_test_seam_takes_precedence_over_the_environment(self, tmp_path, monkeypatch):
@@ -70,7 +70,7 @@ class TestResolvedConfigDir:
     def test_generate_new_config_warns_instead_of_raising(self):
         # The regression: this was the one callback that skipped the helper and
         # surfaced the RuntimeError text through a generic error branch
-        from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
         with patch(f"{_CB_MOD}._effective_config_dir",
                    side_effect=RuntimeError("Config directory not set.")):
             result = generate_new_config_callback(1, "demo")
@@ -79,7 +79,7 @@ class TestResolvedConfigDir:
         assert "Analysis Control" in str(result.children)
 
     def test_loaders_report_the_missing_config_dir(self):
-        from neuro_pipeline.interface.callbacks.config_callbacks import (
+        from neuromaestro.interface.callbacks.config_callbacks import (
             load_global_config_callback, load_hpc_config_callback,
         )
         with patch(f"{_CB_MOD}._effective_config_dir",
@@ -97,7 +97,7 @@ class TestResolvedConfigDir:
 class TestSaveAndLoadFile:
 
     def test_save_creates_file(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import _save_file
+        from neuromaestro.interface.callbacks.config_callbacks import _save_file
         dest = tmp_path / "out" / "test.yaml"
         result = _save_file(str(dest), "key: value")
         assert _get_alert_color(result) == "success"
@@ -105,7 +105,7 @@ class TestSaveAndLoadFile:
         assert dest.read_text() == "key: value"
 
     def test_save_returns_error_on_bad_path(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import _save_file
+        from neuromaestro.interface.callbacks.config_callbacks import _save_file
         # Use an existing file as if it were a directory
         existing_file = tmp_path / "blockfile.txt"
         existing_file.write_text("x")
@@ -113,17 +113,17 @@ class TestSaveAndLoadFile:
         assert _get_alert_color(result) == "danger"
 
     def test_save_warns_on_empty_path(self):
-        from neuro_pipeline.interface.callbacks.config_callbacks import _save_file
+        from neuromaestro.interface.callbacks.config_callbacks import _save_file
         result = _save_file("", "key: value")
         assert _get_alert_color(result) == "warning"
 
     def test_save_warns_on_none_path(self):
-        from neuro_pipeline.interface.callbacks.config_callbacks import _save_file
+        from neuromaestro.interface.callbacks.config_callbacks import _save_file
         result = _save_file(None, "key: value")
         assert _get_alert_color(result) == "warning"
 
     def test_load_reads_existing_file(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import _load_file
+        from neuromaestro.interface.callbacks.config_callbacks import _load_file
         f = tmp_path / "test.yaml"
         f.write_text("hello: world")
         content, err = _load_file(str(f))
@@ -131,13 +131,13 @@ class TestSaveAndLoadFile:
         assert content == "hello: world"
 
     def test_load_returns_error_for_missing_file(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import _load_file
+        from neuromaestro.interface.callbacks.config_callbacks import _load_file
         _, err = _load_file(str(tmp_path / "nonexistent.yaml"))
         assert err is not None
         assert "not found" in err.lower()
 
     def test_load_returns_error_for_empty_path(self):
-        from neuro_pipeline.interface.callbacks.config_callbacks import _load_file
+        from neuromaestro.interface.callbacks.config_callbacks import _load_file
         _, err = _load_file("")
         assert err is not None
 
@@ -149,7 +149,7 @@ class TestSaveAndLoadFile:
 class TestGenerateTemplate:
 
     def test_generates_yaml_file(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
+        from neuromaestro.pipeline.utils.generate_project_config import generate_project_config
         out_dir = tmp_path / "project_config"
         generate_project_config("myproject", str(out_dir))
         config_file = out_dir / "myproject_config.yaml"
@@ -159,8 +159,8 @@ class TestGenerateTemplate:
         assert "prefix" in data
 
     def test_generated_yaml_is_loadable(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
-        from neuro_pipeline.interface.callbacks.config_callbacks import _load_file
+        from neuromaestro.pipeline.utils.generate_project_config import generate_project_config
+        from neuromaestro.interface.callbacks.config_callbacks import _load_file
         out_dir = tmp_path / "project_config"
         generate_project_config("testproj", str(out_dir))
         content, err = _load_file(str(out_dir / "testproj_config.yaml"))
@@ -168,7 +168,7 @@ class TestGenerateTemplate:
         assert "testproj" in content
 
     def test_callback_generates_and_shows_success(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
         config_root = tmp_path / "config"
 
         with patch(f"{_CB_MOD}._CONFIG_DIR", config_root):
@@ -178,12 +178,12 @@ class TestGenerateTemplate:
         assert (config_root / "project_config" / "demo_config.yaml").exists()
 
     def test_callback_warns_on_missing_project_name(self):
-        from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
         result = generate_new_config_callback(1, "")
         assert _get_alert_color(result) == "warning"
 
     def test_callback_warns_on_none_project_name(self):
-        from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
         result = generate_new_config_callback(1, None)
         assert _get_alert_color(result) == "warning"
 
@@ -195,7 +195,7 @@ class TestGenerateTemplate:
 class TestLoadConfigCallback:
 
     def test_loads_existing_file_into_editor(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import load_config_callback
         config_root = tmp_path / "config"
         yaml_file = config_root / "project_config" / "test_config.yaml"
         yaml_file.parent.mkdir(parents=True)
@@ -207,19 +207,19 @@ class TestLoadConfigCallback:
         assert "prefix: sub-" in result
 
     def test_returns_error_comment_for_missing_file(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import load_config_callback
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
             result = load_config_callback(1, "missing")
         assert result.startswith("# ")
 
     def test_returns_error_comment_for_no_project_name(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import load_config_callback
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
             result = load_config_callback(1, "")
         assert result.startswith("# ")
 
     def test_returns_empty_string_on_initial_call(self, tmp_path):
-        from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import load_config_callback
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
             result = load_config_callback(None, "test")
         assert result == ""
@@ -232,7 +232,7 @@ class TestLoadConfigCallback:
 class TestSaveConfigCallback:
 
     def _call_save(self, tmp_path, yaml_content, project_name, trigger="save-config-btn"):
-        from neuro_pipeline.interface.callbacks.config_callbacks import save_config_callback
+        from neuromaestro.interface.callbacks.config_callbacks import save_config_callback
         mock_ctx = _make_triggered(trigger)
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"), \
              patch(f"{_CB_MOD}.callback_context", mock_ctx):
@@ -268,8 +268,8 @@ class TestSaveConfigCallback:
 
     def test_roundtrip_generate_load_save(self, tmp_path):
         """Full workflow: generate template → load → save under new project name."""
-        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
-        from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback, save_config_callback
+        from neuromaestro.pipeline.utils.generate_project_config import generate_project_config
+        from neuromaestro.interface.callbacks.config_callbacks import load_config_callback, save_config_callback
 
         config_root = tmp_path / "config"
         generate_project_config("roundtrip", str(config_root / "project_config"))

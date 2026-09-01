@@ -7,7 +7,7 @@ title: Output Checks Configuration
 The output checks system serves two purposes:
 
 1. **`--resume`**: before submitting each task's SLURM array job, the pipeline checks which subjects already have valid outputs and silently excludes them from the submission. Checks are scoped to the tasks you explicitly request on the command line; tasks not included in the current invocation are not evaluated, even if they are configured in the YAML or have failed previously.
-2. **`neuropipe check-outputs`**: a standalone command that runs the same checks on demand and saves a CSV report.
+2. **`neuromaestro check-outputs`**: a standalone command that runs the same checks on demand and saves a CSV report.
 
 Both use the same YAML configuration file.
 
@@ -22,7 +22,7 @@ The file is named after your project (same as your `{project}_config.yaml`). For
 Generate a blank template with the CLI or the GUI:
 
 ```bash
-neuropipe generate-checks branch
+neuromaestro generate-checks branch
 ```
 
 Or open the **Results Check Config** tab in the GUI and click **New**.
@@ -252,12 +252,12 @@ subject 002 on task rest_preprocess:
 
 If a task has **no entry** in the checks YAML, `get_completed_subjects` returns an empty list (no one is considered complete), so `get_pending_subjects` returns **all subjects**: everyone is treated as pending and the full subject list is submitted. A warning is printed. The resume flag has no effect for that task.
 
-## `neuropipe check-outputs` Command
+## `neuromaestro check-outputs` Command
 
 Run checks independently of a pipeline submission:
 
 ```bash
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/processed/my_study \
   --config-dir /data/config \
@@ -273,7 +273,7 @@ neuropipe check-outputs \
 
 ```bash
 # Check only specific tasks
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \
@@ -282,7 +282,7 @@ neuropipe check-outputs \
   --task rest_preprocess
 
 # Point to a non-default checks file
-neuropipe check-outputs \
+neuromaestro check-outputs \
   --project my_study \
   --work /data/work \
   --config-dir /data/config \

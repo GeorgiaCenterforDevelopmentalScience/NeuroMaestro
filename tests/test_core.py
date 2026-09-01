@@ -15,11 +15,11 @@ from tests.conftest import MOCK_CONFIG
 
 # core.py loads config.yaml at module level; patch the resulting variable
 # for tests that invoke code paths touching it.
-CORE_CONFIG_PATH = "neuro_pipeline.pipeline.core.config"
+CORE_CONFIG_PATH = "neuromaestro.pipeline.core.config"
 
 
 def _import_helpers():
-    from neuro_pipeline.pipeline.core import _parse_comma_list, parse_and_expand_tasks
+    from neuromaestro.pipeline.core import _parse_comma_list, parse_and_expand_tasks
     return _parse_comma_list, parse_and_expand_tasks
 
 
@@ -30,27 +30,27 @@ def _import_helpers():
 class TestResolveConfigDir:
 
     def _fn(self):
-        from neuro_pipeline.pipeline.core import _resolve_config_dir
+        from neuromaestro.pipeline.core import _resolve_config_dir
         return _resolve_config_dir
 
     def test_returns_explicit_arg(self, monkeypatch):
-        monkeypatch.delenv("NEUROPIPE_CONFIG_DIR", raising=False)
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
         result = self._fn()("/some/path")
         assert result == "/some/path"
 
     def test_falls_back_to_env_var(self, monkeypatch):
-        monkeypatch.setenv("NEUROPIPE_CONFIG_DIR", "/env/path")
+        monkeypatch.setenv("NEUROMAESTRO_CONFIG_DIR", "/env/path")
         result = self._fn()(None)
         assert result == "/env/path"
 
     def test_cli_takes_precedence_over_env_var(self, monkeypatch):
-        monkeypatch.setenv("NEUROPIPE_CONFIG_DIR", "/env/path")
+        monkeypatch.setenv("NEUROMAESTRO_CONFIG_DIR", "/env/path")
         result = self._fn()("/cli/path")
         assert result == "/cli/path"
 
     def test_exits_when_neither_set(self, monkeypatch):
         import typer
-        monkeypatch.delenv("NEUROPIPE_CONFIG_DIR", raising=False)
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
         with pytest.raises(typer.Exit):
             self._fn()(None)
 
@@ -147,10 +147,10 @@ class TestParseAndExpandTasks:
 class TestCliRunErrors:
 
     def test_exits_when_config_dir_missing_and_no_env(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("NEUROPIPE_CONFIG_DIR", raising=False)
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
         from typer.testing import CliRunner
         with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.core import app
+            from neuromaestro.pipeline.core import app
         runner = CliRunner()
         result = runner.invoke(app, [
             "run",
@@ -162,16 +162,16 @@ class TestCliRunErrors:
             "--session", "01",
         ])
         assert result.exit_code == 1
-        assert "NEUROPIPE_CONFIG_DIR" in (result.output or "")
+        assert "NEUROMAESTRO_CONFIG_DIR" in (result.output or "")
 
     def test_env_var_used_when_no_config_dir_flag(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("NEUROPIPE_CONFIG_DIR", str(tmp_path))
+        monkeypatch.setenv("NEUROMAESTRO_CONFIG_DIR", str(tmp_path))
         from typer.testing import CliRunner
         with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.core import app
+            from neuromaestro.pipeline.core import app
         runner = CliRunner()
-        with patch("neuro_pipeline.pipeline.core.set_config_dir") as mock_set, \
-             patch("neuro_pipeline.pipeline.core.get_config", return_value=MOCK_CONFIG):
+        with patch("neuromaestro.pipeline.core.set_config_dir") as mock_set, \
+             patch("neuromaestro.pipeline.core.get_config", return_value=MOCK_CONFIG):
             runner.invoke(app, [
                 "run",
                 "--subjects", "001",
@@ -186,10 +186,10 @@ class TestCliRunErrors:
     def test_exits_when_input_dir_missing(self, tmp_path):
         from typer.testing import CliRunner
         with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.core import app
+            from neuromaestro.pipeline.core import app
         runner = CliRunner()
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
-             patch("neuro_pipeline.pipeline.core.get_config", return_value=MOCK_CONFIG):
+        with patch("neuromaestro.pipeline.core.set_config_dir"), \
+             patch("neuromaestro.pipeline.core.get_config", return_value=MOCK_CONFIG):
             result = runner.invoke(app, [
                 "run",
                 "--subjects", "001",
@@ -207,7 +207,7 @@ class TestCliRunErrors:
 def _runner():
     from typer.testing import CliRunner
     with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-        from neuro_pipeline.pipeline.core import app
+        from neuromaestro.pipeline.core import app
     return CliRunner(), app
 
 
@@ -225,7 +225,7 @@ class TestMergeLogsCmd:
     def test_explicit_db_path_passed_through(self, tmp_path):
         runner, app = _runner()
         db_path = str(tmp_path / "custom.db")
-        with patch("neuro_pipeline.pipeline.utils.merge_logs_create_db.merge_once") as mock_merge:
+        with patch("neuromaestro.pipeline.utils.merge_logs_create_db.merge_once") as mock_merge:
             runner.invoke(app, ["merge-logs", str(tmp_path), "--db-path", db_path])
         mock_merge.assert_called_once_with(str(tmp_path), db_path)
 
@@ -244,7 +244,7 @@ class TestForceRebuildCmd:
     def test_success_reports_count_and_path(self, tmp_path):
         runner, app = _runner()
         new_db = str(tmp_path / "pipeline_jobs_rebuild_20260101.db")
-        with patch("neuro_pipeline.pipeline.utils.merge_logs_create_db.rebuild_db",
+        with patch("neuromaestro.pipeline.utils.merge_logs_create_db.rebuild_db",
                    return_value=(new_db, 7)):
             result = runner.invoke(app, ["force-rebuild", str(tmp_path)])
         assert result.exit_code == 0
@@ -273,7 +273,7 @@ class TestGenerateReportCmd:
     def test_success_prints_report_path(self, tmp_path):
         runner, app = _runner()
         out_html = str(tmp_path / "report.html")
-        with patch("neuro_pipeline.pipeline.utils.report_generator.generate_report",
+        with patch("neuromaestro.pipeline.utils.report_generator.generate_report",
                    return_value=out_html):
             result = runner.invoke(app, [
                 "generate-report",
@@ -292,7 +292,7 @@ class TestCheckOutputsCmd:
 
     def test_missing_checks_config_exits_1(self, tmp_path):
         runner, app = _runner()
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+        with patch("neuromaestro.pipeline.core.set_config_dir"):
             result = runner.invoke(app, [
                 "check-outputs",
                 "--project", "no_such_project_xyz",
@@ -309,8 +309,8 @@ class TestCheckOutputsCmd:
             "task1:\n  output_path: '{work_dir}'\n"
             "  required_files:\n    - 'file.txt'\n"
         )
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
-             patch("neuro_pipeline.pipeline.utils.output_checker.load_checks_config",
+        with patch("neuromaestro.pipeline.core.set_config_dir"), \
+             patch("neuromaestro.pipeline.utils.output_checker.load_checks_config",
                    return_value=str(yaml_path)):
             result = runner.invoke(app, [
                 "check-outputs",
@@ -324,7 +324,7 @@ class TestCheckOutputsCmd:
     def test_missing_session_exits_2(self, tmp_path):
         # --session is required: typer reports a usage error, not our exit(1)
         runner, app = _runner()
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+        with patch("neuromaestro.pipeline.core.set_config_dir"):
             result = runner.invoke(app, [
                 "check-outputs",
                 "--project", "proj",
@@ -340,8 +340,8 @@ class TestCheckOutputsCmd:
             "task1:\n  output_path: '{work_dir}'\n"
             "  required_files:\n    - 'file.txt'\n"
         )
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
-             patch("neuro_pipeline.pipeline.utils.output_checker.load_checks_config",
+        with patch("neuromaestro.pipeline.core.set_config_dir"), \
+             patch("neuromaestro.pipeline.utils.output_checker.load_checks_config",
                    return_value=str(yaml_path)):
             result = runner.invoke(app, [
                 "check-outputs",
@@ -390,8 +390,8 @@ class TestGenerateConfigCmd:
 
     def test_generate_config_delegates_to_utility(self, tmp_path):
         runner, app = _runner()
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
-             patch("neuro_pipeline.pipeline.utils.generate_project_config.generate_project_config") as mock_fn:
+        with patch("neuromaestro.pipeline.core.set_config_dir"), \
+             patch("neuromaestro.pipeline.utils.generate_project_config.generate_project_config") as mock_fn:
             runner.invoke(app, [
                 "generate-config", "my_study",
                 "--config-dir", str(tmp_path),
@@ -401,8 +401,8 @@ class TestGenerateConfigCmd:
 
     def test_generate_checks_delegates_to_utility(self, tmp_path):
         runner, app = _runner()
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
-             patch("neuro_pipeline.pipeline.utils.generate_results_check.generate_results_check") as mock_fn:
+        with patch("neuromaestro.pipeline.core.set_config_dir"), \
+             patch("neuromaestro.pipeline.utils.generate_results_check.generate_results_check") as mock_fn:
             runner.invoke(app, [
                 "generate-checks", "my_study",
                 "--config-dir", str(tmp_path),
@@ -427,7 +427,7 @@ class TestInitCmd:
         runner, app = _runner()
         result = runner.invoke(app, ["init", str(tmp_path / "study")])
         assert result.exit_code == 0
-        assert "NEUROPIPE_CONFIG_DIR" in result.output
+        assert "NEUROMAESTRO_CONFIG_DIR" in result.output
 
 
 
@@ -438,13 +438,13 @@ class TestInitCmd:
 class TestGeneratedProjectConfigTemplate:
     """The template shipped db_path under log/ while every real project config
     and the merge-logs / force-rebuild auto-detect use database/. A freshly
-    generated project could not be found by `neuropipe merge-logs <work_dir>`.
+    generated project could not be found by `neuromaestro merge-logs <work_dir>`.
     """
 
     @staticmethod
     def _generate(tmp_path):
         import yaml
-        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
+        from neuromaestro.pipeline.utils.generate_project_config import generate_project_config
         generate_project_config("proj", str(tmp_path))
         return yaml.safe_load((tmp_path / "proj_config.yaml").read_text(encoding="utf-8"))
 
@@ -470,12 +470,12 @@ class TestGeneratorsDoNotOverwrite:
 
     @staticmethod
     def _gen_config(tmp_path, **kw):
-        from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
+        from neuromaestro.pipeline.utils.generate_project_config import generate_project_config
         return generate_project_config("proj", str(tmp_path), **kw)
 
     @staticmethod
     def _gen_checks(tmp_path, **kw):
-        from neuro_pipeline.pipeline.utils.generate_results_check import generate_results_check
+        from neuromaestro.pipeline.utils.generate_results_check import generate_results_check
         return generate_results_check("proj", str(tmp_path), **kw)
 
     def test_project_config_refuses_to_overwrite(self, tmp_path):
@@ -510,7 +510,7 @@ class TestGeneratorsDoNotOverwrite:
     def test_cli_generate_config_exits_1_on_existing(self, tmp_path):
         runner, app = _runner()
         self._gen_config(tmp_path)
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+        with patch("neuromaestro.pipeline.core.set_config_dir"):
             result = runner.invoke(app, [
                 "generate-config", "proj",
                 "--output-dir", str(tmp_path),
@@ -521,7 +521,7 @@ class TestGeneratorsDoNotOverwrite:
     def test_cli_generate_config_force_succeeds(self, tmp_path):
         runner, app = _runner()
         self._gen_config(tmp_path)
-        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+        with patch("neuromaestro.pipeline.core.set_config_dir"):
             result = runner.invoke(app, [
                 "generate-config", "proj",
                 "--output-dir", str(tmp_path),

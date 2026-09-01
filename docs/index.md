@@ -1,8 +1,8 @@
 ---
-title: Neuroimage Pipeline
+title: NeuroMaestro
 ---
 
-# Neuroimaging Pipeline
+# NeuroMaestro
 
 A lightweight **meta-pipeline** — a pipeline that manages other pipelines. Rather than reimplementing any analysis, it sits above your existing tools and scripts and handles the orchestration layer: dependency ordering, job submission, subject-level parallelism, output verification, logging, and summary HTML reports.
 
@@ -67,7 +67,7 @@ The goal is that an undergraduate with no HPC or fMRI processing experience can 
 This pipeline coordinates job submission and logging — it does not bundle any analysis software. Two things need to be in place on your HPC cluster before you run:
 
 - **Analysis software or singularity** — either as environment modules (`module load fmriprep/23.2`) or Singularity/Apptainer containers. The default scripts reference specific module names and container paths; you update these in the project config YAML.
-- **A project config** — a YAML file that tells the pipeline where your data lives, which tasks to run, and which HPC resource profiles to use. The config generator (`neuropipe generate-config`) produces a commented template to start from.
+- **A project config** — a YAML file that tells the pipeline where your data lives, which tasks to run, and which HPC resource profiles to use. The config generator (`neuromaestro generate-config`) produces a commented template to start from.
 
 
 :::{note}

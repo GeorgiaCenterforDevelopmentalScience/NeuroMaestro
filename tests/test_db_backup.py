@@ -12,7 +12,7 @@ import pytest
 from pathlib import Path
 from typer.testing import CliRunner
 
-from neuro_pipeline.pipeline.utils.db_backup import app, cleanup_old_backups
+from neuromaestro.pipeline.utils.db_backup import app, cleanup_old_backups
 
 runner = CliRunner()
 

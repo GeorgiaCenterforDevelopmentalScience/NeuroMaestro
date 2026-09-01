@@ -77,13 +77,13 @@ Any task defined under the `intermed:` section of `config.yaml` can be requested
      bfc:
        environ: ["afni_24.3.06"]
    ```
-4. Run: `neuropipe run ... --intermed volume,bfc`
+4. Run: `neuromaestro run ... --intermed volume,bfc`
 
 ## Usage
 
 ```bash
 # Single intermed task
-neuropipe run \
+neuromaestro run \
   --subjects 001,002 \
   --input /data/BIDS \
   --output /data/processed \
@@ -93,10 +93,10 @@ neuropipe run \
   --intermed volume
 
 # Multiple intermed tasks (run in parallel)
-neuropipe run ... --intermed volume,bfc
+neuromaestro run ... --intermed volume,bfc
 
 # Combined with staged pipelines
-neuropipe run ... --intermed volume,bfc --staged-prep cards,kidvid
+neuromaestro run ... --intermed volume,bfc --staged-prep cards,kidvid
 ```
 
 :::{note}

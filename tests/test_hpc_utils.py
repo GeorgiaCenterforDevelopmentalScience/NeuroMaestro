@@ -23,9 +23,9 @@ from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 # hpc_config = scheduler + resource profiles (hpc_config.yaml)
 # hpc_utils reads the pipeline config through config_utils, so that is
 # the single place to patch.
-PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
-HPC_CONFIG_PATH      = "neuro_pipeline.pipeline.utils.hpc_utils.hpc_config"
-CONFIG_UTILS_PATH    = "neuro_pipeline.pipeline.utils.config_utils.config"
+PIPELINE_CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
+HPC_CONFIG_PATH      = "neuromaestro.pipeline.utils.hpc_utils.hpc_config"
+CONFIG_UTILS_PATH    = "neuromaestro.pipeline.utils.config_utils.config"
 
 
 # ===========================================================================
@@ -36,7 +36,7 @@ class TestGetHPCResources:
 
     def _get(self, task_config):
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_resources
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
             return get_hpc_resources(task_config)
 
     def test_standard_profile_values(self):
@@ -67,7 +67,7 @@ class TestGetHPCResources:
 
     def test_unknown_profile_raises_value_error(self):
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_resources
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
             with pytest.raises(ValueError, match="Profile 'ghost_profile' not found"):
                 get_hpc_resources({"profile": "ghost_profile"})
 
@@ -86,7 +86,7 @@ class TestGetEnvironmentCommands:
 
     def _get_env(self, task_config, project_config=None):
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_environment_commands
+            from neuromaestro.pipeline.utils.hpc_utils import get_environment_commands
             return get_environment_commands(task_config, project_config)
 
     def test_environ_as_list_returns_correct_commands(self):
@@ -135,19 +135,19 @@ class TestGetScriptWithValidation:
     # it does not use __file__, so pass the real scripts_dir fixture directly.
 
     def test_returns_path_when_script_exists(self, scripts_dir):
-        from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
+        from neuromaestro.pipeline.utils.hpc_utils import get_script_with_validation
         result = get_script_with_validation("afni_cards_preprocessing.sh", str(scripts_dir))
         assert result is not None
         assert result.name == "afni_cards_preprocessing.sh"
         assert result.exists()
 
     def test_returns_none_when_script_missing(self, scripts_dir):
-        from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
+        from neuromaestro.pipeline.utils.hpc_utils import get_script_with_validation
         result = get_script_with_validation("nonexistent_script.sh", str(scripts_dir))
         assert result is None
 
     def test_returns_none_when_scripts_dir_missing(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
+        from neuromaestro.pipeline.utils.hpc_utils import get_script_with_validation
         result = get_script_with_validation("any.sh", str(tmp_path / "does_not_exist"))
         assert result is None
 
@@ -197,8 +197,8 @@ class TestCreateWrapperScript:
         fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
 
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
-            from neuro_pipeline.pipeline.utils.hpc_utils import create_wrapper_script
+             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+            from neuromaestro.pipeline.utils.hpc_utils import create_wrapper_script
 
             wrapper_path, _ = create_wrapper_script(
                 script_path=fake_script,
@@ -383,8 +383,8 @@ class TestSubmitSlurmJobDryRun:
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
-            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+            from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
 
             job_id = submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",
@@ -418,10 +418,10 @@ class TestSubmitSlurmJobDryRun:
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}), \
+             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}), \
              patch("subprocess.run") as mock_run:
 
-            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+            from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
 
             submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",
@@ -447,8 +447,8 @@ class TestSubmitSlurmJobDryRun:
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
-            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+            from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
 
             with pytest.raises(FileNotFoundError, match="ghost_script.sh"):
                 submit_slurm_job(
@@ -483,8 +483,8 @@ class TestSubmitSlurmJobDryRun:
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
-            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+            from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
 
             submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",
@@ -510,7 +510,7 @@ class TestSubmitSlurmJobDryRun:
 class TestSLURMBackendSubmitJob:
 
     def _backend(self):
-        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        from neuromaestro.pipeline.utils.hpc_utils import SLURMBackend
         return SLURMBackend(MOCK_HPC_CONFIG["slurm"])
 
     def test_successful_submission_returns_job_id(self, tmp_path):
@@ -533,7 +533,7 @@ class TestSLURMBackendSubmitJob:
         assert job_id is None
 
     def test_first_word_parse_strategy(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        from neuromaestro.pipeline.utils.hpc_utils import SLURMBackend
         cfg = {**MOCK_HPC_CONFIG["slurm"], "job_id_parse": "first_word"}
         backend = SLURMBackend(cfg)
         fake_script = tmp_path / "wrapper.sh"
@@ -544,7 +544,7 @@ class TestSLURMBackendSubmitJob:
         assert job_id == "99999"
 
     def test_raw_parse_strategy_keeps_the_whole_line(self, tmp_path):
-        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        from neuromaestro.pipeline.utils.hpc_utils import SLURMBackend
         cfg = {**MOCK_HPC_CONFIG["slurm"], "job_id_parse": "whole_output"}
         backend = SLURMBackend(cfg)
         fake_script = tmp_path / "wrapper.sh"
@@ -586,7 +586,7 @@ class TestSLURMBackendSubmitJob:
 class TestSLURMBackendWaitForJobs:
 
     def _backend(self):
-        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        from neuromaestro.pipeline.utils.hpc_utils import SLURMBackend
         return SLURMBackend(MOCK_HPC_CONFIG["slurm"])
 
     # Every test here must bound the poll loop: a missing `break` in the
@@ -678,14 +678,14 @@ class TestGetHPCBackendUnknown:
     def test_unknown_scheduler_raises_not_implemented(self):
         cfg = {**MOCK_HPC_CONFIG, "scheduler": "lsf", "lsf": {"submit_cmd": "bsub"}}
         with patch(HPC_CONFIG_PATH, cfg):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_backend
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_backend
             with pytest.raises(NotImplementedError, match="lsf"):
                 get_hpc_backend()
 
     def test_missing_scheduler_config_block_raises_value_error(self):
         cfg = {**MOCK_HPC_CONFIG, "scheduler": "lsf"}  # no "lsf" key
         with patch(HPC_CONFIG_PATH, cfg):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_backend
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_backend
             with pytest.raises(ValueError, match="lsf"):
                 get_hpc_backend()
 
@@ -713,8 +713,8 @@ class TestSubmitSlurmJobExtras:
         kwargs = {**self.BASE_KWARGS, "output_dir": str(tmp_path / "output"), **(extra_kwargs or {})}
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
-            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+            from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
             return submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",
                 work_dir=str(tmp_path / "work"),
@@ -784,10 +784,10 @@ class TestSubmitSlurmJobExtras:
                        "scripts": ["afni_cards_preprocessing.sh"]}
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}), \
-             patch("neuro_pipeline.pipeline.utils.hpc_utils.SLURMBackend.submit_job",
+             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}), \
+             patch("neuromaestro.pipeline.utils.hpc_utils.SLURMBackend.submit_job",
                    return_value="99999") as mock_submit:
-            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+            from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
             job_id = submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",
                 subjects="001",
@@ -821,7 +821,7 @@ class TestShellQuoting:
 
     @staticmethod
     def _export(name, value):
-        from neuro_pipeline.pipeline.utils.hpc_utils import _export_line
+        from neuromaestro.pipeline.utils.hpc_utils import _export_line
         return _export_line(name, value)
 
     def test_plain_value_is_single_quoted(self):
@@ -864,7 +864,7 @@ class TestReservedEnvNames:
     """
 
     def _build(self, tmp_path, scripts_dir, task_config):
-        from neuro_pipeline.pipeline.utils.hpc_utils import create_wrapper_script
+        from neuromaestro.pipeline.utils.hpc_utils import create_wrapper_script
         return create_wrapper_script(
             script_path=scripts_dir / "afni_cards_preprocessing.sh",
             subjects_list=["001"],
@@ -917,7 +917,7 @@ class TestArrayLimitComesFromTheProfile:
     @staticmethod
     def _array_for(profile):
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
-            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_resources
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
             return get_hpc_resources({"profile": profile, "array": True}).array
 
     def test_limit_read_from_profile(self):
@@ -930,7 +930,7 @@ class TestArrayLimitComesFromTheProfile:
         assert self._array_for("light_short") == "1-{num}"
 
     def test_no_stale_module_level_cache(self):
-        import neuro_pipeline.pipeline.utils.hpc_utils as mod
+        import neuromaestro.pipeline.utils.hpc_utils as mod
         assert not hasattr(mod, "config"), "hpc_utils must not keep its own config copy"
 
 
@@ -957,7 +957,7 @@ class TestSwitchingConfigDirReloadsHpcConfig:
         return root
 
     def test_switching_dir_picks_up_the_new_profiles(self, tmp_path):
-        from neuro_pipeline.pipeline.utils import config_utils, hpc_utils
+        from neuromaestro.pipeline.utils import config_utils, hpc_utils
 
         # these are module globals; leaking them breaks unrelated tests
         saved = (config_utils._config_dir, config_utils.config, hpc_utils.hpc_config)
