@@ -48,7 +48,7 @@ neuromaestro-gui --help
 
 ## Configuration
 
-Each project requires a `{project}_config.yaml` in `src/neuromaestro/config/project_config/`. Copy `template_config.yaml` as a starting point, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
+Each project requires a `{project}_config.yaml` in the `project_config/` folder of your config directory, the one `--config-dir` points at. Run `neuromaestro generate-config {project}` to create one from the template, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
 
 Modalities available under `--bids-prep` and `--staged-prep` are declared in `config.yaml`.
 
@@ -136,7 +136,7 @@ Dependencies are enforced automatically by the scheduler.
 | Option | Description |
 |--------|-------------|
 | `--prep` | Data preparation: `unzip`, `recon`, `unzip_recon` |
-| `--intermed <tasks>` | Intermed tasks to run (comma-separated, e.g. `volume`); required before `--staged-prep` |
+| `--intermed <tasks>` | Intermed tasks to run (comma-separated, e.g. `volume`). Staged prep tasks depend on these when given. Omit it only when the intermed outputs already exist from an earlier run. |
 | `--bids-prep <modalities>` | BIDS pipeline preprocessing (comma-separated, e.g. `rest,dwi`) |
 | `--bids-post <modalities>` | BIDS pipeline postprocessing (comma-separated, e.g. `rest,dwi`) |
 | `--staged-prep <modalities>` | Staged pipeline preprocessing (comma-separated, e.g. `cards,kidvid`) |
@@ -150,6 +150,9 @@ Dependencies are enforced automatically by the scheduler.
 | `--dry-run` | Preview the execution plan without submitting jobs |
 | `--resume` | Skip subjects whose expected outputs already exist |
 | `--skip-bids-validation` | Skip pre-run BIDS validation |
+| `--skip-preflight` | Skip pre-flight config and filesystem checks |
+| `--wait` | Wait for submitted jobs to finish before exiting |
+| `--polling-interval` | Seconds between job status checks when `--wait` is set. Default 60. |
 
 ---
 
@@ -211,5 +214,4 @@ work_directory/
 
 ---
 
-**Version**: 0.15.0-alpha | **Updated**: July 2026  
 For questions or issues, contact [QiuyuYu](https://github.com/QiuyuYu3) or open a repository issue.
