@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/neuromaestro.jpg" alt="NeuroMaestro" width="240">
+  <img src="https://raw.githubusercontent.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro/main/docs/images/neuromaestro.jpg" alt="NeuroMaestro" width="240">
 </p>
 
 # NeuroMaestro

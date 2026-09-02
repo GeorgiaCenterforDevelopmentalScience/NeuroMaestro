@@ -4,11 +4,38 @@ version = "1.0.0"
 description = "A meta-pipeline for automated multi-modal neuroimaging processing on HPC clusters"
 readme = "readme.md"
 requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" },
 ]
 maintainers = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" }
+]
+keywords = [
+  "NeuroMaestro",
+  "neuroimaging",
+  "fMRI",
+  "BIDS",
+  "HPC",
+  "Slurm",
+  "pipeline",
+  "fMRIPrep",
+  "MRIQC",
+  "QSIPrep",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+  "Topic :: Scientific/Engineering :: Image Recognition",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
   "typer>=0.12",
@@ -30,6 +57,13 @@ dev = [
   "pytest",
   "pytest-cov",
 ]
+
+[project.urls]
+Homepage = "https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro"
+Documentation = "https://georgiacenterfordevelopmentalscience.github.io/NeuroMaestro/"
+Repository = "https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro"
+Issues = "https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro/issues"
+Changelog = "https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro/blob/main/CHANGELOG.md"
 
 
 [tool.pytest.ini_options]
@@ -53,7 +87,7 @@ exclude_lines = [
 ]
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -61,7 +95,14 @@ where = ["src"]
 include = ["neuromaestro*"]
 
 [tool.setuptools.package-data]
-"neuromaestro" = ["config/**/*.yaml", "scripts/**/*.sh"]
+"neuromaestro" = [
+  "config/**/*.yaml",
+  "scripts/**/*.sh",
+  # sourced by the generated bash wrapper via SCRIPT_DIR
+  "pipeline/utils/*.sh",
+  # Dash discovers this folder relative to interface/app.py
+  "interface/assets/*",
+]
 
 [project.scripts]
 neuromaestro = "neuromaestro.pipeline.core:app"
