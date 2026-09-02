@@ -1,6 +1,6 @@
 [project]
 name = "neuromaestro"
-version = "0.18.0-alpha"
+version = "1.0.0"
 description = "A meta-pipeline for automated multi-modal neuroimaging processing on HPC clusters"
 readme = "readme.md"
 requires-python = ">=3.10"

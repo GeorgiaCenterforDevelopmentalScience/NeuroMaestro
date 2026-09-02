@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/neuromaestro.jpg" alt="NeuroMaestro" width="240">
+</p>
+
 # NeuroMaestro
 
 A modular neuroimaging preprocessing pipeline for HPC clusters, with both a GUI and CLI. Pipeline parameters and analysis workflows are configured through YAML files, allowing flexible customization without modifying the underlying code.

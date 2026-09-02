@@ -1,7 +1,9 @@
 # Dev Log - [NeuroMaestro]
 
 ---
-## [Unreleased]
+## [1.0.0] – 2026-09-01
+
+First stable release. The public API, the CLI, and the YAML configuration schema are stable from this point on. Breaking changes to any of them raise the major version.
 
 ### Changed
 - **Renamed the project to NeuroMaestro.** The distribution is now `neuromaestro` (was `neuroimage-pipe`), the import package is `neuromaestro` (was `neuro_pipeline`), and the console entry points are `neuromaestro` and `neuromaestro-gui` (were `neuropipe` and `neuropipe-gui`).
