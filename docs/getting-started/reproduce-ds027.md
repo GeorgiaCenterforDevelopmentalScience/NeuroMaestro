@@ -21,7 +21,7 @@ The pipeline ships a matched config bundle for it (`ds027`), so you can run the 
 | Participants | 30 (`sub-0001` to `sub-0030`) |
 | Tasks | 13 |
 | Jobs | 274 (270 per-subject array elements plus 4 group-level jobs) |
-| Session label | `01` |
+| Session label | `01` (nominal; AOMIC-PIOP2 has no session level) |
 
 AOMIC ships as BIDS already, so the run starts at `--intermed volume`. The `unzip` and `recon` prep tasks are not exercised here. For those, see [Prep Pipeline](../pipeline-reference/prep.md).
 
@@ -40,20 +40,23 @@ The 13 tasks are:
 
 ## Step 1: Download the data
 
-The reference run used the first 30 participants by identifier. Metadata first, then the subject directories:
+The reference run used the first 30 participants by identifier, `sub-0001` to `sub-0030`. Download them into `{output}/{project}/BIDS`, which is where the pipeline expects raw BIDS data to sit and where the `recon` rule in `ds027_checks.yaml` resolves its `output_path`. Metadata first, then the subject directories:
 
 ```bash
+BIDS_DIR=/path/to/ds027_out/ds027/BIDS
+mkdir -p "$BIDS_DIR"
+
 aws s3 sync --no-sign-request --region eu-west-1 \
-  s3://openneuro.org/ds002790 ./ds002790 \
+  s3://openneuro.org/ds002790 "$BIDS_DIR" \
   --exclude "*" --include "*.tsv" --include "*.json" --exclude "derivatives/*"
 
-for s in $(tail -n +2 ds002790/participants.tsv | cut -f1 | head -30); do
+for s in $(tail -n +2 "$BIDS_DIR/participants.tsv" | cut -f1 | head -30); do
   aws s3 sync --no-sign-request --region eu-west-1 \
-    s3://openneuro.org/ds002790/$s ./ds002790/$s
+    s3://openneuro.org/ds002790/$s "$BIDS_DIR/$s"
 done
 ```
 
-The resulting `ds002790/` directory is what you pass as `--input`.
+`$BIDS_DIR` is what you pass as `--input`, and `/path/to/ds027_out` is what you pass as `--output`. Putting the data elsewhere still runs, but the `recon` check in Step 8 then finds nothing and reports every participant as missing raw data.
 
 ---
 
@@ -132,7 +135,7 @@ This conversion step is dataset-specific and lives with the AOMIC materials rath
 ## Step 5: Build the subject list
 
 ```bash
-neuromaestro detect-subjects /path/to/ds002790 --prefix "sub-" --output subjects.txt
+neuromaestro detect-subjects /path/to/ds027_out/ds027/BIDS --prefix "sub-" --output subjects.txt
 ```
 
 This writes bare IDs (`0001`, `0002`, ...). The reference run used the first 30.
@@ -144,7 +147,7 @@ This writes bare IDs (`0001`, `0002`, ...). The reference run used the first 30.
 ```bash
 neuromaestro run \
   --subjects subjects.txt \
-  --input /path/to/ds002790 \
+  --input /path/to/ds027_out/ds027/BIDS \
   --output /path/to/ds027_out \
   --work /path/to/ds027_work \
   --config-dir /path/to/ds027_study/config \
@@ -168,7 +171,7 @@ Drop `--dry-run` and the same command submits the run:
 ```bash
 neuromaestro run \
   --subjects subjects.txt \
-  --input /path/to/ds002790 \
+  --input /path/to/ds027_out/ds027/BIDS \
   --output /path/to/ds027_out \
   --work /path/to/ds027_work \
   --config-dir /path/to/ds027_study/config \
@@ -192,7 +195,7 @@ Nine tasks are submitted as 30-element array jobs. The three staged postprocess 
 neuromaestro merge-logs /path/to/ds027_work
 ```
 
-**Check the outputs.** Here `--work` is the output data root, meaning your `--output` value **with** the project name appended. It is the directory that directly contains `AFNI_derivatives/`, `BIDS_derivatives/`, and `quality_control/`:
+**Check the outputs.** Here `--work` is the output data root, meaning your `--output` value **with** the project name appended. It is the directory that directly contains `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, and `quality_control/`:
 
 ```bash
 neuromaestro check-outputs \
@@ -226,7 +229,7 @@ These are the numbers from the original run. They depend on tool versions and cl
 
 **Job outcomes:** 261 SUCCESS, 13 FAILED, 0 CANCELLED.
 
-**Output checks:** 22 of 30 participants passed every per-subject check. The eight that did not:
+**Output checks:** 21 of 30 participants passed every per-subject check. The nine that did not:
 
 | Participants | Cause |
 |--------------|-------|
@@ -235,6 +238,7 @@ These are the numbers from the original run. They depend on tool versions and cl
 | `0007`, `0008`, `0014`, `0015` | fMRIPrep failure |
 | `0005` | MRIQC failure |
 | `0002` | Silent failure, see below |
+| `0004` | False positive, see below |
 
 Two results are worth understanding before you read your own report:
 
