@@ -237,3 +237,54 @@ class TestDAGExecutorResume:
             )
 
         mock_checker.get_pending_subjects.assert_not_called()
+
+
+class TestResumeChecksTheOutputTree:
+    """The checks YAML resolves {work_dir} against the tree output_pattern writes
+    to, which is output_dir. Building the checker from work_dir made every glob
+    miss whenever the two differ, and resume then silently re-ran everything.
+    """
+
+    def _execute_with(self, **overrides):
+        executor = make_executor()
+        mock_checker = MagicMock()
+        mock_checker.get_pending_subjects.side_effect = lambda task, subjects: subjects
+        mock_checker.is_group.return_value = False
+        mock_checker.warn_missing_configs.return_value = []
+
+        kwargs = dict(
+            requested_tasks=["rest_preprocess"],
+            input_dir="/input",
+            output_dir="/output",
+            work_dir="/work",
+            container_dir="/containers",
+            dry_run=False,
+            context={"subjects": ["001"]},
+            option_env={"session": "01"},
+            project_config=MOCK_PROJECT_CONFIG,
+            resume=True,
+            checks_config_path="fake_checks.yaml",
+        )
+        kwargs.update(overrides)
+
+        with patch(CONFIG_PATH, MOCK_CONFIG), \
+             patch.object(executor, "_execute_single_task",
+                          MagicMock(side_effect=lambda node, **kw: [f"job_{node.name}"])), \
+             patch("neuromaestro.pipeline.dag.OutputChecker",
+                   return_value=mock_checker) as mock_cls:
+            executor.execute(**kwargs)
+
+        return mock_cls
+
+    def test_checker_is_built_from_output_dir(self):
+        mock_cls = self._execute_with()
+        assert mock_cls.call_args.kwargs["work_dir"] == "/output"
+
+    def test_checker_does_not_use_the_work_dir(self):
+        """The two are different roots in every documented invocation."""
+        mock_cls = self._execute_with()
+        assert mock_cls.call_args.kwargs["work_dir"] != "/work"
+
+    def test_output_dir_is_followed_when_it_changes(self):
+        mock_cls = self._execute_with(output_dir="/elsewhere/derivatives")
+        assert mock_cls.call_args.kwargs["work_dir"] == "/elsewhere/derivatives"

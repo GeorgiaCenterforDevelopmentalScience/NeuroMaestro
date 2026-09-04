@@ -20,6 +20,16 @@ RESERVED_ENV_NAMES = {
     "PATH", "HOME", "SHELL", "PWD", "OLDPWD", "IFS",
 }
 
+# The wrapper exports these before GLOBAL_ENV_VARS/TASK_PARAMS, so a config key that
+# upper-cases to one of them wins silently. CONTAINER_DIR is excluded: envir_dir is
+# where it legitimately comes from, and it is re-exported with the same value.
+WRAPPER_ENV_NAMES = {
+    "SUBJECTS", "SUBJECT_ID", "SUBJECTS_ARRAY", "NUM_SUBJECTS",
+    "INPUT_DIR", "OUTPUT_DIR", "WORK_DIR",
+    "LOG_DIR", "SUB_LOG_DIR", "LOG_PATH",
+    "DB_PATH", "TASK_NAME", "SCRIPT_DIR", "EXECUTION_ID", "ENV_FILE",
+}
+
 
 def _shell_quote(value) -> str:
     """Single-quote a value for bash, escaping any embedded single quotes.
@@ -480,7 +490,6 @@ def submit_slurm_job(
 
     # Create directories
     Path(work_dir).mkdir(parents=True, exist_ok=True)
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Setup database path
     if not db_path:
@@ -492,7 +501,10 @@ def submit_slurm_job(
         actual_output_dir = output_pattern.format(base_output=output_dir)
     else:
         actual_output_dir = output_dir
-    
+
+    # The pattern subdirectory, not base_output: that is where the job actually writes.
+    Path(actual_output_dir).mkdir(parents=True, exist_ok=True)
+
     # os.path.isfile, not Path.is_file: subjects is usually a comma-joined list,
     # and past ~64 IDs it exceeds NAME_MAX, where Path.stat() propagates
     # ENAMETOOLONG on Python < 3.13. os.path.isfile returns False instead.
@@ -635,7 +647,7 @@ def create_wrapper_script(
         global_env_lines = []
         for k, v in global_env_vars.items():
             name = k.upper()
-            if name in RESERVED_ENV_NAMES:
+            if name in RESERVED_ENV_NAMES | WRAPPER_ENV_NAMES:
                 raise ValueError(
                     f"Config key '{k}' maps to the reserved shell variable ${name}. "
                     "Rename it, or the job environment will be corrupted."
@@ -652,7 +664,7 @@ def create_wrapper_script(
             if key in excluded_keys:
                 continue
             name = key.upper()
-            if name in RESERVED_ENV_NAMES:
+            if name in RESERVED_ENV_NAMES | WRAPPER_ENV_NAMES:
                 raise ValueError(
                     f"Task parameter '{key}' maps to the reserved shell variable ${name}. "
                     "Rename it, or the job environment will be corrupted."

@@ -136,6 +136,12 @@ def run(
             staged_post=staged_post,
         )
                 
+        # Resolve once here: the wrapper re-reads these on a compute node whose
+        # working directory need not match the submit host's.
+        input_dir = os.path.abspath(input_dir)
+        output_dir = os.path.abspath(output_dir)
+        work_dir = os.path.abspath(work_dir)
+
         # Validate input
         if not Path(input_dir).exists():
             typer.echo(f"Error: Input directory not found: {input_dir}", err=True)

@@ -166,8 +166,10 @@ class DAGExecutor:
             prefix = (project_config or {}).get('prefix', 'sub-')
             session = (option_env or {}).get('session', '01')
             checker = OutputChecker(
+                # Checks resolve against the output tree: output_pattern writes the
+                # task subdirectories under output_dir, not under work_dir.
                 config_path=checks_config_path,
-                work_dir=work_dir,
+                work_dir=output_dir,
                 prefix=prefix,
                 session=session,
             )

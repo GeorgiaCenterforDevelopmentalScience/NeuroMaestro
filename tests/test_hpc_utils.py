@@ -777,6 +777,23 @@ class TestSubmitSlurmJobExtras:
         content = list(wrapper_dir.glob("*.sh"))[0].read_text()
         assert "AFNI_derivatives" in content
 
+    def test_output_pattern_directory_is_created(self, tmp_path, scripts_dir):
+        """The job writes to the pattern subdirectory, so that is the level that
+        has to exist. Its parents arrive via parents=True, so only this one is
+        worth asserting.
+        """
+        task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
+                       "scripts": ["afni_cards_preprocessing.sh"],
+                       "output_pattern": "{base_output}/AFNI_derivatives"}
+        self._invoke(tmp_path, scripts_dir, task_config, {"subjects": "001"})
+        assert (tmp_path / "output" / "AFNI_derivatives").is_dir()
+
+    def test_output_dir_is_created_when_no_pattern_is_configured(self, tmp_path, scripts_dir):
+        task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
+                       "scripts": ["afni_cards_preprocessing.sh"]}
+        self._invoke(tmp_path, scripts_dir, task_config, {"subjects": "001"})
+        assert (tmp_path / "output").is_dir()
+
     def test_non_dry_run_calls_backend_submit(self, tmp_path, scripts_dir):
         fake_scripts_pkg = MagicMock()
         fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
@@ -863,7 +880,7 @@ class TestReservedEnvNames:
     leave the job unable to find any command.
     """
 
-    def _build(self, tmp_path, scripts_dir, task_config):
+    def _build(self, tmp_path, scripts_dir, task_config, project_config=None):
         from neuromaestro.pipeline.utils.hpc_utils import create_wrapper_script
         return create_wrapper_script(
             script_path=scripts_dir / "afni_cards_preprocessing.sh",
@@ -871,7 +888,7 @@ class TestReservedEnvNames:
             input_dir="/in", output_dir="/out", work_dir=str(tmp_path / "work"),
             container_dir="/containers",
             task_config=task_config,
-            project_config=MOCK_PROJECT_CONFIG,
+            project_config=project_config or MOCK_PROJECT_CONFIG,
         )
 
     def test_task_param_named_path_is_rejected(self, tmp_path, scripts_dir):
@@ -907,6 +924,54 @@ class TestReservedEnvNames:
                 tmp_path, scripts_dir,
                 {"name": "t", "profile": "standard", "template": "MNI152"})
         assert "export TEMPLATE='MNI152'" in sections["task_params"]
+
+    # ---- shadowing the wrapper's own path variables ------------------------
+    # create_env_file writes GLOBAL_ENV_VARS and TASK_PARAMS after the wrapper's
+    # own exports, so these would win silently and send the job's writes to a
+    # directory the pipeline never created.
+
+    def _envir_dir_with(self, **extra):
+        return {
+            **MOCK_PROJECT_CONFIG,
+            "envir_dir": {**MOCK_PROJECT_CONFIG["envir_dir"], **extra},
+        }
+
+    def test_envir_dir_key_shadowing_output_dir_is_rejected(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            with pytest.raises(ValueError, match=r"\$OUTPUT_DIR"):
+                self._build(tmp_path, scripts_dir,
+                            {"name": "t", "profile": "standard"},
+                            project_config=self._envir_dir_with(output_dir="/elsewhere"))
+
+    def test_envir_dir_key_shadowing_db_path_is_rejected(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            with pytest.raises(ValueError, match=r"\$DB_PATH"):
+                self._build(tmp_path, scripts_dir,
+                            {"name": "t", "profile": "standard"},
+                            project_config=self._envir_dir_with(db_path="/elsewhere/jobs.db"))
+
+    def test_task_param_shadowing_work_dir_is_rejected(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            with pytest.raises(ValueError, match=r"\$WORK_DIR"):
+                self._build(tmp_path, scripts_dir,
+                            {"name": "t", "profile": "standard", "work_dir": "/elsewhere"})
+
+    def test_container_dir_from_envir_dir_is_still_allowed(self, tmp_path, scripts_dir):
+        """CONTAINER_DIR's legitimate source is envir_dir, which re-exports the
+        same value the wrapper already holds. Adding it to the name list would
+        reject every real project config.
+        """
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            _wrapper, sections = self._build(
+                tmp_path, scripts_dir, {"name": "t", "profile": "standard"})
+        assert "export CONTAINER_DIR=" in sections["global_env_vars"]
+
+    def test_ordinary_envir_dir_keys_are_still_allowed(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            _wrapper, sections = self._build(
+                tmp_path, scripts_dir, {"name": "t", "profile": "standard"})
+        for var in ("ATLAS_DIR", "TEMPLATE_DIR", "FREESURFER_DIR", "STIMULUS_DIR"):
+            assert f"export {var}=" in sections["global_env_vars"], var
 
 
 class TestArrayLimitComesFromTheProfile:

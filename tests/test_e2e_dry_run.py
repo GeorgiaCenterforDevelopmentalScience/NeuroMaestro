@@ -286,3 +286,67 @@ class TestExecutionWasLogged:
         # both are stored comma-joined, not as JSON lists
         assert start["subjects"].split(",") == SUBJECTS
         assert start["requested_tasks"].split(",") == ["unzip", "recon"]
+
+
+# ---------------------------------------------------------------------------
+# Relative CLI paths
+# ---------------------------------------------------------------------------
+
+def test_relative_paths_are_absolute_by_the_time_they_reach_the_wrapper(tmp_path, monkeypatch):
+    """A relative --output resolves against the submit host's working directory,
+    which the compute node does not share. run() calls abspath before anything
+    else so the wrapper always carries a path both hosts agree on.
+
+    Separate from the module fixture: that one passes tmp_path absolutes, where
+    abspath is the identity and would prove nothing.
+    """
+    from neuromaestro.pipeline.utils import config_utils, hpc_utils
+    from neuromaestro.pipeline.utils.init_utils import init_project_templates
+    from neuromaestro.pipeline.core import app
+
+    config_dir = tmp_path / "study" / "config"
+    init_project_templates(config_dir)
+    scripts_dir = tmp_path / "study" / "scripts"
+
+    envir = tmp_path / "envir"
+    for name in ("containers", "conda_env", "templates", "atlas", "freesurfer",
+                 "bids_config", "stimulus"):
+        (envir / name).mkdir(parents=True)
+    (envir / "containers" / "dcm2bids_3.2.0.sif").write_text("mock container")
+    (envir / "bids_config" / "branch_config.json").write_text("{}")
+    _write_project_config(config_dir, scripts_dir, envir)
+
+    (tmp_path / "input" / "sub-001").mkdir(parents=True)
+
+    saved = (config_utils._config_dir, config_utils.config, hpc_utils.hpc_config)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("NEUROMAESTRO_CONFIG_DIR", str(config_dir))
+    try:
+        with patch("subprocess.run"):
+            result = CliRunner().invoke(app, [
+                "run",
+                "--subjects", "001",
+                "--input", "input",
+                "--output", "output",
+                "--work", "work",
+                "--project", PROJECT,
+                "--session", SESSION,
+                "--prep", _PREP,
+                "--dry-run",
+                "--skip-preflight",
+                "--skip-bids-validation",
+            ])
+        assert result.exit_code == 0, result.output
+
+        wrappers = list((tmp_path / "work" / PROJECT / "log" / "wrapper").glob("*_wrapper.sh"))
+        assert wrappers, "no wrapper was generated"
+
+        for wrapper in wrappers:
+            body = wrapper.read_text(encoding="utf-8")
+            for var in ("INPUT_DIR", "OUTPUT_DIR", "WORK_DIR", "DB_PATH"):
+                line = next(l for l in body.splitlines()
+                            if l.startswith(f"export {var}="))
+                value = line.split("=", 1)[1].strip().strip("'")
+                assert os.path.isabs(value), f"{wrapper.name}: {line}"
+    finally:
+        config_utils._config_dir, config_utils.config, hpc_utils.hpc_config = saved
