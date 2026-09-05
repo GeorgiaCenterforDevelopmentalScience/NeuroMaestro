@@ -33,6 +33,18 @@ def _resolve_config_dir(config_dir: Optional[str]) -> str:
     return resolved
 
 
+def _require_non_empty(value: str, param: typer.CallbackParam) -> str:
+    # Runs before abspath, which would otherwise turn "" into the current directory
+    # and submit a whole run against it.
+    if value is not None and not value.strip():
+        raise typer.BadParameter(
+            "path is empty. If you passed a shell variable, check that it is set "
+            "(variables assigned inside `bash script.sh` do not survive into your shell).",
+            param=param,
+        )
+    return value
+
+
 def _offer_export_env_var(config_path: str) -> None:
     export_line = f'export NEUROMAESTRO_CONFIG_DIR="{config_path}"'
     typer.echo(
@@ -87,9 +99,9 @@ def _parse_comma_list(values):
 def run(
     subjects: Optional[str] = typer.Option(..., help="Subject list or txt file path"),
 
-    input_dir: str = typer.Option(..., "--input", help="Input directory"),
-    output_dir: str = typer.Option(..., "--output", help="Output directory"),
-    work_dir: str = typer.Option(..., "--work", help="Work directory"),
+    input_dir: str = typer.Option(..., "--input", callback=_require_non_empty, help="Input directory"),
+    output_dir: str = typer.Option(..., "--output", callback=_require_non_empty, help="Output directory"),
+    work_dir: str = typer.Option(..., "--work", callback=_require_non_empty, help="Work directory"),
 
     config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory (contains config.yaml, hpc_config.yaml, project_config/). Defaults to $NEUROMAESTRO_CONFIG_DIR."),
 

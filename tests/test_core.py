@@ -203,6 +203,82 @@ class TestCliRunErrors:
         assert result.exit_code == 1
         assert "not found" in (result.output or "").lower()
 
+    # ---- blank path options ------------------------------------------------
+    # os.path.abspath("") returns the current directory, so a run launched with an
+    # unset shell variable used to target wherever the user happened to be standing.
+    # Exit code is 2, not 1: typer already returns 2 when the flag is omitted.
+
+    @pytest.mark.parametrize("blank_flag", ["--input", "--output", "--work"])
+    def test_blank_path_option_is_rejected(self, tmp_path, blank_flag):
+        from typer.testing import CliRunner
+        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
+            from neuromaestro.pipeline.core import app
+
+        paths = {
+            "--input": str(tmp_path),
+            "--output": str(tmp_path / "output"),
+            "--work": str(tmp_path / "work"),
+        }
+        paths[blank_flag] = ""
+
+        result = CliRunner().invoke(app, [
+            "run",
+            "--subjects", "001",
+            "--input", paths["--input"],
+            "--output", paths["--output"],
+            "--work", paths["--work"],
+            "--project", "test_proj",
+            "--session", "01",
+            "--config-dir", str(tmp_path),
+        ])
+        assert result.exit_code == 2, result.output
+        assert "empty" in (result.output or "").lower()
+        assert blank_flag in (result.output or "")
+
+    def test_whitespace_only_path_is_rejected(self, tmp_path):
+        from typer.testing import CliRunner
+        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
+            from neuromaestro.pipeline.core import app
+        result = CliRunner().invoke(app, [
+            "run",
+            "--subjects", "001",
+            "--input", "   ",
+            "--output", str(tmp_path / "output"),
+            "--work", str(tmp_path / "work"),
+            "--project", "test_proj",
+            "--session", "01",
+            "--config-dir", str(tmp_path),
+        ])
+        assert result.exit_code == 2, result.output
+
+    def test_blank_path_is_rejected_before_config_is_resolved(self, tmp_path, monkeypatch):
+        """The callback runs ahead of set_config_dir, so a blank path fails even
+        with no config dir available at all.
+        """
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
+        from typer.testing import CliRunner
+        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
+            from neuromaestro.pipeline.core import app
+        result = CliRunner().invoke(app, [
+            "run",
+            "--subjects", "001",
+            "--input", "",
+            "--output", str(tmp_path / "output"),
+            "--work", str(tmp_path / "work"),
+            "--project", "test_proj",
+            "--session", "01",
+        ])
+        assert result.exit_code == 2, result.output
+        # the config-dir check would have fired first and exited 1
+        assert "NEUROMAESTRO_CONFIG_DIR" not in (result.output or "")
+
+    def test_trailing_space_is_left_intact(self):
+        """Only all-blank values are refused. A path that merely ends in a space is
+        unusual but legal, so it must not be silently rewritten.
+        """
+        from neuromaestro.pipeline.core import _require_non_empty
+        assert _require_non_empty("/data/in ", MagicMock()) == "/data/in "
+
 
 def _runner():
     from typer.testing import CliRunner
