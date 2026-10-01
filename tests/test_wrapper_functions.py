@@ -5,6 +5,8 @@ Only the units that can run without a scheduler are covered:
   - execute_wrapper array-index guard (exits cleanly when the array range is
     wider than the subject list)
   - warn_if_failed (logging failures were masked by the tee pipeline)
+  - execute_script_with_logging (exit code and end status of the task script)
+  - create_env_file (Python isolation after module loads)
 """
 
 import subprocess
@@ -98,3 +100,48 @@ class TestWarnIfFailed:
         )
         for what in ("log job start", "log command output", "log job end"):
             assert f"WARNING: Failed to {what} (exit 3)" in result.stdout
+
+
+class TestScriptExecution:
+
+    def _run(self, tmp_path, exit_code):
+        script = tmp_path / "task.sh"
+        script.write_text(f"exit {exit_code}\n")
+        calls = tmp_path / "calls.txt"
+        result = run_bash(
+            # record each job_db.py call instead of running it
+            f'python3() {{ printf "%s\\n" "$*" >> "{calls.as_posix()}"; }}\n'
+            f'LOG_PATH="{(tmp_path / "job.log").as_posix()}"\n'
+            f'execute_script_with_logging "{script.as_posix()}" 001 recon\n'
+            'echo "rc=$?"'
+        )
+        log_end = [c for c in calls.read_text().splitlines() if " log_end " in c]
+        assert len(log_end) == 1, log_end
+        return result, log_end[0]
+
+    def test_script_exit_code_is_returned(self, tmp_path):
+        result, _ = self._run(tmp_path, 7)
+        assert "rc=7" in result.stdout
+
+    def test_success_is_logged_as_success(self, tmp_path):
+        _, log_end = self._run(tmp_path, 0)
+        assert " log_end 001 recon SUCCESS --exit-code 0 " in log_end
+
+    def test_failure_is_logged_as_failed(self, tmp_path):
+        _, log_end = self._run(tmp_path, 7)
+        assert (" log_end 001 recon FAILED --error-msg Script failed with exit code 7"
+                " --exit-code 7 ") in log_end
+
+
+class TestEnvFile:
+
+    def test_python_isolation_is_reapplied_after_module_loads(self):
+        # a module load that sets PYTHONPATH must not leak into the task's Python
+        result = run_bash(
+            "ENV_COMMANDS='export PYTHONPATH=/opt/module/lib'\n"
+            "TASK_NAME=t SLURM_JOB_ID=1 subject=001\n"
+            "create_env_file\n"
+            'source "$ENV_FILE"; rm -f "$ENV_FILE"\n'
+            'echo "pythonpath=${PYTHONPATH-unset} nousersite=$PYTHONNOUSERSITE"'
+        )
+        assert "pythonpath=unset nousersite=1" in result.stdout

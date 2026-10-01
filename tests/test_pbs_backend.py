@@ -124,7 +124,7 @@ class TestPBSBackendSmoke:
             wait_jobs=["111", "222"],
             job_name="j", log_output="/o", log_error="/e",
         )
-        assert any("afterany" in a and "111" in a and "222" in a for a in args)
+        assert "-W depend=afterany:111:222" in args
 
     def test_mem_per_cpu_wins_over_mem_when_set(self):
         # mem_per_cpu has an empty template here, so neither flag may be emitted
@@ -156,7 +156,8 @@ class TestPBSSubmitJob:
     def test_successful_submission_parses_first_word(self, tmp_path):
         backend = make_backend()
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout="4242.pbsserver\n")
+            # a trailing token tells first_word apart from last_word and the raw line
+            mock_run.return_value = MagicMock(stdout="4242.pbsserver queued\n")
             job_id = backend.submit_job(["-q batch"], self._script(tmp_path))
         assert job_id == "4242.pbsserver"
 
@@ -167,6 +168,7 @@ class TestPBSSubmitJob:
             mock_run.return_value = MagicMock(stdout="1.pbs\n")
             backend.submit_job(["-q batch"], script)
         assert mock_run.call_args.args[0] == ["qsub", "-q batch", str(script)]
+        assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "check": True}
 
     def test_failed_submission_returns_none(self, tmp_path):
         backend = make_backend()
@@ -228,3 +230,4 @@ class TestPBSWaitForJobs:
         assert mock_run.call_count == 2
         assert mock_run.call_args_list[0].args[0] == ["qstat", "4242.pbs"]
         assert mock_run.call_args_list[1].args[0] == ["qstat", "4243.pbs"]
+        assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "check": True}

@@ -77,6 +77,18 @@ class TestGetHPCResources:
         assert resources.nodes == 1
         assert resources.ntasks == 1
 
+    def test_profile_value_overrides_the_default(self):
+        # the mock keeps defaults and profiles disjoint, so precedence needs its own profile
+        hpc = {**MOCK_HPC_CONFIG, "resource_profiles": {
+            **MOCK_HPC_CONFIG["resource_profiles"],
+            "bigmem": {"memory": "256gb", "time": "48:00:00", "partition": "highmem"},
+        }}
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, hpc):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
+            resources = get_hpc_resources({"profile": "bigmem"})
+        assert resources.partition == "highmem"
+        assert resources.cpus_per_task == 16
+
 
 # ===========================================================================
 # 2. get_environment_commands
@@ -187,7 +199,8 @@ class TestCreateWrapperScript:
         "--array=1-3%15",
     ]
 
-    def _create(self, tmp_path, scripts_dir, subjects=None, extra_task_config=None):
+    def _create(self, tmp_path, scripts_dir, subjects=None, extra_task_config=None,
+                return_sections=False):
         subjects = subjects or ["001", "002", "003"]
         task_cfg = {**self.TASK_CONFIG, **(extra_task_config or {})}
         fake_script = scripts_dir / "afni_cards_preprocessing.sh"
@@ -200,7 +213,7 @@ class TestCreateWrapperScript:
              patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
             from neuromaestro.pipeline.utils.hpc_utils import create_wrapper_script
 
-            wrapper_path, _ = create_wrapper_script(
+            wrapper_path, sections = create_wrapper_script(
                 script_path=fake_script,
                 subjects_list=subjects,
                 input_dir="/data/input",
@@ -214,7 +227,7 @@ class TestCreateWrapperScript:
                 option_env={"session": "01", "prefix": "sub-", "project": "TEST"},
                 slurm_args=self.SLURM_ARGS,
             )
-        return wrapper_path
+        return (wrapper_path, sections) if return_sections else wrapper_path
 
     # ---- basic structure ---------------------------------------------------
 
@@ -336,7 +349,33 @@ class TestCreateWrapperScript:
 
     def test_execute_wrapper_called(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert "execute_wrapper" in content
+        script = (scripts_dir / "afni_cards_preprocessing.sh").resolve()
+        assert content.splitlines()[-1] == f'execute_wrapper "{script}"'
+
+    def test_script_dir_holds_the_sourced_functions(self, tmp_path, scripts_dir):
+        content = self._create(tmp_path, scripts_dir).read_text()
+        script_dir = Path(self._exported(content, "SCRIPT_DIR"))
+        assert (script_dir / "utils" / "wrapper_functions.sh").is_file()
+
+    # ---- the generated file is valid bash ----------------------------------
+    # fed through stdin: on Windows the file itself is written with CRLF
+
+    def test_wrapper_is_valid_bash(self, tmp_path, scripts_dir):
+        import subprocess
+        content = self._create(tmp_path, scripts_dir).read_text()
+        result = subprocess.run(["bash", "-n"], input=content, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+
+    def test_command_sections_reach_the_job_verbatim(self, tmp_path, scripts_dir):
+        import subprocess
+        wrapper, sections = self._create(tmp_path, scripts_dir, return_sections=True)
+        # run every export but stop before the job itself is sourced
+        exports = wrapper.read_text().split("# Source wrapper template and execute")[0]
+        names = ("GLOBAL_PYTHON_COMMANDS", "ENV_COMMANDS", "GLOBAL_ENV_VARS", "TASK_PARAMS")
+        script = exports + "printf '%s\\n--\\n' " + " ".join(f'"${n}"' for n in names) + "\n"
+        out = subprocess.run(["bash"], input=script, capture_output=True, text=True).stdout
+        keys = ("global_python", "env_modules", "global_env_vars", "task_params")
+        assert out == "".join(f"{sections[k]}\n--\n" for k in keys)
 
     # ---- subject count in filename -----------------------------------------
 
@@ -550,9 +589,10 @@ class TestSLURMBackendSubmitJob:
         fake_script = tmp_path / "wrapper.sh"
         fake_script.write_text("#!/bin/bash\n")
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout="  12345  \n")
+            # several tokens, so the raw line differs from its first and last word
+            mock_run.return_value = MagicMock(stdout="  12345 on cluster  \n")
             job_id = backend.submit_job(["--partition=batch"], fake_script)
-        assert job_id == "12345"
+        assert job_id == "12345 on cluster"
 
     def test_submit_command_is_built_from_config(self, tmp_path):
         backend = self._backend()
@@ -563,6 +603,8 @@ class TestSLURMBackendSubmitJob:
             backend.submit_job(["--partition=batch", "--mem=32gb"], fake_script)
         cmd = mock_run.call_args.args[0]
         assert cmd == ["sbatch", "--partition=batch", "--mem=32gb", str(fake_script)]
+        # the mock returns str stdout regardless, so the decoding flags are pinned here
+        assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "check": True}
 
     def test_exit_zero_with_no_parsable_id_returns_none(self, tmp_path):
         """sbatch can exit 0 and print nothing usable (a warning-only run).
@@ -663,10 +705,11 @@ class TestSLURMBackendWaitForJobs:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="")
             backend.wait_for_jobs(["12345", "12346"], polling_interval=0)
-        cmd = mock_run.call_args.args[0]
-        assert cmd[0] == "squeue"
-        assert "12345,12346" in cmd
-        assert "--noheader" in cmd
+        # without --format squeue prints PARTITION second, which the parser reads as the state
+        assert mock_run.call_args.args[0] == [
+            "squeue", "--job", "12345,12346", "--noheader", "--format=%i %T",
+        ]
+        assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "check": True}
 
 
 # ===========================================================================
@@ -794,20 +837,16 @@ class TestSubmitSlurmJobExtras:
         self._invoke(tmp_path, scripts_dir, task_config, {"subjects": "001"})
         assert (tmp_path / "output").is_dir()
 
-    def test_non_dry_run_calls_backend_submit(self, tmp_path, scripts_dir):
-        fake_scripts_pkg = MagicMock()
-        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
-        task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
-                       "scripts": ["afni_cards_preprocessing.sh"]}
+    def _submit_for_real(self, tmp_path, scripts_dir, task_config, subjects, wait_jobs=None):
+        """Returns the argument list the backend was asked to submit."""
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}), \
              patch("neuromaestro.pipeline.utils.hpc_utils.SLURMBackend.submit_job",
                    return_value="99999") as mock_submit:
             from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
             job_id = submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",
-                subjects="001",
+                subjects=subjects,
                 work_dir=str(tmp_path / "work"),
                 task_config=task_config,
                 project_config=project_config,
@@ -816,13 +855,49 @@ class TestSubmitSlurmJobExtras:
                 input_dir="/data/input",
                 output_dir=str(tmp_path / "output"),
                 container_dir="/containers",
-                wait_jobs=None,
+                wait_jobs=wait_jobs,
                 option_env={"session": "01"},
                 requested_tasks=None,
                 original_work_dir=None,
             )
         assert job_id == "99999"
         mock_submit.assert_called_once()
+        args, wrapper = mock_submit.call_args.args
+        assert list((tmp_path / "work" / "log" / "wrapper").glob("*_wrapper.sh")) == [wrapper]
+        return args
+
+    def test_non_dry_run_calls_backend_submit(self, tmp_path, scripts_dir):
+        task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
+                       "scripts": ["afni_cards_preprocessing.sh"]}
+        args = self._submit_for_real(tmp_path, scripts_dir, task_config, subjects="001")
+        log = tmp_path / "work" / "log" / "cards_preprocess"
+        # what sbatch receives, not the copy echoed into the wrapper's comment
+        assert args == [
+            "--partition=batch", "--nodes=1", "--ntasks=1", "--cpus-per-task=16",
+            "--time=20:00:00", "--job-name=afni_cards_preprocessing",
+            f"--output={log}/cards_preprocess_%A.out",
+            f"--error={log}/cards_preprocess_%A.err",
+            "--mem=32gb",
+        ]
+
+    def test_array_job_submits_array_and_dependency_flags(self, tmp_path, scripts_dir):
+        task_config = {"name": "cards_preprocess", "profile": "standard", "array": True,
+                       "scripts": ["afni_cards_preprocessing.sh"]}
+        args = self._submit_for_real(tmp_path, scripts_dir, task_config,
+                                     subjects="001,002,003", wait_jobs=["111", "222"])
+        log = tmp_path / "work" / "log" / "cards_preprocess"
+        assert f"--output={log}/cards_preprocess_%A-%a.out" in args
+        assert f"--error={log}/cards_preprocess_%A-%a.err" in args
+        assert args[-2:] == ["--array=1-3%15", "--dependency=afterany:111:222"]
+
+    def test_resubmitting_into_existing_directories_works(self, tmp_path, scripts_dir):
+        # every --resume run submits into the directories the first run created
+        task_config = {"name": "cards_preprocess", "profile": "standard", "array": True,
+                       "scripts": ["afni_cards_preprocessing.sh"],
+                       "output_pattern": "{base_output}/AFNI_derivatives"}
+        for _ in range(2):
+            job_id = self._invoke(tmp_path, scripts_dir, task_config, {"subjects": "001,002"})
+            assert job_id == "dry_run_afni_cards_preprocessing"
 
 # ===========================================================================
 # 10. Shell quoting and reserved variable names

@@ -500,3 +500,74 @@ class TestSubmissionFailureAborts:
         submit = MagicMock(side_effect=lambda **kw: "12345")
         self._execute(submit)
         assert submit.call_count == 2
+
+
+# ===========================================================================
+# Dependency wiring at submission time
+# ===========================================================================
+
+class TestDependencyWiring:
+    """Each task must wait on exactly the job ids of its own dependencies."""
+
+    SUBMIT_PATH = "neuromaestro.pipeline.utils.hpc_utils.submit_slurm_job"
+
+    def _wait_jobs_by_task(self, tasks, scripts_dir):
+        executor = make_executor()
+        seen = {}
+
+        def submit(**kwargs):
+            name = kwargs["task_config"]["name"]
+            # dependencies are a set, so their job ids arrive in no fixed order
+            seen[name] = sorted(kwargs["wait_jobs"])
+            return f"job_{name}"
+
+        project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
+        with patch(CONFIG_PATH, MOCK_CONFIG), \
+             patch(self.SUBMIT_PATH, side_effect=submit):
+            executor.execute(
+                requested_tasks=tasks,
+                input_dir="/in", output_dir="/out", work_dir="/work",
+                container_dir="/c", dry_run=False,
+                context={"subjects": ["001"]},
+                option_env={"session": "01"},
+                project_config=project_config,
+            )
+        return seen
+
+    def test_each_task_waits_on_exactly_its_dependencies(self, scripts_dir):
+        seen = self._wait_jobs_by_task(
+            ["unzip", "recon", "volume", "cards_preprocess", "rest_preprocess", "rest_post"],
+            scripts_dir,
+        )
+        assert seen == {
+            "unzip": [],
+            "recon": ["job_unzip"],
+            "volume": ["job_recon"],
+            "cards_preprocess": ["job_volume"],
+            "rest_preprocess": ["job_recon"],
+            "rest_post": ["job_recon", "job_rest_preprocess"],
+        }
+
+
+class TestScriptsValidatedBeforeSubmission:
+    """A real run checks every task's scripts before it submits any job."""
+
+    SUBMIT_PATH = "neuromaestro.pipeline.utils.hpc_utils.submit_slurm_job"
+
+    def test_missing_script_aborts_before_anything_is_submitted(self, scripts_dir):
+        (scripts_dir / "fmriprep_rs.sh").unlink()
+        executor = make_executor()
+        # an absolute scripts_dir: the relative one in the mock is skipped when absent
+        project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
+        submit = MagicMock(return_value="12345")
+        with patch(CONFIG_PATH, MOCK_CONFIG), patch(self.SUBMIT_PATH, submit):
+            with pytest.raises(FileNotFoundError, match=r"\[rest_preprocess\] fmriprep_rs\.sh"):
+                executor.execute(
+                    requested_tasks=["recon", "rest_preprocess"],
+                    input_dir="/in", output_dir="/out", work_dir="/work",
+                    container_dir="/c", dry_run=False,
+                    context={"subjects": ["001"]},
+                    option_env={"session": "01"},
+                    project_config=project_config,
+                )
+        submit.assert_not_called()

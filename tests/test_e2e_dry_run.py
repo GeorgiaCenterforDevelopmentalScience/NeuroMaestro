@@ -228,7 +228,9 @@ class TestWrappersWereGenerated:
 
     def test_wrapper_points_at_the_real_script(self, dry_run):
         body = dry_run.wrappers["unzip_rename"]
-        assert str(dry_run.scripts_dir / "unzip_rename.sh") in body
+        # the last line, not the "# Original script:" comment that names the same path
+        script = (dry_run.scripts_dir / "unzip_rename.sh").resolve()
+        assert body.splitlines()[-1] == f'execute_wrapper "{script}"'
 
 
 class TestConfigReachesTheWrapper:
@@ -292,6 +294,23 @@ class TestExecutionWasLogged:
 # Relative CLI paths
 # ---------------------------------------------------------------------------
 
+def _lay_down_study(root: Path) -> Path:
+    """Returns the config dir of a study under root, with one subject in root/input."""
+    from neuromaestro.pipeline.utils.init_utils import init_project_templates
+
+    config_dir = root / "study" / "config"
+    init_project_templates(config_dir)
+    envir = root / "envir"
+    for name in ("containers", "conda_env", "templates", "atlas", "freesurfer",
+                 "bids_config", "stimulus"):
+        (envir / name).mkdir(parents=True)
+    (envir / "containers" / "dcm2bids_3.2.0.sif").write_text("mock container")
+    (envir / "bids_config" / "branch_config.json").write_text("{}")
+    _write_project_config(config_dir, root / "study" / "scripts", envir)
+    (root / "input" / "sub-001").mkdir(parents=True)
+    return config_dir
+
+
 def test_relative_paths_are_absolute_by_the_time_they_reach_the_wrapper(tmp_path, monkeypatch):
     """A relative --output resolves against the submit host's working directory,
     which the compute node does not share. run() calls abspath before anything
@@ -301,22 +320,9 @@ def test_relative_paths_are_absolute_by_the_time_they_reach_the_wrapper(tmp_path
     abspath is the identity and would prove nothing.
     """
     from neuromaestro.pipeline.utils import config_utils, hpc_utils
-    from neuromaestro.pipeline.utils.init_utils import init_project_templates
     from neuromaestro.pipeline.core import app
 
-    config_dir = tmp_path / "study" / "config"
-    init_project_templates(config_dir)
-    scripts_dir = tmp_path / "study" / "scripts"
-
-    envir = tmp_path / "envir"
-    for name in ("containers", "conda_env", "templates", "atlas", "freesurfer",
-                 "bids_config", "stimulus"):
-        (envir / name).mkdir(parents=True)
-    (envir / "containers" / "dcm2bids_3.2.0.sif").write_text("mock container")
-    (envir / "bids_config" / "branch_config.json").write_text("{}")
-    _write_project_config(config_dir, scripts_dir, envir)
-
-    (tmp_path / "input" / "sub-001").mkdir(parents=True)
+    config_dir = _lay_down_study(tmp_path)
 
     saved = (config_utils._config_dir, config_utils.config, hpc_utils.hpc_config)
     monkeypatch.chdir(tmp_path)
@@ -348,5 +354,39 @@ def test_relative_paths_are_absolute_by_the_time_they_reach_the_wrapper(tmp_path
                             if l.startswith(f"export {var}="))
                 value = line.split("=", 1)[1].strip().strip("'")
                 assert os.path.isabs(value), f"{wrapper.name}: {line}"
+    finally:
+        config_utils._config_dir, config_utils.config, hpc_utils.hpc_config = saved
+
+
+# ---------------------------------------------------------------------------
+# Re-running into existing directories
+# ---------------------------------------------------------------------------
+
+def test_a_second_run_into_the_same_directories_succeeds(tmp_path, monkeypatch):
+    """Every --resume run reuses the work, output and database directories of the first."""
+    from neuromaestro.pipeline.utils import config_utils, hpc_utils
+    from neuromaestro.pipeline.core import app
+
+    config_dir = _lay_down_study(tmp_path)
+    saved = (config_utils._config_dir, config_utils.config, hpc_utils.hpc_config)
+    monkeypatch.setenv("NEUROMAESTRO_CONFIG_DIR", str(config_dir))
+    args = [
+        "run",
+        "--subjects", "001",
+        "--input", str(tmp_path / "input"),
+        "--output", str(tmp_path / "output"),
+        "--work", str(tmp_path / "work"),
+        "--project", PROJECT,
+        "--session", SESSION,
+        "--prep", _PREP,
+        "--dry-run",
+        "--skip-preflight",
+        "--skip-bids-validation",
+    ]
+    try:
+        with patch("subprocess.run"):
+            for attempt in (1, 2):
+                result = CliRunner().invoke(app, args)
+                assert result.exit_code == 0, f"run {attempt}:\n{result.output}"
     finally:
         config_utils._config_dir, config_utils.config, hpc_utils.hpc_config = saved
