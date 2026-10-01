@@ -1,6 +1,20 @@
 # Dev Log - [NeuroMaestro]
 
 ---
+## [Unreleased]
+
+### Tests
+- `check-outputs` exit paths run against a real config directory. The three exit-1 tests patched `set_config_dir` away and stopped at "Config directory not set" before reaching the branch each one names.
+- Report status, history and check-result matrices are asserted cell by cell. The class names they looked for also occur in the embedded stylesheet, so a page with no cells passed. Group-task broadcast is now covered, and the check-result fixture uses the `check_type` values `output_checker` actually writes.
+- The `warn_if_failed` call sites are exercised through `execute_script_with_logging` with a failing logger, instead of a pipeline the test built itself. The empty-status test also requires a clean stderr.
+- The `count_check` tolerance test uses a count that differs from the expected one, so the tolerance decides the result.
+- `typer.Exit` expectations in the job database tests check the exit code, so `Exit(0)` no longer satisfies them.
+- The GUI run command is checked for `--config-dir`, the only route by which the subprocess receives the config directory.
+- Input redirection is tested on a full chain, where the upstream task is not the first requested one.
+- Resume of group tasks covers a mixed result and an empty result. The dry-run resume test asserts that every subject is still submitted.
+- Job monitor filters are tested for excluding non-matching rows, not only for producing SQL that runs.
+
+---
 ## [1.0.0] – 2026-09-01
 
 First stable release. The public API, the CLI, and the YAML configuration schema are stable from this point on. Breaking changes to any of them raise the major version.

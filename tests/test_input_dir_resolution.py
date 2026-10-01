@@ -111,6 +111,17 @@ class TestActualInputDirResolution:
         )
         assert f"export INPUT_DIR='{output_dir}/BIDS'" in content
 
+    def test_full_chain_uses_the_tasks_own_upstream(self, tmp_path, scripts_dir):
+        """unzip, recon and rest_preprocess all requested → rest reads recon's output, not unzip's"""
+        output_dir = str(tmp_path / "output")
+        content, _ = _run_submit(
+            tmp_path, scripts_dir,
+            task_config=self.REST_TASK,
+            requested_tasks=["unzip", "recon", "rest_preprocess"],
+            output_dir=output_dir,
+        )
+        assert f"export INPUT_DIR='{output_dir}/BIDS'" in content
+
     def test_input_kept_when_running_single_step(self, tmp_path, scripts_dir):
         """rest_preprocess alone (recon already done) → INPUT_DIR kept as-is"""
         input_dir = str(tmp_path / "bids")

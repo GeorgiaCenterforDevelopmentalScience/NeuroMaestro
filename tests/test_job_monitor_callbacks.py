@@ -611,6 +611,31 @@ class TestBuildQuery:
         sql, params = self._build("job_status", subject="zzz", paged=True)
         assert db.execute(sql, params).fetchall() == []
 
+    # each filter must drop the fixture row while keeping a second row that matches it
+    @pytest.mark.parametrize("filters, expected", [
+        ({"subject": "002"}, ["002"]),
+        ({"session": "02"}, ["002"]),
+        ({"task": "volume"}, ["002"]),
+        ({"status": "FAILED"}, ["002"]),
+        ({"execution_id": "2"}, ["002"]),
+        ({"start_date": "2026-07-29"}, ["002"]),
+        ({"end_date": "2026-07-28"}, ["001"]),
+    ])
+    def test_job_status_filters_exclude_non_matching_rows(self, db, filters, expected):
+        db.execute("INSERT INTO job_status "
+                   "(execution_id, subject, task_name, session, start_time, status) "
+                   "VALUES (2,'002','volume','02','2026-07-29 09:00:00','FAILED')")
+        sql, params = self._build("job_status", columns="subject", **filters)
+        assert [row[0] for row in db.execute(sql, params).fetchall()] == expected
+
+    @pytest.mark.parametrize("filters", [{"session": "02"}, {"status": "FAILED"}])
+    def test_pipeline_execution_filters_exclude_non_matching_rows(self, db, filters):
+        db.execute("INSERT INTO pipeline_executions "
+                   "(execution_id, project_name, session, status, execution_time) "
+                   "VALUES (2,'proj','02','FAILED','2026-07-29 09:00:00')")
+        sql, params = self._build("pipeline_executions", columns="execution_id", **filters)
+        assert [row[0] for row in db.execute(sql, params).fetchall()] == [2]
+
     def test_execution_id_is_exact_not_fuzzy(self, db):
         sql, params = self._build("job_status", execution_id="1", paged=True)
         assert "execution_id = ?" in sql
@@ -695,7 +720,7 @@ class TestStatusOptions:
         assert disabled is True
 
     def test_every_offered_value_exists_in_the_database(self, tmp_path):
-        """The regression itself: an option the table can never contain."""
+        """Every offered status becomes a status clause its table can run."""
         from neuromaestro.interface.callbacks.job_monitor_callbacks import (
             _build_query, _QUERY_SPECS,
         )
@@ -706,6 +731,7 @@ class TestStatusOptions:
             for query_type, spec in _QUERY_SPECS.items():
                 for value in spec["status_values"]:
                     sql, params = _build_query(query_type, status=value)
+                    assert "status = ?" in sql and params == [value], query_type
                     conn.execute(sql, params)   # raises if the column is absent
                     checked += 1
         finally:

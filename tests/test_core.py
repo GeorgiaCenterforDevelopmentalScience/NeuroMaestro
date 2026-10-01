@@ -366,36 +366,46 @@ class TestGenerateReportCmd:
 
 class TestCheckOutputsCmd:
 
-    def test_missing_checks_config_exits_1(self, tmp_path):
-        runner, app = _runner()
-        with patch("neuromaestro.pipeline.core.set_config_dir"):
-            result = runner.invoke(app, [
-                "check-outputs",
-                "--project", "no_such_project_xyz",
-                "--work", str(tmp_path),
-                "--config-dir", str(tmp_path),
-                "--session", "01",
-            ])
-        assert result.exit_code == 1
-
-    def test_no_subjects_found_exits_1(self, tmp_path):
-        runner, app = _runner()
-        yaml_path = tmp_path / "proj_checks.yaml"
-        yaml_path.write_text(
+    @pytest.fixture
+    def config_dir(self, tmp_path, monkeypatch):
+        # set_config_dir runs for real here, so the globals it writes are restored afterwards
+        from neuromaestro.pipeline.utils import config_utils, hpc_utils
+        monkeypatch.setattr(config_utils, "_config_dir", config_utils._config_dir)
+        monkeypatch.setattr(config_utils, "config", config_utils.config)
+        monkeypatch.setattr(hpc_utils, "hpc_config", hpc_utils.hpc_config)
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
+        cfg = tmp_path / "config"
+        (cfg / "results_check").mkdir(parents=True)
+        (cfg / "config.yaml").write_text("{}\n")
+        (cfg / "results_check" / "proj_checks.yaml").write_text(
             "task1:\n  output_path: '{work_dir}'\n"
             "  required_files:\n    - 'file.txt'\n"
         )
-        with patch("neuromaestro.pipeline.core.set_config_dir"), \
-             patch("neuromaestro.pipeline.utils.output_checker.load_checks_config",
-                   return_value=str(yaml_path)):
-            result = runner.invoke(app, [
-                "check-outputs",
-                "--project", "proj",
-                "--work", str(tmp_path),
-                "--config-dir", str(tmp_path),
-                "--session", "01",
-            ])
+        return cfg
+
+    def _invoke(self, config_dir, work_dir, project="proj", session="01"):
+        runner, app = _runner()
+        return runner.invoke(app, [
+            "check-outputs",
+            "--project", project,
+            "--work", str(work_dir),
+            "--config-dir", str(config_dir),
+            "--session", session,
+        ])
+
+    def test_missing_checks_config_exits_1(self, config_dir, tmp_path):
+        result = self._invoke(config_dir, tmp_path, project="no_such_project_xyz")
+        assert isinstance(result.exception, SystemExit), result.exception
         assert result.exit_code == 1
+        assert "Output checks config not found" in result.output
+
+    def test_no_subjects_found_exits_1(self, config_dir, tmp_path):
+        work = tmp_path / "work"
+        work.mkdir()
+        result = self._invoke(config_dir, work)
+        assert isinstance(result.exception, SystemExit), result.exception
+        assert result.exit_code == 1
+        assert "no subjects found" in result.output
 
     def test_missing_session_exits_2(self, tmp_path):
         # --session is required: typer reports a usage error, not our exit(1)
@@ -409,24 +419,14 @@ class TestCheckOutputsCmd:
             ])
         assert result.exit_code == 2
 
-    def test_blank_session_exits_1(self, tmp_path):
-        runner, app = _runner()
-        yaml_path = tmp_path / "proj_checks.yaml"
-        yaml_path.write_text(
-            "task1:\n  output_path: '{work_dir}'\n"
-            "  required_files:\n    - 'file.txt'\n"
-        )
-        with patch("neuromaestro.pipeline.core.set_config_dir"), \
-             patch("neuromaestro.pipeline.utils.output_checker.load_checks_config",
-                   return_value=str(yaml_path)):
-            result = runner.invoke(app, [
-                "check-outputs",
-                "--project", "proj",
-                "--work", str(tmp_path),
-                "--config-dir", str(tmp_path),
-                "--session", " , ",
-            ])
+    def test_blank_session_exits_1(self, config_dir, tmp_path):
+        work = tmp_path / "work"
+        # a subject must be found, or the run stops at subject detection first
+        (work / "sub-001").mkdir(parents=True)
+        result = self._invoke(config_dir, work, session=" , ")
+        assert isinstance(result.exception, SystemExit), result.exception
         assert result.exit_code == 1
+        assert "--session must contain at least one session ID" in result.output
 
 
 # ---------------------------------------------------------------------------

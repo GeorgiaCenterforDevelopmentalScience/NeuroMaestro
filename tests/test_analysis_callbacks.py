@@ -64,8 +64,7 @@ def _ctx(component_id, prop="n_clicks"):
 # ---------------------------------------------------------------------------
 # apply_config_dir
 #
-# Every checklist on the page is populated from here, and neuromaestro run is
-# launched as a subprocess that reads CONFIG_DIR from the environment.
+# Populates every checklist and exports CONFIG_DIR for the config editor.
 # ---------------------------------------------------------------------------
 
 _CFG_MOD = "neuromaestro.pipeline.utils.config_utils"
@@ -464,6 +463,12 @@ class TestExecutePipelineCallback:
         cmd = self._cmd(mock_run)
         for flag in ("--dry-run", "--resume", "--skip-preflight", "--skip-bids-validation"):
             assert flag in cmd
+
+    def test_config_dir_reaches_the_subprocess_as_an_argument(self, callbacks):
+        # neuromaestro run reads --config-dir or NEUROMAESTRO_CONFIG_DIR, never CONFIG_DIR
+        _, mock_run = self._run(callbacks)
+        cmd = self._cmd(mock_run)
+        assert cmd[cmd.index("--config-dir") + 1] == "/cfg"
 
     def test_command_is_a_list_not_a_shell_string(self, callbacks):
         _, mock_run = self._run(callbacks)

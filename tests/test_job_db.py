@@ -131,9 +131,10 @@ class TestLogJobEnd:
         other.write_text(json.dumps(
             {"event": "start", "subject": "002", "session": "01"}) + "\n")
 
-        with pytest.raises(typer.Exit):
+        with pytest.raises(typer.Exit) as excinfo:
             log_job_end("001", "recon", "FAILED", session="01",
                         job_id="nonexistent_id", db_path=db_path)
+        assert excinfo.value.exit_code == 1
 
         assert len(other.read_text().strip().splitlines()) == 1
 
@@ -161,16 +162,18 @@ class TestLogJobEnd:
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
         log_job_start("001", "recon", session="01", job_id="900", db_path=db_path)
 
-        with pytest.raises(typer.Exit):
+        with pytest.raises(typer.Exit) as excinfo:
             log_job_end("001", "recon", "SUCCESS", session="02", job_id="900",
                         db_path=db_path)
+        assert excinfo.value.exit_code == 1
 
     def test_missing_json_dir_raises(self, tmp_path):
         # Returning 0 here meant warn_if_failed in the wrapper never fired, so
         # a job absent from the database left no trace in its own log
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
-        with pytest.raises(typer.Exit):
+        with pytest.raises(typer.Exit) as excinfo:
             log_job_end("001", "recon", "COMPLETED", db_path=db_path)
+        assert excinfo.value.exit_code == 1
 
 
 # ---------------------------------------------------------------------------
@@ -330,8 +333,9 @@ class TestLogCommandOutput:
 
     def test_missing_json_dir_raises(self, tmp_path):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
-        with pytest.raises(typer.Exit):
+        with pytest.raises(typer.Exit) as excinfo:
             log_command_output("001", "recon", "script.sh", "cmd", db_path=db_path)
+        assert excinfo.value.exit_code == 1
 
     def test_output_goes_to_its_own_subject(self, tmp_path):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")

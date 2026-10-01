@@ -82,16 +82,19 @@ class TestWarnIfFailed:
     def test_empty_status_treated_as_success(self):
         result = run_bash('LOG_PATH=/dev/null; warn_if_failed "" "log job start"')
         assert "WARNING" not in result.stdout
+        # without the :-0 default the test builtin errors here, which is also silent on stdout
+        assert result.stderr == ""
 
-    def test_pipestatus_captures_command_not_tee(self):
+    def test_pipestatus_captures_command_not_tee(self, tmp_path):
         # The regression: `false | tee` leaves $? at 0, so the old
         # `... | tee || echo WARNING` form never fired.
+        script = tmp_path / "task.sh"
+        script.write_text("exit 0\n")
         result = run_bash(
-            'LOG_PATH=/dev/null\n'
-            'false | tee -a /dev/null\n'
-            'echo "dollar_question=$?"\n'
-            'false | tee -a /dev/null\n'
-            'warn_if_failed "${PIPESTATUS[0]}" "log job start"'
+            # every job_db.py call in the wrapper goes through python3
+            'python3() { return 3; }\n'
+            f'LOG_PATH="{(tmp_path / "job.log").as_posix()}"\n'
+            f'execute_script_with_logging "{script.as_posix()}" 001 recon'
         )
-        assert "dollar_question=0" in result.stdout
-        assert "WARNING: Failed to log job start" in result.stdout
+        for what in ("log job start", "log command output", "log job end"):
+            assert f"WARNING: Failed to {what} (exit 3)" in result.stdout

@@ -35,7 +35,7 @@ class TestDAGExecutorResume:
 
     def _run_execute(self, requested_tasks, completed_map,
                      checks_config_path="fake_checks.yaml",
-                     group_tasks=(), group_passes=True):
+                     group_tasks=(), group_passes=True, group_rows=None):
         executor = make_executor()
 
         mock_execute = MagicMock(side_effect=lambda node, **kwargs: [f"job_{node.name}"])
@@ -49,9 +49,10 @@ class TestDAGExecutorResume:
         # Must be set explicitly: a bare MagicMock returns a truthy mock, which
         # would route every per-subject task down the group branch.
         mock_checker.is_group.side_effect = lambda task_name: task_name in group_tasks
-        mock_checker.check_group.side_effect = lambda task_name: [
-            {"status": "PASS" if group_passes else "FAIL"}
-        ]
+        mock_checker.check_group.side_effect = lambda task_name: (
+            group_rows if group_rows is not None
+            else [{"status": "PASS" if group_passes else "FAIL"}]
+        )
         mock_checker.warn_missing_configs.return_value = []
 
         with patch(CONFIG_PATH, MOCK_CONFIG), \
@@ -195,6 +196,30 @@ class TestDAGExecutorResume:
         # Group tasks are all-or-nothing, so per-subject filtering must not run.
         mock_checker.get_pending_subjects.assert_not_called()
 
+    def test_resume_group_task_with_any_failing_row_is_resubmitted(self):
+        """One failing row among passing ones still resubmits the whole group."""
+        _, _, mock_execute, _ = self._run_execute(
+            requested_tasks=["rest_preprocess"],
+            completed_map={},
+            group_tasks={"rest_preprocess"},
+            group_rows=[{"status": "PASS"}, {"status": "FAIL"}],
+        )
+
+        mock_execute.assert_called_once()
+        _, kwargs = mock_execute.call_args
+        assert set(kwargs["subjects"].split(",")) == set(self.SUBJECTS)
+
+    def test_resume_group_task_without_check_rows_is_resubmitted(self):
+        """No check rows is not evidence of completion, so the group still runs."""
+        _, _, mock_execute, _ = self._run_execute(
+            requested_tasks=["rest_preprocess"],
+            completed_map={},
+            group_tasks={"rest_preprocess"},
+            group_rows=[],
+        )
+
+        mock_execute.assert_called_once()
+
     def test_resume_false_does_not_instantiate_checker(self):
         """When resume=False, OutputChecker should never be imported/instantiated."""
         executor = make_executor()
@@ -221,6 +246,7 @@ class TestDAGExecutorResume:
         mock_execute = MagicMock(return_value=["dry_run_job"])
         mock_checker = MagicMock()
         mock_checker.warn_missing_configs.return_value = []
+        mock_checker.is_group.return_value = False
 
         with patch(CONFIG_PATH, MOCK_CONFIG), \
              patch.object(executor, "_execute_single_task", mock_execute), \
@@ -237,6 +263,10 @@ class TestDAGExecutorResume:
             )
 
         mock_checker.get_pending_subjects.assert_not_called()
+        mock_checker.check_group.assert_not_called()
+        mock_execute.assert_called_once()
+        _, kwargs = mock_execute.call_args
+        assert set(kwargs["subjects"].split(",")) == set(self.SUBJECTS)
 
 
 class TestResumeChecksTheOutputTree:

@@ -135,7 +135,8 @@ class TestCountCheck:
     def test_pass_within_tolerance(self, tmp_path):
         out = tmp_path / "bids"
         out.mkdir()
-        self._make_files(out, ["anat1.nii.gz", "anat2.nii.gz"])
+        # one over the expected count, so only the tolerance makes it pass
+        self._make_files(out, ["anat1.nii.gz", "anat2.nii.gz", "anat3.nii.gz"])
 
         checker = make_checker(tmp_path, {
             "recon": {

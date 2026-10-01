@@ -1,6 +1,13 @@
+import re
+from unittest.mock import patch
+
 import pytest
 from dash import html, dcc
 import dash_bootstrap_components as dbc
+
+from tests.conftest import MOCK_CONFIG
+
+CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
 
 
 def collect_ids(component, ids=None):
@@ -237,26 +244,45 @@ class TestReportHtml:
         assert "Pipeline Report" in html
         assert "qzx_project" in html
 
+    # the bare class names also occur in the embedded CSS, so match rendered markup
+    @staticmethod
+    def _cells(html):
+        return re.findall(r'<td class="cell-(ok|fail|notrun)">', html)
+
+    @staticmethod
+    def _dots(html):
+        return re.findall(r'<span class="dot dot-(ok|fail|notrun)"></span>', html)
+
     def test_renders_with_session(self):
         html = self._minimal_html(session="01")
-        assert "Session" in html
-        assert "01" in html
+        assert "Session: <strong>01</strong>" in html
+        assert "<h2>Session 01</h2>" in html
 
     def test_status_matrix_renders_subjects_and_tasks(self):
         job_status = [
             {"subject": "001", "task_name": "recon", "status": "SUCCESS"},
             {"subject": "002", "task_name": "recon", "status": "FAILED"},
         ]
-        html = self._minimal_html(
-            job_status=job_status,
-            all_subjects=["001", "002"],
-            all_tasks=["recon"],
-        )
-        assert "001" in html
-        assert "002" in html
-        assert "recon" in html
-        assert "cell-ok" in html
-        assert "cell-fail" in html
+        # without config every task reads as a group task, and recon is an array task
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            html = self._minimal_html(
+                job_status=job_status,
+                all_subjects=["001", "002"],
+                all_tasks=["recon"],
+            )
+        assert "<th>Task</th><th>001</th><th>002</th>" in html
+        assert "<td>recon</td>" in html
+        assert self._cells(html) == ["ok", "fail"]
+
+    def test_group_task_result_fills_every_subject_cell(self):
+        job_status = [{"subject": "001", "task_name": "mriqc_post", "status": "FAILED"}]
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            html = self._minimal_html(
+                job_status=job_status,
+                all_subjects=["001", "002"],
+                all_tasks=["mriqc_post"],
+            )
+        assert self._cells(html) == ["fail", "fail"]
 
     def test_history_section_hidden_for_single_run(self):
         single_run = [{"label": "2026-01-01", "tasks": "recon", "jobs": []}]
@@ -272,27 +298,33 @@ class TestReportHtml:
         ]
         html = self._minimal_html(all_runs=runs, all_tasks=["recon"])
         assert "Run history" in html
-        assert "dot-fail" in html
-        assert "dot-ok" in html
+        assert self._dots(html) == ["ok", "fail"]
 
     def test_check_results_dot_matrix_renders(self):
         import pandas as pd
+        # check_type values as output_checker writes them
         check_df = pd.DataFrame([
             {"task": "recon", "subject": "001", "session": "01",
-             "check_type": "required_files:t1", "pattern": "*.nii", "actual": 0, "status": "FAIL"},
+             "check_type": "required_files", "pattern": "*.nii", "actual": 0, "status": "FAIL"},
             {"task": "recon", "subject": "002", "session": "01",
-             "check_type": "required_files:t1", "pattern": "*.nii", "actual": 1, "status": "PASS"},
+             "check_type": "required_files", "pattern": "*.nii", "actual": 1, "status": "PASS"},
+            {"task": "recon", "subject": "001", "session": "01",
+             "check_type": "count_check:anat", "pattern": "*.nii.gz", "actual": 2, "status": "PASS"},
+            {"task": "recon", "subject": "002", "session": "01",
+             "check_type": "count_check:anat", "pattern": "*.nii.gz", "actual": 2, "status": "PASS"},
         ])
         html = self._minimal_html(check_df=check_df)
-        assert "dot-fail" in html
-        assert "dot-ok" in html
-        assert "Failed checks" in html
+        assert self._dots(html) == ["fail", "ok", "ok", "ok"]
+        assert '<span class="fail">1 failed</span>' in html
+        assert "Failed checks (1)" in html
+        assert "<td>recon</td><td>001</td>" in html
+        assert "<td>recon</td><td>002</td>" not in html
 
     def test_check_results_all_pass_hides_detail(self):
         import pandas as pd
         check_df = pd.DataFrame([
             {"task": "recon", "subject": "001", "session": "01",
-             "check_type": "required_files:t1", "pattern": "*.nii", "actual": 1, "status": "PASS"},
+             "check_type": "required_files", "pattern": "*.nii", "actual": 1, "status": "PASS"},
         ])
         html = self._minimal_html(check_df=check_df)
         assert "All passed" in html
