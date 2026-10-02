@@ -436,3 +436,145 @@ class TestReportHtml:
         html = self._minimal_html(failed_jobs=failed)
         assert "recon — 2 failed" in html
         assert "001" in html
+
+    def test_failed_job_rows(self):
+        failed = [
+            {"subject": "001", "task_name": "recon", "start_time": "2026-01-01T10:20:30.123", "exit_code": 0,
+             "stdout": "partial output"},
+            {"subject": "002", "task_name": "recon", "start_time": None, "exit_code": None, "stdout": "  \n"},
+        ]
+        html = self._minimal_html(failed_jobs=failed)
+        log = ('<details><summary style="font-size:11px;color:#888">stdout</summary>'
+               '<pre>partial output</pre></details>')
+        assert f'<tr><td>001</td><td class="num">0</td><td>2026-01-01T10:20</td><td>{log}</td></tr>' in html
+        assert '<tr><td>002</td><td class="num">—</td><td></td><td><span style="color:#bbb">—</span></td></tr>' in html
+
+    def test_task_summary_row(self):
+        summary = [
+            {"task": "recon", "ok": 3, "total": 4, "failed": 1, "not_run": 0, "dur": "1.5 h", "last": "2026-01-01"},
+            {"task": "unzip", "ok": 0, "total": 0, "failed": 0, "not_run": 2, "dur": "—", "last": ""},
+        ]
+        html = self._minimal_html(task_summary=summary)
+        assert ('<tr><td>recon</td><td class="num">3 / 4</td><td class="num">75%</td>'
+                '<td class="num fail">1</td><td class="num">0</td><td>1.5 h</td><td>2026-01-01</td></tr>') in html
+        assert ('<tr><td>unzip</td><td class="num">0 / 0</td><td class="num">—</td>'
+                '<td class="num">0</td><td class="num">2</td><td>—</td><td></td></tr>') in html
+
+    EMPTY_STATES = [
+        '<p class="empty">No task data found.</p>',
+        '<p class="empty">No data.</p>',
+        '<p class="empty">No failed jobs.</p>',
+        '<p class="empty">None. Every job reported as SUCCESS also passed its output checks.</p>',
+        '<p class="empty">No check-results data provided (use --check-results).</p>',
+        '<p class="empty">No wrapper script records found.</p>',
+    ]
+
+    def test_every_section_says_when_it_is_empty(self):
+        html = self._minimal_html()
+        for message in self.EMPTY_STATES:
+            assert message in html
+
+    def test_matrix_needs_both_subjects_and_tasks(self):
+        assert '<p class="empty">No data.</p>' in self._minimal_html(all_subjects=["001"])
+        assert '<p class="empty">No data.</p>' in self._minimal_html(all_tasks=["recon"])
+
+    @staticmethod
+    def _session(sess, **sections):
+        base = dict(session=sess, task_summary=[], job_status=[], all_subjects=[], all_tasks=[], all_runs=[],
+                    failed_jobs=[], check_df=None, wrapper_scripts=[])
+        return {**base, **sections}
+
+    def test_suspicious_rows_and_count(self):
+        suspicious = [
+            {"task": "recon", "subject": "001", "check_type": "required_files", "pattern": "*.nii",
+             "reason": "FAIL: missing"},
+            {"task": "recon", "subject": "001", "check_type": "count_check:anat", "pattern": "*.gz",
+             "reason": "FAIL: 0/2"},
+        ]
+        html = self.render_html(metadata={}, sessions_data=[self._session(None, suspicious=suspicious)],
+                                project_name="qzx_project", session=None)
+        assert '<span class="fail">2 check(s) across 1 subject(s)</span>' in html
+        assert ('<tr><td>recon</td><td>001</td><td>required_files</td>'
+                '<td style="font-size:12px;font-family:monospace">*.nii</td>'
+                '<td class="fail">FAIL: missing</td></tr>') in html
+        assert "Every job reported as SUCCESS also passed" not in html
+
+    def test_environment_shows_only_recorded_fields(self):
+        wrappers = [
+            {"task_name": "recon", "submission_time": "2026-01-01T10:20:30", "slurm_cmd": "sbatch --mem=8gb",
+             "env_modules": "", "global_python": None, "global_env_vars": "  ", "execute_cmd": "execute_wrapper x.sh"},
+            {"task_name": "empty_task", "submission_time": "2026-01-02", "slurm_cmd": ""},
+        ]
+        html = self._minimal_html(wrapper_scripts=wrappers)
+        fields = re.findall(r'<strong>([^<]+)</strong></p><pre>([^<]*)</pre>', html)
+        assert fields == [("SLURM command", "sbatch --mem=8gb"), ("Execute command", "execute_wrapper x.sh")]
+        assert "last submitted 2026-01-01T10:20</span>" in html
+        assert "empty_task" not in html
+
+    def test_environment_with_nothing_recorded(self):
+        html = self._minimal_html(wrapper_scripts=[{"task_name": "recon", "slurm_cmd": ""}])
+        assert '<p class="empty">No environment data recorded.</p>' in html
+
+    def test_check_rows_group_under_their_task_in_subject_order(self):
+        import pandas as pd
+        rows = [("recon", "010", "required_files", "PASS"), ("recon", "002", "required_files", "FAIL"),
+                ("recon", "010", "count_check:anat", "PASS"), ("recon", "002", "count_check:anat", "PASS"),
+                ("unzip", "010", "required_files", "PASS"), ("unzip", "002", "required_files", "PASS")]
+        check_df = pd.DataFrame([{"task": t, "subject": s, "session": "01", "check_type": c, "pattern": "*",
+                                  "actual": 0, "status": st} for t, s, c, st in rows])
+        html = self._minimal_html(check_df=check_df)
+        assert "<tr><th>Task</th><th>Check</th><th>002</th><th>010</th></tr>" in html
+        body = re.findall(r'<tr>(?:<td class="dot-row-label" rowspan="(\d)"[^>]*>(\w+)</td>)?'
+                          r'<td class="dot-row-label">(\w+)</td>', html)
+        assert body == [("2", "recon", "required_files"), ("", "", "anat"), ("1", "unzip", "required_files")]
+        assert self._dots(html) == ["fail", "ok", "ok", "ok", "ok", "ok"]
+        assert "6 checks &nbsp;·&nbsp; " in html
+
+    def test_matrix_orders_subjects_by_number(self):
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            html = self._minimal_html(all_subjects=["10", "sub-9", "002"], all_tasks=["recon"])
+        assert "<tr><th>Task</th><th>002</th><th>sub-9</th><th>10</th></tr>" in html
+
+    def test_one_nav_link_and_section_per_session(self):
+        html = self.render_html(metadata={}, sessions_data=[self._session("01"), self._session("02")],
+                                project_name="qzx_project", session="01,02")
+        assert re.findall(r'<a href="#([\w-]+)">([^<]+)</a>', html) == [
+            ("summary", "Summary"), ("session-01", "Session 01"), ("session-02", "Session 02")]
+        assert re.findall(r'<section id="([\w-]+)">\s*<h2>([^<]+)</h2>', html) == [
+            ("session-01", "Session 01"), ("session-02", "Session 02")]
+
+    def test_no_session_gets_a_single_jobs_section(self):
+        html = self.render_html(metadata={}, sessions_data=[self._session(None)],
+                                project_name="qzx_project", session=None)
+        assert '<a href="#session-all">Jobs</a>' in html
+        assert re.findall(r'<section id="([\w-]+)">\s*<h2>([^<]+)</h2>', html) == [("session-all", "Job Status")]
+        assert "Session: <strong>" not in html
+
+    def test_header_metadata(self):
+        metadata = {"input_dir": "/in", "output_dir": "", "work_dir": "/work",
+                    "execution_time": "2026-01-01T10:20:30.5", "command_line": "neuromaestro run --dry-run"}
+        html = self._minimal_html(metadata=metadata)
+        items = re.findall(r'<span class="meta-label">([^<]+)</span><span class="meta-val"[^>]*>([^<]+)</span>', html)
+        assert items == [("Input", "/in"), ("Work", "/work"), ("Last run", "2026-01-01T10:20"),
+                         ("Command", "neuromaestro run --dry-run")]
+        assert re.search(r"Generated: \d{4}-\d{2}-\d{2} \d{2}:\d{2}", html)
+
+    def test_header_without_metadata(self):
+        assert 'class="meta-label"' not in self._minimal_html(metadata={})
+
+    def test_user_text_is_escaped(self):
+        hostile = '<script>alert("x")</script>&'
+        escaped = "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;"
+        failed = [{"subject": hostile, "task_name": hostile, "start_time": "", "exit_code": 1, "stdout": hostile}]
+        html = self.render_html(
+            metadata={"command_line": hostile, "work_dir": hostile},
+            sessions_data=[self._session("01", failed_jobs=failed, all_subjects=[hostile], all_tasks=[hostile])],
+            project_name=hostile, session="01",
+        )
+        assert "<script>" not in html
+        assert f"Project: <strong>{escaped}</strong>" in html
+        assert f'<span class="meta-label">Work</span><span class="meta-val">{escaped}</span>' in html
+        assert f'font-size:12px">{escaped}</span>' in html
+        assert f"<th>{escaped}</th>" in html
+        assert f"<summary>{escaped} — 1 failed</summary>" in html
+        assert f"<pre>{escaped}</pre>" in html

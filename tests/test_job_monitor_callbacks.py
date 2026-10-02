@@ -174,7 +174,7 @@ class TestMergeLogsCallback:
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
-        assert "timed out" in str(result.children).lower()
+        assert result.children == "merge-logs timed out after 600 seconds."
 
     def test_neuromaestro_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("merge_logs_callback")
@@ -185,7 +185,14 @@ class TestMergeLogsCallback:
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
-        assert "not found" in str(result.children).lower()
+        assert result.children == (
+            "neuromaestro command not found. Make sure the package is installed in the active environment.")
+
+    def test_other_launch_error_is_reported(self, callbacks, tmp_path):
+        with patch(SUBPROCESS_RUN, side_effect=OSError("disk full")):
+            result = callbacks.get("merge_logs_callback")(n_clicks=1, work_dir=str(tmp_path), db_path="")
+        assert result.color == "danger"
+        assert result.children == "Error: disk full"
 
 
 # ---------------------------------------------------------------------------
