@@ -7,12 +7,20 @@ Tests for pipeline/core.py helper logic:
   - CLI run command: exits with code 1 when --input directory is missing
 """
 
+import re
 import pytest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from tests.conftest import MOCK_CONFIG
+
+# typer colours usage errors when GITHUB_ACTIONS is set, which splits option names apart
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(output):
+    return _ANSI.sub("", output or "")
 
 
 def _import_helpers():
@@ -234,8 +242,8 @@ class TestCliRunErrors:
             "--config-dir", str(tmp_path),
         ])
         assert result.exit_code == 2, result.output
-        assert "empty" in (result.output or "").lower()
-        assert blank_flag in (result.output or "")
+        assert "empty" in _plain(result.output).lower()
+        assert blank_flag in _plain(result.output)
 
     def test_whitespace_only_path_is_rejected(self, tmp_path):
         from typer.testing import CliRunner
@@ -270,7 +278,7 @@ class TestCliRunErrors:
         ])
         assert result.exit_code == 2, result.output
         # the config-dir check would have fired first and exited 1
-        assert "NEUROMAESTRO_CONFIG_DIR" not in (result.output or "")
+        assert "NEUROMAESTRO_CONFIG_DIR" not in _plain(result.output)
 
     def test_trailing_space_is_left_intact(self):
         """Only all-blank values are refused. A path that merely ends in a space is

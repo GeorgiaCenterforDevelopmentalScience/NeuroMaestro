@@ -16,6 +16,7 @@ unchecked once a command had been generated, and a missing session reaching
 the command line as the string "None".
 """
 
+import importlib
 import os
 import subprocess
 import pytest
@@ -26,6 +27,8 @@ from dash import html
 from dash._callback import NoUpdate
 
 _MOD = "neuromaestro.interface.callbacks.analysis_callbacks"
+# a module object, since the package's same-named function hides the module from mock on Python 3.10
+DETECT_SUBJECTS = importlib.import_module("neuromaestro.pipeline.utils.detect_subjects")
 
 
 class FakeApp:
@@ -205,7 +208,7 @@ class TestDetectSubjectsCallback:
               prefix="sub-", directory="/data", detected=None, side_effect=None):
         fn = callbacks.get("detect_subjects_callback")
         ctx = _ctx(trigger) if trigger else _no_ctx()
-        patcher = patch("neuromaestro.pipeline.utils.detect_subjects.detect_subjects",
+        patcher = patch.object(DETECT_SUBJECTS, "detect_subjects",
                         side_effect=side_effect,
                         return_value=detected if detected is not None else [])
         with patch(f"{_MOD}.callback_context", ctx), patcher:
@@ -249,7 +252,7 @@ class TestDetectSubjectsCallback:
     def test_detection_scans_the_entered_directory_with_the_prefix(self, callbacks):
         fn = callbacks.get("detect_subjects_callback")
         with patch(f"{_MOD}.callback_context", _ctx("detect-subjects-btn")), \
-             patch("neuromaestro.pipeline.utils.detect_subjects.detect_subjects",
+             patch.object(DETECT_SUBJECTS, "detect_subjects",
                    return_value=["101"]) as mock_detect:
             fn(1, None, None, "sub-", "/data")
         mock_detect.assert_called_once_with("/data", "sub-")

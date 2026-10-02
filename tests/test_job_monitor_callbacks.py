@@ -13,6 +13,7 @@ Unit tests for the job monitor callbacks:
 
 """
 
+import importlib
 import os
 import pytest
 import sqlite3
@@ -24,6 +25,9 @@ from unittest.mock import patch, MagicMock
 
 import dash_bootstrap_components as dbc
 from dash import html
+
+# a module object, since the package's same-named function hides the module from mock on Python 3.10
+DETECT_SUBJECTS = importlib.import_module("neuromaestro.pipeline.utils.detect_subjects")
 
 
 class FakeApp:
@@ -376,7 +380,7 @@ class TestRunOutputCheckCallback:
         ])
         # detect_subjects is imported inside the callback, so the source module
         # is the only patch point; there is no module-level name to override.
-        with patch("neuromaestro.pipeline.utils.detect_subjects.detect_subjects",
+        with patch.object(DETECT_SUBJECTS, "detect_subjects",
                    return_value=["007"]), \
              patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
