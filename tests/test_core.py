@@ -9,6 +9,7 @@ Tests for pipeline/core.py helper logic:
 
 import pytest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from tests.conftest import MOCK_CONFIG
@@ -425,6 +426,112 @@ class TestCheckOutputsCmd:
         assert isinstance(result.exception, SystemExit), result.exception
         assert result.exit_code == 1
         assert "--session must contain at least one session ID" in result.output
+
+
+class TestCheckOutputsResults:
+    """The full check-outputs path, down to the CSV that generate-report reads."""
+
+    @pytest.fixture
+    def study(self, tmp_path, monkeypatch):
+        from neuromaestro.pipeline.utils import config_utils, hpc_utils
+        monkeypatch.setattr(config_utils, "_config_dir", config_utils._config_dir)
+        monkeypatch.setattr(config_utils, "config", config_utils.config)
+        monkeypatch.setattr(hpc_utils, "hpc_config", hpc_utils.hpc_config)
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
+        cfg = tmp_path / "config"
+        (cfg / "results_check").mkdir(parents=True)
+        (cfg / "config.yaml").write_text("{}\n")
+        (cfg / "results_check" / "proj_checks.yaml").write_text(
+            "recon:\n  output_path: '{work_dir}/{prefix}{subject}/ses-{session}'\n"
+            "  required_files:\n    - 'out.txt'\n"
+        )
+        work = tmp_path / "work"
+        # 001 has its output in ses-01 only, 002 has none
+        (work / "sub-001" / "ses-01").mkdir(parents=True)
+        (work / "sub-001" / "ses-01" / "out.txt").write_text("x")
+        (work / "sub-002").mkdir()
+        return SimpleNamespace(config_dir=cfg, work=work)
+
+    def _invoke(self, study, *extra, session="01"):
+        runner, app = _runner()
+        return runner.invoke(app, ["check-outputs", "--project", "proj", "--work", str(study.work),
+                                   "--config-dir", str(study.config_dir), "--session", session, *extra])
+
+    @staticmethod
+    def _csv(study):
+        import pandas as pd
+        (path,) = study.work.glob("check_results_*.csv")
+        # read the way generate_report reads it
+        return pd.read_csv(path, dtype={"subject": str, "session": str})
+
+    def test_summary_names_only_the_failing_subjects(self, study):
+        result = self._invoke(study)
+        assert result.exit_code == 0, result.output
+        lines = result.output.splitlines()
+        assert f"Auto-detected 2 subjects from {study.work}" in lines
+        assert "Checking 2 subject(s) × 1 session(s)..." in lines
+        assert lines[lines.index("[check-outputs] Issues found:") + 1] == "  recon: 002"
+
+    def test_csv_has_one_row_per_subject_and_session(self, study):
+        self._invoke(study, session="01,02")
+        df = self._csv(study)
+        got = sorted(zip(df["subject"], df["session"], df["status"].str[:4]))
+        assert got == [("001", "01", "PASS"), ("001", "02", "FAIL"), ("002", "01", "FAIL"), ("002", "02", "FAIL")]
+        assert set(df["task"]) == {"recon"}
+
+    def test_report_path_is_printed(self, study):
+        result = self._invoke(study)
+        (path,) = study.work.glob("check_results_*.csv")
+        assert result.output.splitlines()[-1] == f"Full report saved to: {path}"
+
+    def test_csv_feeds_the_reports_silent_failure_check(self, study):
+        from neuromaestro.pipeline.utils.report_generator import compute_suspicious_jobs
+        self._invoke(study)
+        jobs = [{"subject": s, "task_name": "recon", "status": "SUCCESS"} for s in ("001", "002")]
+        suspicious = compute_suspicious_jobs(jobs, self._csv(study))
+        assert [(r["subject"], r["task"]) for r in suspicious] == [("002", "recon")]
+
+    def test_explicit_subjects_skip_detection(self, study):
+        result = self._invoke(study, "--subjects", "001")
+        assert result.exit_code == 0, result.output
+        assert "Auto-detected" not in result.output
+        assert "[check-outputs] All checks passed (1 subjects × 1 tasks)." in result.output.splitlines()
+        assert list(self._csv(study)["subject"]) == ["001"]
+
+    def test_subjects_are_detected_under_bids_when_present(self, study):
+        (study.work / "BIDS" / "sub-009").mkdir(parents=True)
+        result = self._invoke(study)
+        assert f"Auto-detected 1 subjects from {study.work / 'BIDS'}" in result.output.splitlines()
+        assert list(self._csv(study)["subject"]) == ["009"]
+
+    def test_prefix_comes_from_the_project_config(self, study):
+        (study.config_dir / "project_config").mkdir()
+        (study.config_dir / "project_config" / "proj_config.yaml").write_text("prefix: 'P'\n")
+        (study.work / "P001" / "ses-01").mkdir(parents=True)
+        (study.work / "P001" / "ses-01" / "out.txt").write_text("x")
+        result = self._invoke(study)
+        assert result.exit_code == 0, result.output
+        assert list(self._csv(study)["subject"]) == ["001"]
+        assert "[check-outputs] All checks passed (1 subjects × 1 tasks)." in result.output.splitlines()
+
+    def test_unconfigured_task_is_skipped_with_a_warning(self, study):
+        result = self._invoke(study, "--task", "recon", "--task", "ghost")
+        assert "Warning: no output check configured for task 'ghost', skipped." in result.output.splitlines()
+        assert set(self._csv(study)["task"]) == {"recon"}
+
+    def test_nothing_configured_exits_cleanly_without_a_csv(self, study):
+        result = self._invoke(study, "--task", "ghost")
+        assert result.exit_code == 0, result.output
+        assert "No tasks to check (none have output check configs)." in result.output.splitlines()
+        assert list(study.work.glob("check_results_*.csv")) == []
+
+    def test_checks_dir_overrides_the_config_dir(self, study, tmp_path):
+        other = tmp_path / "other_checks"
+        other.mkdir()
+        (other / "proj_checks.yaml").write_text("other:\n  output_path: '{work_dir}'\n  required_files: ['x']\n")
+        result = self._invoke(study, "--checks-dir", str(other))
+        assert f"Loaded checks config: {other / 'proj_checks.yaml'}" in result.output.splitlines()
+        assert set(self._csv(study)["task"]) == {"other"}
 
 
 # ---------------------------------------------------------------------------
