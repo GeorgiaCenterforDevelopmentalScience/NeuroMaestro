@@ -530,11 +530,10 @@ class TestMergePipelineLogs:
         bad_file.write_text(json.dumps({"event": "other_event"}) + '\n')
         merge_json_to_db(json_dir, full_db)
         conn = sqlite3.connect(full_db)
-        row = conn.execute(
-            "SELECT execution_id FROM pipeline_executions WHERE execution_id=9999"
-        ).fetchone()
+        # the whole table: a wrongly inserted row would hold NULL, not 9999
+        count = conn.execute("SELECT COUNT(*) FROM pipeline_executions").fetchone()[0]
         conn.close()
-        assert row is None
+        assert count == 0
 
     def test_pipeline_update_sets_status(self, temp_workspace, full_db):
         json_dir = temp_workspace['json_dir']
@@ -602,11 +601,12 @@ class TestCommandOutputMerge:
         create_mock_json_log(json_dir, "sub001", "task1", "88888")
         merge_json_to_db(json_dir, mock_db)
         conn = sqlite3.connect(mock_db)
-        count = conn.execute(
-            "SELECT COUNT(*) FROM command_outputs WHERE job_id='88888'"
-        ).fetchone()[0]
+        # the whole table: a row built from a missing event would hold NULL, not 88888
+        outputs = conn.execute("SELECT COUNT(*) FROM command_outputs").fetchone()[0]
+        jobs = conn.execute("SELECT COUNT(*) FROM job_status WHERE job_id='88888'").fetchone()[0]
         conn.close()
-        assert count == 0
+        assert outputs == 0
+        assert jobs == 1
 
 
 class TestMergeBadJson:
@@ -918,6 +918,184 @@ class TestArchiveFailureIsVisible:
         json_dir = temp_workspace['json_dir']
         create_mock_json_log(json_dir, "sub001", "task1", "12345")
         assert self._merge_with_broken_move(json_dir, mock_db) == 1
+
+
+# ---------------------------------------------------------------------------
+# From the job_db producers to database rows
+#
+# The tests above hand-write JSONL and check a column or two. These run the
+# functions the wrapper and run() call, with every option set, and compare
+# whole rows after the merge.
+# ---------------------------------------------------------------------------
+
+def _rows(db_path, table):
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        return [dict(r) for r in conn.execute(f"SELECT * FROM {table} ORDER BY id")]
+    finally:
+        conn.close()
+
+
+def _without(row, *keys):
+    return {k: v for k, v in row.items() if k not in keys}
+
+
+class TestProducersToRows:
+
+    SECTIONS = {
+        "full_content": "#!/bin/bash\n", "slurm_cmd": "sbatch x", "basic_paths": "export A='1'",
+        "global_python": "ml Python", "env_modules": "ml AFNI", "global_env_vars": "export B='2'",
+        "task_params": "export C='3'", "execute_cmd": "execute_wrapper x",
+    }
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        return tmp_path / "db" / "pipeline_jobs.db"
+
+    @staticmethod
+    def _merge(db):
+        return merge_json_to_db(str(db.parent / "json"), str(db))
+
+    @staticmethod
+    def _log_job(db, subject="001", job_id="4242_1", status="FAILED", exit_code=3):
+        from neuromaestro.pipeline.utils.job_db import log_job_start, log_command_output, log_job_end
+        common = dict(session="02", job_id=job_id, db_path=str(db))
+        log_job_start(subject, "recon", log_file_path=f"/logs/{subject}.log",
+                      node_list="node07", execution_id=17, **common)
+        log_command_output(subject, "recon", "dcm2bids.sh", f"dcm2bids.sh {subject}",
+                           stdout="out", stderr="err", exit_code=exit_code,
+                           log_file_path=f"/logs/{subject}.log", execution_id=17, **common)
+        log_job_end(subject, "recon", status, error_msg=f"Script failed with exit code {exit_code}",
+                    duration_seconds=5400, exit_code=exit_code, **common)
+
+    @staticmethod
+    def _log_execution(db, update=True):
+        from neuromaestro.pipeline.utils.job_db import log_pipeline_execution, update_pipeline_execution
+        eid = log_pipeline_execution(
+            command_line="neuromaestro run --project proj", project_name="proj",
+            input_dir="/in", output_dir="/out", work_dir="/work", session="02",
+            subjects=["001", "002"], requested_tasks=["unzip", "recon"],
+            dry_run=False, total_jobs=0, db_path=str(db),
+        )
+        if update:
+            update_pipeline_execution(eid, status="FAILED", error_msg="sbatch rejected",
+                                      total_jobs=2, db_path=str(db))
+        return eid
+
+    def test_job_row_carries_every_field(self, db):
+        self._log_job(db)
+        assert self._merge(db) == 1
+        [row] = _rows(db, "job_status")
+        assert row["start_time"] and row["end_time"] >= row["start_time"]
+        assert _without(row, "id", "start_time", "end_time") == {
+            "execution_id": 17, "subject": "001", "task_name": "recon", "session": "02",
+            "status": "FAILED", "exit_code": 3, "error_msg": "Script failed with exit code 3",
+            "duration_hours": 1.5, "log_path": "/logs/001.log", "job_id": "4242_1",
+            "node_name": "node07",
+        }
+
+    def test_command_output_row_carries_every_field(self, db):
+        self._log_job(db)
+        self._merge(db)
+        [row] = _rows(db, "command_outputs")
+        assert _without(row, "id", "execution_time") == {
+            "execution_id": 17, "subject": "001", "task_name": "recon", "session": "02",
+            "script_name": "dcm2bids.sh", "command": "dcm2bids.sh 001",
+            "stdout": "out", "stderr": "err", "exit_code": 3,
+            "log_file_path": "/logs/001.log", "job_id": "4242_1",
+        }
+
+    def test_execution_row_takes_the_update(self, db):
+        eid = self._log_execution(db)
+        self._merge(db)
+        [row] = _rows(db, "pipeline_executions")
+        assert row["execution_time"]
+        assert _without(row, "id", "execution_time") == {
+            "execution_id": eid, "command_line": "neuromaestro run --project proj",
+            "project_name": "proj", "session": "02",
+            "input_dir": "/in", "output_dir": "/out", "work_dir": "/work",
+            "subjects": "001,002", "requested_tasks": "unzip,recon", "dry_run": 0,
+            "total_jobs": 2, "status": "FAILED", "error_msg": "sbatch rejected",
+        }
+
+    def test_execution_without_an_update_stays_running(self, db):
+        # a run killed before its update was written must not look finished
+        self._log_execution(db, update=False)
+        self._merge(db)
+        [row] = _rows(db, "pipeline_executions")
+        assert (row["status"], row["total_jobs"], row["error_msg"]) == ("RUNNING", 0, None)
+
+    def test_runs_in_the_same_second_get_distinct_execution_ids(self, db):
+        # a shared id would merge two runs into one execution log and row
+        with patch("neuromaestro.pipeline.utils.job_db.time.time",
+                   side_effect=[1_700_000_000.1, 1_700_000_000.6]):
+            first = self._log_execution(db, update=False)
+            second = self._log_execution(db, update=False)
+        assert first != second
+
+    def test_wrapper_row_carries_every_section(self, db):
+        from neuromaestro.pipeline.utils.job_db import log_wrapper_script
+        log_wrapper_script("recon", "4242", "/w/recon_wrapper.sh", self.SECTIONS,
+                           execution_id=17, db_path=str(db))
+        self._merge(db)
+        [row] = _rows(db, "wrapper_scripts")
+        assert row["submission_time"]
+        assert _without(row, "id", "submission_time") == {
+            "execution_id": 17, "task_name": "recon", "job_id": "4242",
+            "wrapper_path": "/w/recon_wrapper.sh", **self.SECTIONS,
+        }
+
+    def test_merging_again_adds_only_new_logs(self, db):
+        # the second merge archives into the archived/ the first one created
+        self._log_job(db, subject="001", job_id="1_1")
+        self._log_job(db, subject="002", job_id="1_2")
+        assert self._merge(db) == 2
+        self._log_job(db, subject="003", job_id="1_3")
+        assert self._merge(db) == 1
+        assert self._merge(db) == 0
+        assert [r["subject"] for r in _rows(db, "job_status")] == ["001", "002", "003"]
+        recon = db.parent / "json" / "recon"
+        assert list(recon.glob("*.jsonl")) == []
+        assert len(list((recon / "archived").glob("*.jsonl"))) == 3
+
+    def test_rebuild_reads_archived_and_active_pipeline_logs(self, db, tmp_path):
+        from neuromaestro.pipeline.utils.job_db import log_wrapper_script
+        self._log_execution(db)
+        log_wrapper_script("recon", "4242", "/w/x.sh", self.SECTIONS, execution_id=17, db_path=str(db))
+        self._merge(db)
+        self._log_execution(db, update=False)
+        new_db, count = rebuild_db(str(tmp_path), db_path=str(db))
+        assert count == 3
+        assert sorted(r["status"] for r in _rows(new_db, "pipeline_executions")) == ["FAILED", "RUNNING"]
+        assert len(_rows(new_db, "wrapper_scripts")) == 1
+
+
+class TestWrapperCallsTheJobDbCli:
+    """wrapper_functions.sh drives job_db.py with these command lines, option names included."""
+
+    def test_full_job_lifecycle_through_the_cli(self, tmp_path):
+        from typer.testing import CliRunner
+        from neuromaestro.pipeline.utils.job_db import app
+        db = tmp_path / "db" / "pipeline_jobs.db"
+        common = ["--session", "02", "--job-id", "4242_1", "--db-path", str(db)]
+        calls = [
+            ["log_start", "001", "recon", "--log-file-path", "/logs/001.log",
+             "--node-list", "node07", "--execution-id", "17", *common],
+            ["log_command_output", "001", "recon", "dcm2bids.sh", "dcm2bids.sh 001",
+             "--stdout", "out", "--exit-code", "0", "--log-file-path", "/logs/001.log",
+             "--execution-id", "17", *common],
+            ["log_end", "001", "recon", "SUCCESS", "--exit-code", "0",
+             "--duration-seconds", "3600", *common],
+        ]
+        for argv in calls:
+            result = CliRunner().invoke(app, argv)
+            assert result.exit_code == 0, f"{argv[0]}: {result.output}"
+        merge_json_to_db(str(db.parent / "json"), str(db))
+        [row] = _rows(db, "job_status")
+        assert (row["status"], row["exit_code"], row["duration_hours"]) == ("SUCCESS", 0, 1.0)
+        assert (row["execution_id"], row["node_name"], row["session"]) == (17, "node07", "02")
+        assert _rows(db, "command_outputs")[0]["stdout"] == "out"
 
 
 if __name__ == '__main__':

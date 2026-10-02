@@ -158,6 +158,24 @@ class TestLogJobEnd:
         assert len(mine.read_text().strip().splitlines()) == 2
         assert len(newer.read_text().strip().splitlines()) == 1
 
+    def test_requeued_job_ends_in_its_latest_start_log(self, tmp_path):
+        # a requeue writes a second start log with the same job id, subject and session
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        json_dir = tmp_path / "db" / "json" / "recon"
+        json_dir.mkdir(parents=True)
+        start = json.dumps({"event": "start", "subject": "001", "session": "01"}) + "\n"
+        first = json_dir / "77_100.jsonl"
+        first.write_text(start)
+        os.utime(first, (1_000_000_000, 1_000_000_000))
+        requeued = json_dir / "77_200.jsonl"
+        requeued.write_text(start)
+        os.utime(requeued, (2_000_000_000, 2_000_000_000))
+
+        log_job_end("001", "recon", "SUCCESS", session="01", job_id="77", db_path=db_path)
+
+        assert len(requeued.read_text().strip().splitlines()) == 2
+        assert len(first.read_text().strip().splitlines()) == 1
+
     def test_session_is_part_of_the_identity(self, tmp_path):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
         log_job_start("001", "recon", session="01", job_id="900", db_path=db_path)
@@ -436,10 +454,26 @@ class TestQueryFunctions:
         assert len(rows) == 1
         assert rows[0][7] == "FAILED"
 
+    @staticmethod
+    def _add_other_job(db_path):
+        # the fixture's jobs are all recon/01, which no task or session filter can tell apart
+        conn = sqlite3.connect(db_path)
+        conn.execute("INSERT INTO job_status (execution_id, subject, task_name, session, status) "
+                     "VALUES (1002, '003', 'volume', '02', 'SUCCESS')")
+        conn.commit()
+        conn.close()
+
     def test_query_jobs_filter_by_task(self, tmp_path):
         db_path = self._make_db(tmp_path)
+        self._add_other_job(db_path)
         rows = query_jobs(task_name="recon", db_path=db_path)
-        assert len(rows) == 2
+        assert sorted(r[2] for r in rows) == ["001", "002"]
+
+    def test_query_jobs_filter_by_session(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        self._add_other_job(db_path)
+        rows = query_jobs(session="02", db_path=db_path)
+        assert [r[2] for r in rows] == ["003"]
 
     def test_query_jobs_no_match_returns_empty(self, tmp_path):
         db_path = self._make_db(tmp_path)
