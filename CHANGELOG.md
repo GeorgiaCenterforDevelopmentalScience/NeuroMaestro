@@ -1,20 +1,6 @@
 # Dev Log - [NeuroMaestro]
 
 ---
-## [Unreleased]
-
-### Tests
-- `check-outputs` exit paths run against a real config directory. The three exit-1 tests patched `set_config_dir` away and stopped at "Config directory not set" before reaching the branch each one names.
-- Report status, history and check-result matrices are asserted cell by cell. The class names they looked for also occur in the embedded stylesheet, so a page with no cells passed. Group-task broadcast is now covered, and the check-result fixture uses the `check_type` values `output_checker` actually writes.
-- The `warn_if_failed` call sites are exercised through `execute_script_with_logging` with a failing logger, instead of a pipeline the test built itself. The empty-status test also requires a clean stderr.
-- The `count_check` tolerance test uses a count that differs from the expected one, so the tolerance decides the result.
-- `typer.Exit` expectations in the job database tests check the exit code, so `Exit(0)` no longer satisfies them.
-- The GUI run command is checked for `--config-dir`, the only route by which the subprocess receives the config directory.
-- Input redirection is tested on a full chain, where the upstream task is not the first requested one.
-- Resume of group tasks covers a mixed result and an empty result. The dry-run resume test asserts that every subject is still submitted.
-- Job monitor filters are tested for excluding non-matching rows, not only for producing SQL that runs.
-
----
 ## [1.0.0] – 2026-09-01
 
 First stable release. The public API, the CLI, and the YAML configuration schema are stable from this point on. Breaking changes to any of them raise the major version.
@@ -23,6 +9,11 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - **Renamed the project to NeuroMaestro.** The distribution is now `neuromaestro` (was `neuroimage-pipe`), the import package is `neuromaestro` (was `neuro_pipeline`), and the console entry points are `neuromaestro` and `neuromaestro-gui` (were `neuropipe` and `neuropipe-gui`).
 - `NEUROPIPE_CONFIG_DIR` is now `NEUROMAESTRO_CONFIG_DIR`. The old name is no longer read, so an existing shell profile export must be updated.
 - Earlier entries in this log were rewritten to the new names. No release carried the old ones to PyPI.
+
+### Tests
+- Fixed tests that passed without checking what they claim: check-outputs exits, report matrices, wrapper logging, count tolerance, exit codes, input redirection, resume of group tasks and job monitor filters.
+- Pinned the scheduler contract: exact submit and status arguments, per-task dependencies, script validation before submission, profile precedence, wrapper syntax, re-runs into existing directories, and the job's exit code and end status.
+- Checked the GUI wiring against the real Dash app (argument order, page-load triggers, duplicate outputs), and the GUI's run command against the real CLI.
 
 ---
 ## [0.18.0-alpha] – 2026-08-10

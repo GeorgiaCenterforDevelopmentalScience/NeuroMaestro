@@ -23,6 +23,10 @@ def _import_helpers():
     return _parse_comma_list, parse_and_expand_tasks
 
 
+# the run() options that accept comma-separated task lists
+LIST_OPTIONS = ["intermed", "bids_prep", "bids_post", "staged_prep", "staged_post"]
+
+
 # ---------------------------------------------------------------------------
 # _resolve_config_dir
 # ---------------------------------------------------------------------------
@@ -118,14 +122,19 @@ class TestParseAndExpandTasks:
                 bids_post=None, staged_prep=["cards,kidvid"], staged_post=None)
         assert reg.expand_tasks.call_args.kwargs["staged_prep"] == ["cards", "kidvid"]
 
+    @pytest.mark.parametrize("key", LIST_OPTIONS)
+    def test_every_list_option_is_comma_expanded(self, key):
+        reg = self._registry()
+        self.fn(reg, **{**dict.fromkeys(LIST_OPTIONS), key: ["a,b"]})
+        assert reg.expand_tasks.call_args.kwargs[key] == ["a", "b"]
+
     def test_none_keys_passed_through_unchanged(self):
         reg = self._registry()
         self.fn(reg, intermed=None, bids_prep=None,
                 bids_post=None, staged_prep=None, staged_post=None)
         kwargs = reg.expand_tasks.call_args.kwargs
-        assert kwargs["intermed"] is None
-        assert kwargs["bids_prep"] is None
-        assert kwargs["staged_prep"] is None
+        for key in LIST_OPTIONS:
+            assert kwargs[key] is None, key
 
     def test_non_list_kwargs_passed_through(self):
         reg = self._registry(["unzip"])

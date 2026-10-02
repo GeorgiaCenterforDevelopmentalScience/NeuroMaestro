@@ -175,6 +175,102 @@ class TestCallbackIdsExistInLayouts:
         assert not missing, f"callbacks reference ids absent from the layout: {missing}"
 
 
+class TestCallbackWiring:
+    """Checks the decorators, which the callback tests bypass by calling the functions directly."""
+
+    SERVER_CALLBACKS = [
+        "apply_config_dir", "detect_subjects_callback", "display_page",
+        "execute_pipeline_callback", "execute_sql_query_callback",
+        "export_check_csv_callback", "export_csv_callback", "force_rebuild_callback",
+        "generate_command_callback", "generate_new_config_callback",
+        "generate_report_callback", "init_study", "load_checks_callback",
+        "load_config_callback", "load_global_config_callback", "load_hpc_config_callback",
+        "load_wrapper_callback", "merge_logs_callback", "reset_dag_view",
+        "run_output_check_callback", "save_checks_callback", "save_config_callback",
+        "save_global_config_callback", "save_hpc_config_callback", "sync_status_options",
+        "toggle_sidebar", "update_dag_elements",
+    ]
+
+    # these start a subprocess or write a file, so must not fire on page load
+    SIDE_EFFECTS = {
+        "apply_config_dir", "init_study", "execute_pipeline_callback",
+        "force_rebuild_callback", "merge_logs_callback", "run_output_check_callback",
+        "export_check_csv_callback", "generate_report_callback",
+        "generate_new_config_callback", "save_config_callback", "save_checks_callback",
+        "save_global_config_callback", "save_hpc_config_callback",
+    }
+
+    # parameters whose name does not echo the component that feeds them
+    ALIASES = {
+        ("detect_subjects_callback", "directory"): "current-dir",
+        ("run_output_check_callback", "work_dir"): "check-output-dir",
+        ("export_check_csv_callback", "work_dir"): "check-output-dir",
+        ("save_global_config_callback", "yaml_content"): "global-config-editor",
+        ("save_hpc_config_callback", "yaml_content"): "hpc-config-editor",
+    }
+    QUALIFIERS = ("_clicks", "_value", "_data", "_input", "_raw", "_class", "_content")
+
+    @pytest.fixture(scope="class")
+    def wiring(self):
+        import inspect
+        from neuromaestro.interface.app import app
+        on_load = {entry["output"]: not entry["prevent_initial_call"]
+                   for entry in app._callback_list}
+        return [
+            (inspect.unwrap(spec["callback"]), spec["inputs"] + spec["state"], on_load[output])
+            for output, spec in app.callback_map.items()
+            if "callback" in spec   # clientside callbacks have no Python function
+        ]
+
+    def _fed_by(self, fn_name, param, dep):
+        alias = self.ALIASES.get((fn_name, param))
+        if alias is not None:
+            return dep["id"] == alias
+        name = param.lstrip("_")
+        if not name or name == dep["property"]:
+            return True
+        if name.endswith("_clicks") and dep["property"] != "n_clicks":
+            return False
+        for suffix in self.QUALIFIERS:
+            name = name.removesuffix(suffix)
+        return name.replace("_", "-") in dep["id"]
+
+    def test_every_server_callback_is_registered(self, wiring):
+        # a duplicate output without allow_duplicate can replace an earlier callback
+        assert sorted(fn.__name__ for fn, _, _ in wiring) == self.SERVER_CALLBACKS
+
+    def test_arguments_follow_the_decorator_order(self, wiring):
+        # Dash passes Inputs then States positionally, matched to nothing but their order
+        import inspect
+        mismatches = []
+        for fn, deps, _ in wiring:
+            params = list(inspect.signature(fn).parameters)
+            if len(params) != len(deps):
+                mismatches.append(f"{fn.__name__}: {len(params)} parameters, {len(deps)} dependencies")
+                continue
+            mismatches += [
+                f"{fn.__name__}({param}) <- {dep['id']}.{dep['property']}"
+                for param, dep in zip(params, deps)
+                if not self._fed_by(fn.__name__, param, dep)
+            ]
+        assert mismatches == []
+
+    def test_side_effects_do_not_fire_on_page_load(self, wiring):
+        fires_on_load = {fn.__name__ for fn, _, on_load in wiring if on_load}
+        assert self.SIDE_EFFECTS <= {fn.__name__ for fn, _, _ in wiring}
+        assert sorted(self.SIDE_EFFECTS & fires_on_load) == []
+
+    def test_shared_outputs_are_marked_allow_duplicate(self):
+        # the server registers a clash silently, the browser renderer rejects it
+        from collections import Counter
+        from neuromaestro.interface.app import app
+        unmarked = Counter()
+        for key in app.callback_map:
+            outputs = key.strip(".").split("...") if key.startswith("..") else [key]
+            unmarked.update(o for o in outputs if "@" not in o)
+        assert sorted(o for o, n in unmarked.items() if n > 1) == []
+
+
 class TestAppRouting:
 
     @pytest.fixture(autouse=True)

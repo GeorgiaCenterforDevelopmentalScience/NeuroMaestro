@@ -333,7 +333,8 @@ class TestGenerateCommandCallback:
         assert text.startswith("Error:")
         assert data == {}
 
-    @pytest.mark.parametrize("field", ["input_dir", "output_dir", "work_dir", "project_name"])
+    @pytest.mark.parametrize("field", ["input_dir", "output_dir", "work_dir", "project_name",
+                                       "session"])
     def test_missing_required_field_is_an_error(self, callbacks, field):
         text, data = self._call(callbacks, **{field: ""})
         assert text.startswith("Error:")
@@ -349,14 +350,24 @@ class TestGenerateCommandCallback:
         for session in (None, ""):
             text, _ = self._call(callbacks, session=session)
             assert "--session None" not in text
-            assert "--session \n" not in text
+            assert text.startswith("Error:")
 
     def test_command_contains_core_flags(self, callbacks):
         text, data = self._call(callbacks)
-        assert "neuromaestro run" in text
-        assert "--subjects 001" in text
-        assert "--session 01" in text
-        assert "--project proj" in text
+        assert text.splitlines() == [
+            'input_dir="/in"',
+            'output_dir="/out"',
+            'work_dir="/work"',
+            '',
+            'neuromaestro run \\',
+            '  --config-dir "/cfg" \\',
+            '  --subjects 001 \\',
+            '  --input "$input_dir" \\',
+            '  --output "$output_dir" \\',
+            '  --work "$work_dir" \\',
+            '  --session 01 \\',
+            '  --project proj',
+        ]
         assert data["subjects"] == ["001"]
 
     def test_optional_flags_omitted_when_unset(self, callbacks):
@@ -463,6 +474,46 @@ class TestExecutePipelineCallback:
         cmd = self._cmd(mock_run)
         for flag in ("--dry-run", "--resume", "--skip-preflight", "--skip-bids-validation"):
             assert flag in cmd
+
+    FULL_SELECTION = {
+        **COMMAND_DATA, "subjects": ["001", "002"], "prep_option": "unzip_recon",
+        "intermed_value": ["volume", "bfc"], "bids_prep": ["rest"], "bids_post": ["rest", "dwi"],
+        "staged_prep": ["cards"], "staged_post": ["cards", "kidvid"], "mriqc_option": "all",
+    }
+    ALL_FLAGS = dict(dry_run=["dry_run"], resume=["resume"], skip_preflight=["skip_preflight"],
+                     skip_bids_validation=["skip_bids_validation"])
+
+    def test_full_selection_builds_the_exact_command(self, callbacks):
+        _, mock_run = self._run(callbacks, command_data=self.FULL_SELECTION, **self.ALL_FLAGS)
+        assert mock_run.call_args.args[0] == [
+            "neuromaestro", "run",
+            "--config-dir", "/cfg", "--subjects", "001,002",
+            "--input", "/in", "--output", "/out", "--work", "/work",
+            "--session", "01", "--project", "proj",
+            "--prep", "unzip_recon", "--intermed", "volume,bfc",
+            "--bids-prep", "rest", "--bids-post", "rest,dwi",
+            "--staged-prep", "cards", "--staged-post", "cards,kidvid", "--mriqc", "all",
+            "--dry-run", "--resume", "--skip-preflight", "--skip-bids-validation",
+        ]
+        # the mock returns str output regardless, so the decoding flags are pinned here
+        assert mock_run.call_args.kwargs == {"capture_output": True, "text": True}
+
+    def test_command_parses_with_the_real_cli(self, callbacks):
+        # the GUI and the CLI declare these flags separately
+        import typer
+        from neuromaestro.pipeline.core import app as cli
+        _, mock_run = self._run(callbacks, command_data=self.FULL_SELECTION, **self.ALL_FLAGS)
+        argv = mock_run.call_args.args[0]
+        run = typer.main.get_command(cli).commands[argv[1]]
+        params = run.make_context(argv[1], argv[2:]).params
+        assert (params["subjects"], params["session"], params["project"]) == ("001,002", "01", "proj")
+        assert (params["input_dir"], params["output_dir"], params["work_dir"]) == ("/in", "/out", "/work")
+        assert params["config_dir"] == "/cfg"
+        assert (params["prep"], params["mriqc"]) == ("unzip_recon", "all")
+        assert params["intermed"] == ("volume,bfc",)
+        assert (params["bids_prep"], params["bids_post"]) == (("rest",), ("rest,dwi",))
+        assert (params["staged_prep"], params["staged_post"]) == (("cards",), ("cards,kidvid",))
+        assert all(params[f] for f in ("dry_run", "resume", "skip_preflight", "skip_bids_validation"))
 
     def test_config_dir_reaches_the_subprocess_as_an_argument(self, callbacks):
         # neuromaestro run reads --config-dir or NEUROMAESTRO_CONFIG_DIR, never CONFIG_DIR
