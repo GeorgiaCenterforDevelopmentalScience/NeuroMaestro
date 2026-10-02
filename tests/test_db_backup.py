@@ -112,10 +112,20 @@ class TestBackupDatabase:
     def test_old_backups_pruned_after_eleven(self, tmp_path):
         db = _make_db(tmp_path / "pipeline_jobs.db")
         backup_dir = tmp_path / "backup"
-        _make_backups(backup_dir, "pipeline_jobs", count=10)
-        runner.invoke(app, ["backup", str(db)])
-        remaining = list(backup_dir.glob("pipeline_jobs.backup_*.db"))
-        assert len(remaining) == 10
+        old = _make_backups(backup_dir, "pipeline_jobs", count=10)
+        # the backup dir already exists here, as it does from the second merge-logs run on
+        result = runner.invoke(app, ["backup", str(db)])
+        assert result.exit_code == 0, result.output
+        remaining = sorted(backup_dir.glob("pipeline_jobs.backup_*.db"))
+        assert remaining[:-1] == sorted(old)[1:]
+        assert remaining[-1].read_text() == "db_content"
+
+    def test_returns_the_backup_it_wrote(self, tmp_path):
+        # merge_once reports this path
+        from neuromaestro.pipeline.utils.db_backup import backup_database
+        db = _make_db(tmp_path / "pipeline_jobs.db")
+        path = backup_database(str(db), backup_dir=None)
+        assert [str(p) for p in (tmp_path / "backup").glob("*.db")] == [path]
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +161,18 @@ class TestRestoreDatabase:
                                      "--backup-dir", str(backup_dir)])
         assert result.exit_code == 0
         assert db.read_text() == "newest_backup"
+
+    def test_latest_defaults_to_the_backup_dir_next_to_the_db(self, tmp_path):
+        db = _make_db(tmp_path / "pipeline_jobs.db", content="current_data")
+        newest = sorted(_make_backups(tmp_path / "backup", "pipeline_jobs", count=3))[-1]
+        result = runner.invoke(app, ["restore", "latest", str(db)])
+        assert result.exit_code == 0, result.output
+        assert db.read_text() == newest.read_text()
+        assert result.output.splitlines() == [
+            f"Using latest backup: {newest}",
+            f"Current database backed up to: {tmp_path / 'pipeline_jobs.before_restore.db'}",
+            f"Database restored from: {newest}",
+        ]
 
     def test_latest_exits_when_backup_dir_missing(self, tmp_path):
         db = tmp_path / "pipeline_jobs.db"
