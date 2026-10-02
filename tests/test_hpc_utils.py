@@ -11,6 +11,8 @@ Covers:
 5. submit_slurm_job (dry_run) — no real sbatch call needed
 """
 
+import copy
+import json
 import os
 import sys
 import pytest
@@ -875,6 +877,122 @@ class TestSubmitSlurmJobExtras:
         for _ in range(2):
             job_id = self._invoke(tmp_path, scripts_dir, task_config, {"subjects": "001,002"})
             assert job_id == "dry_run_afni_cards_preprocessing"
+
+
+class TestSubmissionSideEffects:
+    """What a submission leaves behind besides the scheduler call."""
+
+    TASK = {"name": "cards_preprocess", "profile": "standard", "scripts": ["afni_cards_preprocessing.sh"]}
+
+    def _submit(self, tmp_path, scripts_dir, array, job_id="99999", dry_run=False, execution_id=None):
+        project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
+             patch("neuromaestro.pipeline.utils.hpc_utils.SLURMBackend.submit_job",
+                   return_value=job_id) as mock_submit:
+            from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
+            returned = submit_slurm_job(
+                script_name="afni_cards_preprocessing.sh", subjects="001,002",
+                work_dir=str(tmp_path / "work"), task_config={**self.TASK, "array": array},
+                project_config=project_config, db_path=str(tmp_path / "db" / "pipeline_jobs.db"),
+                dry_run=dry_run, input_dir="/data/input", output_dir=str(tmp_path / "output"),
+                container_dir="/containers", wait_jobs=None, option_env={"session": "01"},
+                requested_tasks=None, original_work_dir=None, execution_id=execution_id,
+            )
+        return returned, mock_submit
+
+    @staticmethod
+    def _wrapper_records(tmp_path):
+        files = sorted((tmp_path / "db" / "json" / "_pipeline").glob("wrapper_*.jsonl"))
+        return [json.loads(line) for f in files for line in f.read_text(encoding="utf-8").splitlines()]
+
+    def test_array_job_gets_a_log_dir_per_subject(self, tmp_path, scripts_dir):
+        self._submit(tmp_path, scripts_dir, array=True)
+        log = tmp_path / "work" / "log" / "cards_preprocess"
+        assert sorted(p.name for p in log.iterdir()) == ["sub-001", "sub-002"]
+
+    def test_single_job_gets_only_the_task_log_dir(self, tmp_path, scripts_dir):
+        # --output points here, and the scheduler does not create missing directories
+        self._submit(tmp_path, scripts_dir, array=False)
+        log = tmp_path / "work" / "log" / "cards_preprocess"
+        assert log.is_dir()
+        assert list(log.iterdir()) == []
+
+    def test_submitted_wrapper_is_recorded_for_the_report(self, tmp_path, scripts_dir):
+        job_id, mock_submit = self._submit(tmp_path, scripts_dir, array=True, execution_id=42)
+        assert job_id == "99999"
+        args, wrapper = mock_submit.call_args.args
+        (record,) = self._wrapper_records(tmp_path)
+        assert (record["event"], record["task_name"], record["job_id"], record["execution_id"]) == (
+            "wrapper_script", "cards_preprocess", "99999", 42)
+        assert record["wrapper_path"] == str(wrapper)
+        assert record["slurm_cmd"] == f"sbatch {' '.join(args)} {wrapper}"
+        assert record["full_content"] == Path(wrapper).read_text()
+
+    def test_failed_submission_records_no_wrapper(self, tmp_path, scripts_dir):
+        job_id, _ = self._submit(tmp_path, scripts_dir, array=True, job_id=None)
+        assert job_id is None
+        assert self._wrapper_records(tmp_path) == []
+
+    def test_dry_run_records_no_wrapper(self, tmp_path, scripts_dir):
+        job_id, mock_submit = self._submit(tmp_path, scripts_dir, array=True, dry_run=True)
+        assert job_id == "dry_run_afni_cards_preprocessing"
+        mock_submit.assert_not_called()
+        assert self._wrapper_records(tmp_path) == []
+
+    def test_logging_failure_does_not_block_submission(self, tmp_path, scripts_dir):
+        with patch("neuromaestro.pipeline.utils.job_db.log_wrapper_script", side_effect=OSError("disk full")):
+            job_id, _ = self._submit(tmp_path, scripts_dir, array=True)
+        assert job_id == "99999"
+
+
+class TestOptionalResourceFlags:
+
+    @staticmethod
+    def _resources(**extra):
+        from neuromaestro.pipeline.utils.hpc_utils import HPCResources
+        return HPCResources(partition="batch", nodes=1, ntasks=1, cpus_per_task=4,
+                            memory="8gb", time="01:00:00", **extra)
+
+    def _slurm_args(self, **extra):
+        from neuromaestro.pipeline.utils.hpc_utils import SLURMBackend
+        cfg = copy.deepcopy(MOCK_HPC_CONFIG["slurm"])
+        cfg["resource_flags"]["gres"] = "--gres={value}"
+        return SLURMBackend(cfg).build_job_args(resources=self._resources(**extra), array_param=None,
+                                                wait_jobs=["7"], job_name="j", log_output="o", log_error="e")
+
+    def test_slurm_gpu_request(self):
+        assert self._slurm_args(gres="gpu:1")[-2:] == ["--gres=gpu:1", "--dependency=afterany:7"]
+
+    def test_slurm_no_gpu_request_without_gres(self):
+        assert not any(a.startswith("--gres") for a in self._slurm_args())
+
+    def test_slurm_additional_args_come_before_the_dependency(self):
+        args = self._slurm_args(additional_args=["--account=lab", "--qos=high"])
+        assert args[-3:] == ["--account=lab", "--qos=high", "--dependency=afterany:7"]
+
+    @pytest.mark.parametrize("gres, expected", [("1", ["-l ngpus=1"]), (None, [])])
+    def test_pbs_gpu_request(self, gres, expected):
+        from neuromaestro.pipeline.utils.hpc_utils import PBSBackend
+        from tests.test_pbs_backend import PBS_CONFIG
+        cfg = copy.deepcopy(PBS_CONFIG)
+        cfg["resource_flags"]["gres"] = "-l ngpus={value}"
+        args = PBSBackend(cfg).build_job_args(resources=self._resources(gres=gres), array_param=None,
+                                              wait_jobs=None, job_name="j", log_output="o", log_error="e")
+        assert [a for a in args if "ngpus" in a] == expected
+
+    def test_profile_gres_and_additional_args_reach_the_resources(self):
+        hpc = copy.deepcopy(MOCK_HPC_CONFIG)
+        hpc["resource_profiles"]["gpu"] = {"memory": "8gb", "time": "01:00:00", "gres": "gpu:2",
+                                           "additional_args": ["--account=lab"]}
+        with patch(HPC_CONFIG_PATH, hpc):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
+            resources = get_hpc_resources({"name": "t", "profile": "gpu"})
+        assert (resources.gres, resources.additional_args) == ("gpu:2", ["--account=lab"])
+
+    def test_task_without_array_flag_is_not_an_array(self):
+        with patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
+            assert get_hpc_resources({"name": "t", "profile": "standard"}).array is None
 
 # ===========================================================================
 # 10. Shell quoting and reserved variable names
