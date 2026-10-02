@@ -406,6 +406,51 @@ class TestGetReportData:
 # generate_report
 # ---------------------------------------------------------------------------
 
+class TestFailedJobsAreTheLatestAttempt:
+    """001/recon/01 run more than once: only a failure that is still the latest is listed."""
+
+    @staticmethod
+    def _failed(tmp_path, attempts):
+        # attempts: (job_id, start_time, status, stderr, output_merged_at)
+        db_path = str(tmp_path / "jobs.db")
+        conn = get_db_connection(db_path)
+        conn.execute("INSERT INTO pipeline_executions "
+                     "(execution_id, project_name, session, status, subjects, execution_time) "
+                     "VALUES (1, 'proj', '01', 'COMPLETED', '001', '2024-01-01 08:00:00')")
+        for job_id, start, status, stderr, merged_at in attempts:
+            conn.execute("INSERT INTO job_status "
+                         "(execution_id, subject, task_name, session, start_time, status, job_id) "
+                         "VALUES (1, '001', 'recon', '01', ?, ?, ?)", (start, status, job_id))
+            conn.execute("INSERT INTO command_outputs "
+                         "(execution_id, subject, task_name, session, stderr, job_id, execution_time) "
+                         "VALUES (1, '001', 'recon', '01', ?, ?, ?)", (stderr, job_id, merged_at))
+        conn.commit()
+        conn.close()
+        with patch(TASK_ORDER_PATH, _mock_task_order):
+            return get_report_data(db_path, "proj", "01")["failed_jobs"]
+
+    def test_failure_fixed_by_a_rerun_is_not_listed(self, tmp_path):
+        assert self._failed(tmp_path, [
+            ("11", "2024-01-01 09:00:00", "FAILED", "out of memory", "2024-01-01 10:00:00"),
+            ("12", "2024-01-02 09:00:00", "SUCCESS", "", "2024-01-02 10:00:00"),
+        ]) == []
+
+    def test_failure_after_a_success_is_listed(self, tmp_path):
+        [job] = self._failed(tmp_path, [
+            ("11", "2024-01-01 09:00:00", "SUCCESS", "", "2024-01-01 10:00:00"),
+            ("12", "2024-01-02 09:00:00", "FAILED", "out of memory", "2024-01-02 10:00:00"),
+        ])
+        assert (job["start_time"], job["stderr"]) == ("2024-01-02 09:00:00", "out of memory")
+
+    def test_output_is_the_failed_attempts_own(self, tmp_path):
+        # force-rebuild inserts outputs in file order, so the older one can carry the later timestamp
+        [job] = self._failed(tmp_path, [
+            ("11", "2024-01-01 09:00:00", "FAILED", "segfault in an old run", "2024-03-01 10:00:00"),
+            ("12", "2024-01-02 09:00:00", "FAILED", "out of memory", "2024-02-01 10:00:00"),
+        ])
+        assert job["stderr"] == "out of memory"
+
+
 class TestGenerateReport:
 
     def _make_check_csv(self, tmp_path):

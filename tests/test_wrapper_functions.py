@@ -5,6 +5,7 @@ Only the units that can run without a scheduler are covered:
   - execute_wrapper array-index guard (exits cleanly when the array range is
     wider than the subject list)
   - warn_if_failed (logging failures were masked by the tee pipeline)
+  - resolve_scheduler_ids (array index and job id under SLURM, PBS Pro and Torque)
   - execute_script_with_logging (exit code and end status of the task script)
   - create_env_file (Python isolation after module loads)
 """
@@ -133,7 +134,78 @@ class TestScriptExecution:
                 " --exit-code 7 ") in log_end
 
 
+class TestSchedulerIds:
+
+    def _run(self, tmp_path, **env):
+        result = run_bash(
+            'execute_wrapper /nonexistent/script.sh >/dev/null\n'
+            'echo "subject=$SUBJECT_ID log=$LOG_PATH"',
+            env={"SUBJECTS": "001 002 003", "LOG_DIR": (tmp_path / "log").as_posix(),
+                 "TASK_NAME": "recon", **env},
+        )
+        return result.stdout
+
+    def test_pbs_pro_array_index_selects_the_subject(self, tmp_path):
+        assert "subject=003" in self._run(tmp_path, PBS_ARRAY_INDEX="3", PBS_JOBID="1234[3].pbs")
+
+    def test_torque_array_id_selects_the_subject(self, tmp_path):
+        assert "subject=002" in self._run(tmp_path, PBS_ARRAYID="2", PBS_JOBID="1234-2.pbs")
+
+    def test_slurm_index_takes_precedence(self, tmp_path):
+        out = self._run(tmp_path, SLURM_ARRAY_TASK_ID="1", SLURM_JOB_ID="77", PBS_ARRAY_INDEX="3")
+        assert "subject=001" in out
+
+    def test_pbs_array_task_logs_into_its_subject_dir(self, tmp_path):
+        out = self._run(tmp_path, PBS_ARRAY_INDEX="3", PBS_JOBID="1234[3].pbs")
+        assert f"log={(tmp_path / 'log').as_posix()}/recon/sub-003/recon_1234[3].pbs_3_" in out
+
+    def test_pbs_index_beyond_subject_count_is_rejected(self, tmp_path):
+        result = run_bash('execute_wrapper /nonexistent/script.sh',
+                          env={"SUBJECTS": "001 002", "PBS_ARRAY_INDEX": "9"})
+        assert "has no matching subject" in result.stdout
+
+
+class TestJobDbArguments:
+
+    def _calls(self, tmp_path, **env):
+        script = tmp_path / "task.sh"
+        script.write_text("exit 0\n")
+        calls = tmp_path / "calls.txt"
+        # one line per call: --stdout carries the multi-line log tail
+        stub = 'python3() { printf "%s\\n" "${*//$\'\\n\'/ }" >> "' + calls.as_posix() + '"; }\n'
+        run_bash(
+            stub
+            + f'LOG_PATH="{(tmp_path / "job.log").as_posix()}"\n'
+            + f'execute_script_with_logging "{script.as_posix()}" 001 recon',
+            env=env,
+        )
+        lines = calls.read_text().splitlines()
+        assert len(lines) == 3, lines   # log_start, log_command_output, log_end
+        return lines
+
+    def test_empty_execution_id_is_left_out(self, tmp_path):
+        # job_db.py rejects --execution-id "" and then logs nothing for the job
+        assert all("--execution-id" not in c for c in self._calls(tmp_path, EXECUTION_ID=""))
+
+    def test_execution_id_is_passed_when_set(self, tmp_path):
+        start, output, _end = self._calls(tmp_path, EXECUTION_ID="17")
+        assert "--execution-id 17 " in start
+        assert "--execution-id 17 " in output
+
+    def test_pbs_job_id_is_recorded(self, tmp_path):
+        calls = self._calls(tmp_path, PBS_JOBID="1234[3].pbs", PBS_ARRAY_INDEX="3")
+        assert all("--job-id 1234[3].pbs " in c for c in calls)
+
+
 class TestEnvFile:
+
+    def test_env_file_is_removed_after_sourcing(self, tmp_path):
+        result = run_bash(
+            'execute_wrapper /nonexistent/script.sh >/dev/null\n'
+            '[ -e "$ENV_FILE" ] && echo "env_file=kept" || echo "env_file=removed"',
+            env={"SUBJECTS": "001", "LOG_DIR": (tmp_path / "log").as_posix(), "TASK_NAME": "recon"},
+        )
+        assert "env_file=removed" in result.stdout
 
     def test_python_isolation_is_reapplied_after_module_loads(self):
         # a module load that sets PYTHONPATH must not leak into the task's Python

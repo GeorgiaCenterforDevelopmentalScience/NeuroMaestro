@@ -27,9 +27,8 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
         sess_ph = ','.join('?' * len(sessions))
         sess_filter_eq    = f" AND session IN ({sess_ph})"
         sess_filter_subq  = f"AND session IN ({sess_ph})"
-        sess_filter_alias = f"AND js.session IN ({sess_ph})"
     else:
-        sess_filter_eq = sess_filter_subq = sess_filter_alias = ""
+        sess_filter_eq = sess_filter_subq = ""
     sess_params = sessions  # list of values to bind for one session placeholder group
 
     meta_sql = ("SELECT * FROM pipeline_executions WHERE project_name = ?"
@@ -49,11 +48,8 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
 
     if all_subjects:
         ph = ','.join('?' * len(all_subjects))
-        latest_sql = f"""
-            SELECT js.subject, js.task_name, js.session, js.status,
-                   js.duration_hours, js.start_time, js.end_time,
-                   js.error_msg, js.exit_code, js.node_name
-            FROM job_status js
+        # Keeps only each subject/task/session's latest attempt; also scopes by subject and session.
+        latest_join = f"""
             INNER JOIN (
                 SELECT subject, task_name, session, MAX(start_time) AS max_start
                 FROM job_status
@@ -67,14 +63,23 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
                    OR (js.session IS NULL AND latest.session IS NULL))
               AND js.start_time = latest.max_start
         """
+        latest_sql = f"""
+            SELECT js.subject, js.task_name, js.session, js.status,
+                   js.duration_hours, js.start_time, js.end_time,
+                   js.error_msg, js.exit_code, js.node_name
+            FROM job_status js
+            {latest_join}
+        """
         latest_params = list(all_subjects) + sess_params
         job_status = _rows(conn, latest_sql, latest_params)
 
+        # A failure fixed by a rerun drops out, and the output shown is the failed attempt's own.
         failed_sql = f"""
             SELECT js.subject, js.task_name, js.session, js.status,
                    js.start_time, js.exit_code, js.error_msg,
                    co.stderr, co.stdout
             FROM job_status js
+            {latest_join}
             LEFT JOIN command_outputs co
               ON co.id = (
                     SELECT id FROM command_outputs
@@ -82,11 +87,11 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
                       AND task_name = js.task_name
                       AND (session  = js.session
                            OR (session IS NULL AND js.session IS NULL))
+                      AND (job_id   = js.job_id
+                           OR (job_id IS NULL AND js.job_id IS NULL))
                     ORDER BY execution_time DESC LIMIT 1
                   )
             WHERE js.status = 'FAILED'
-              AND js.subject IN ({ph})
-              {sess_filter_alias}
             ORDER BY js.task_name, js.subject
         """
         failed_jobs = _rows(conn, failed_sql, latest_params)

@@ -10,6 +10,23 @@ warn_if_failed() {
     fi
 }
 
+# SLURM, PBS Pro and Torque name these differently. Unexported, so task configs cannot shadow them.
+resolve_scheduler_ids() {
+    ARRAY_INDEX="${SLURM_ARRAY_TASK_ID:-${PBS_ARRAY_INDEX:-${PBS_ARRAYID:-}}}"
+    if [ -n "$SLURM_JOB_ID" ]; then
+        SCHED_JOB_ID="$SLURM_JOB_ID"
+        if [ -n "$SLURM_ARRAY_JOB_ID" ] && [ -n "$SLURM_ARRAY_TASK_ID" ]; then
+            FULL_JOB_ID="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+        else
+            FULL_JOB_ID="$SLURM_JOB_ID"
+        fi
+    else
+        # a PBS array subjob id already carries its index, e.g. 1234[3].server
+        SCHED_JOB_ID="${PBS_JOBID:-}"
+        FULL_JOB_ID="${PBS_JOBID:-}"
+    fi
+}
+
 # Global cleanup handler for signals
 cleanup_on_signal() {
     local signal_name="$1"
@@ -23,14 +40,9 @@ cleanup_on_signal() {
     if [ -n "$SUBJECT_ID" ] && [ -n "$TASK_NAME" ] && [ -n "$DB_PATH" ]; then
         echo "Logging cancellation..." | tee -a "$LOG_PATH" 2>/dev/null
         
-        # Get full job ID
-        local full_job_id="${SLURM_JOB_ID}"
-        if [ -n "$SLURM_ARRAY_JOB_ID" ] && [ -n "$SLURM_ARRAY_TASK_ID" ]; then
-            full_job_id="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
-        else
-            full_job_id="${SLURM_JOB_ID}"
-        fi
-        
+        resolve_scheduler_ids
+        local full_job_id="$FULL_JOB_ID"
+
         python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
             "$SUBJECT_ID" "$TASK_NAME" "CANCELLED" \
             --exit-code "$exit_code" \
@@ -81,14 +93,16 @@ execute_wrapper() {
     # Parse subjects array
     IFS=' ' read -ra subjects_array <<< "$SUBJECTS"
     NUM_SUBJECTS=${#subjects_array[@]}
-    
+
+    resolve_scheduler_ids
+
     # Select subject based on array task ID
-    if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "$NUM_SUBJECTS" -gt 0 ]; then
-        local idx=$((SLURM_ARRAY_TASK_ID - 1))
+    if [ -n "$ARRAY_INDEX" ] && [ "$NUM_SUBJECTS" -gt 0 ]; then
+        local idx=$((ARRAY_INDEX - 1))
         # Guard against an array range wider than the subject list (e.g. a
         # hand-edited --array range): bash would silently yield "".
         if [ "$idx" -lt 0 ] || [ "$idx" -ge "$NUM_SUBJECTS" ]; then
-            echo "Array task $SLURM_ARRAY_TASK_ID has no matching subject (only $NUM_SUBJECTS provided); exiting."
+            echo "Array task $ARRAY_INDEX has no matching subject (only $NUM_SUBJECTS provided); exiting."
             return 0
         fi
         subject="${subjects_array[$idx]}"
@@ -112,19 +126,19 @@ execute_wrapper() {
     export TASK_NAME="$task_name"
     
     # Setup log directories
-    if [ -n "$SLURM_ARRAY_TASK_ID" ]; then
+    if [ -n "$ARRAY_INDEX" ]; then
         SUB_LOG_DIR="$LOG_DIR/$task_name/sub-${subject}"
     else
         SUB_LOG_DIR="$LOG_DIR/$task_name"
     fi
     mkdir -p "$SUB_LOG_DIR"
-    
+
     # Create log file with timestamp and job_id
     timestamp=$(date +%Y%m%d_%H%M%S)
-    if [ -n "$SLURM_ARRAY_TASK_ID" ]; then
-        LOG_PATH="$SUB_LOG_DIR/${task_name}_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}_${timestamp}.log"
+    if [ -n "$ARRAY_INDEX" ]; then
+        LOG_PATH="$SUB_LOG_DIR/${task_name}_${SCHED_JOB_ID}_${ARRAY_INDEX}_${timestamp}.log"
     else
-        LOG_PATH="$SUB_LOG_DIR/${task_name}_${SLURM_JOB_ID}_${timestamp}.log"
+        LOG_PATH="$SUB_LOG_DIR/${task_name}_${SCHED_JOB_ID}_${timestamp}.log"
     fi
     
     export SUB_LOG_DIR LOG_PATH
@@ -139,6 +153,8 @@ execute_wrapper() {
     # Create and source environment file
     create_env_file
     source "$ENV_FILE"
+    # read once; one per job would otherwise pile up in the node's /tmp
+    rm -f "$ENV_FILE"
     
     # Execute the actual script with logging
     execute_script_with_logging "$script_path" "$subject" "$task_name"
@@ -146,7 +162,7 @@ execute_wrapper() {
 
 # Create environment file with all necessary variables
 create_env_file() {
-    ENV_FILE="/tmp/env_${TASK_NAME}_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}_${subject}_$RANDOM.sh"
+    ENV_FILE="/tmp/env_${TASK_NAME}_${SCHED_JOB_ID}_${ARRAY_INDEX:-0}_${subject}_$RANDOM.sh"
     export ENV_FILE
     
     cat > "$ENV_FILE" << 'ENV_EOF'
@@ -223,13 +239,9 @@ execute_script_with_logging() {
     fi
     
     local bash_start_time=$(date +%s)
-    
-    local full_job_id="${SLURM_JOB_ID}"
-    if [ -n "$SLURM_ARRAY_JOB_ID" ] && [ -n "$SLURM_ARRAY_TASK_ID" ]; then
-        full_job_id="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
-    else
-        full_job_id="${SLURM_JOB_ID}"
-    fi
+
+    resolve_scheduler_ids
+    local full_job_id="$FULL_JOB_ID"
     
     echo "=== Job Start: $(date) ===" | tee -a "$LOG_PATH"
     echo "Subject: $subject" | tee -a "$LOG_PATH"
@@ -245,7 +257,7 @@ execute_script_with_logging() {
         --job-id "$full_job_id" \
         --node-list "$SLURM_JOB_NODELIST" \
         --session "${SESSION:-}" \
-        --execution-id "${EXECUTION_ID:-}" \
+        ${EXECUTION_ID:+--execution-id "$EXECUTION_ID"} \
         --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
     warn_if_failed "${PIPESTATUS[0]}" "log job start"
 
@@ -297,7 +309,7 @@ execute_script_with_logging() {
             --log-file-path "$LOG_PATH" \
             --job-id "$full_job_id" \
             --session "${SESSION:-}" \
-            --execution-id "${EXECUTION_ID:-}" \
+            ${EXECUTION_ID:+--execution-id "$EXECUTION_ID"} \
             --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
         warn_if_failed "${PIPESTATUS[0]}" "log command output"
     fi
