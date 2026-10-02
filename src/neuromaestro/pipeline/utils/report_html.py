@@ -499,7 +499,7 @@ def render_html(
         sess = sd['session']
         label  = f'Session {sess}' if sess else 'Jobs'
         anchor = f'session-{sess}' if sess else 'session-all'
-        nav_links.append(f'<a href="#{anchor}">{_e(label)}</a>')
+        nav_links.append(f'<a href="#{_e(anchor)}">{_e(label)}</a>')
     navbar = '<nav class="navbar">' + ''.join(nav_links) + '</nav>'
 
     subtitle_parts = [f'Project: <strong>{_e(project_name)}</strong>']
@@ -549,7 +549,7 @@ def render_html(
             )
 
         session_html_parts.append(f'''
-  <section id="{anchor}">
+  <section id="{_e(anchor)}">
     <h2>{title}</h2>
     <h3>Task Completion</h3>
     {_section_task_summary(sd["task_summary"])}

@@ -150,7 +150,7 @@ Dependencies are enforced automatically by the scheduler.
 | `--dry-run` | Preview the execution plan without submitting jobs |
 | `--resume` | Skip subjects whose expected outputs already exist |
 | `--skip-bids-validation` | Skip pre-run BIDS validation |
-| `--skip-preflight` | Skip pre-flight config and filesystem checks |
+| `--skip-preflight` | Skip pre-flight config checks |
 | `--wait` | Wait for submitted jobs to finish before exiting |
 | `--polling-interval` | Seconds between job status checks when `--wait` is set. Default 60. |
 

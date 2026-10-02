@@ -1,7 +1,7 @@
 """
 test_preflight.py
 
-Tests for the pre-flight schema validation and filesystem checks
+Tests for the pre-flight schema validation
 in neuromaestro.pipeline.utils.preflight.
 """
 

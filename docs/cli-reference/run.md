@@ -71,7 +71,7 @@ For full dependency and parallel execution behavior, see [Pipeline Reference →
 |--------|-------------|
 | `--dry-run` | Print SLURM commands without submitting. Wrapper scripts are still written to `log/wrapper/` so you can inspect them. |
 | `--resume` | Skip subjects whose outputs already pass checks in `{project}_checks.yaml`. Submits full count with warning if file is missing. |
-| `--skip-preflight` | Skip pre-flight config schema and filesystem checks. |
+| `--skip-preflight` | Skip pre-flight config schema checks. |
 | `--skip-bids-validation` | Skip BIDS format validation (runs automatically when `--bids-prep` or `--mriqc individual/all` is used). |
 | `--wait` | Wait for all submitted jobs to complete before exiting |
 | `--polling-interval N` | Seconds between SLURM status polls when `--wait` is active (default: 60) |

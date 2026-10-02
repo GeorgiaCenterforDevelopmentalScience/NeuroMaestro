@@ -17,7 +17,7 @@ from .config_utils import get_config_dir
 @dataclass
 class Issue:
     severity: str   # "ERROR" | "WARNING"
-    category: str   # "schema" | "scripts" | "containers" | "directories"
+    category: str   # "schema"
     message: str
 
 @dataclass

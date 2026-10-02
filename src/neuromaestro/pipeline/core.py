@@ -122,7 +122,7 @@ def run(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show execution plan"),
     resume: bool = typer.Option(False, "--resume", help="Skip subjects whose outputs already exist"),
 
-    skip_preflight: bool = typer.Option(False, "--skip-preflight", help="Skip pre-flight config and filesystem checks"),
+    skip_preflight: bool = typer.Option(False, "--skip-preflight", help="Skip pre-flight config checks"),
     skip_bids_validation: bool = typer.Option(False, "--skip-bids-validation", help="Skip BIDS format validation"),
 
     wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),

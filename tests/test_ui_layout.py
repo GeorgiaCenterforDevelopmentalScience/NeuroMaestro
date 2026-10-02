@@ -568,10 +568,13 @@ class TestReportHtml:
         failed = [{"subject": hostile, "task_name": hostile, "start_time": "", "exit_code": 1, "stdout": hostile}]
         html = self.render_html(
             metadata={"command_line": hostile, "work_dir": hostile},
-            sessions_data=[self._session("01", failed_jobs=failed, all_subjects=[hostile], all_tasks=[hostile])],
-            project_name=hostile, session="01",
+            sessions_data=[self._session(hostile, failed_jobs=failed, all_subjects=[hostile], all_tasks=[hostile])],
+            project_name=hostile, session=hostile,
         )
         assert "<script>" not in html
+        assert f'<a href="#session-{escaped}">Session {escaped}</a>' in html
+        assert f'<section id="session-{escaped}">' in html
+        assert f"<h2>Session {escaped}</h2>" in html
         assert f"Project: <strong>{escaped}</strong>" in html
         assert f'<span class="meta-label">Work</span><span class="meta-val">{escaped}</span>' in html
         assert f'font-size:12px">{escaped}</span>' in html
