@@ -9,6 +9,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - **Renamed the project to NeuroMaestro.** The distribution is now `neuromaestro` (was `neuroimage-pipe`), the import package is `neuromaestro` (was `neuro_pipeline`), and the console entry points are `neuromaestro` and `neuromaestro-gui` (were `neuropipe` and `neuropipe-gui`).
 - `NEUROPIPE_CONFIG_DIR` is now `NEUROMAESTRO_CONFIG_DIR`. The old name is no longer read, so an existing shell profile export must be updated.
 - Earlier entries in this log were rewritten to the new names. No release carried the old ones to PyPI.
+- `check-outputs` statuses read `FAIL: reason` instead of `FAIL – reason`, and the other user-facing dashes became colons or parentheses. Anything matching on `FAIL` at the start is unaffected.
 - BIDS validation now runs the official validator, `bids-validator-deno`, in place of pybids, which only checked `dataset_description.json` and passed datasets with misnamed or empty files. It still only warns. It needs glibc 2.27 or newer and no `ulimit -v` below about 33 GB, and says so when it cannot start. pybids is no longer a dependency.
 
 ### Fixed
@@ -18,6 +19,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - Each job left its environment file in the node's `/tmp`.
 - The report escaped session IDs in headings but not in its navigation links and section anchors.
 - `--skip-preflight` help and docs said pre-flight checks the filesystem. It checks only the config.
+- After a run, the hints called merging the logs optional and listed the status queries first, although jobs reach the database only through `merge-logs`. The merge command now comes first and names the database, so it also works with a custom `database.db_path`.
 
 ### Tests
 - Fixed tests that passed without checking what they claim: check-outputs exits, report matrices, wrapper logging, count tolerance, exit codes, input redirection, resume of group tasks and job monitor filters.
@@ -34,6 +36,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - merge-logs' report of jobs killed before their end event is checked, including finished logs a job filter leaves unmerged.
 - Boundary values and defaults are pinned: output size and count limits, job duration in hours, output truncation, resume settings, the notice after a partial submission, config editor feedback and the wrapper inspector's filters.
 - First tests for loading files into the config editors, and for what every editor does when it cannot load or save.
+- Error and warning messages that users act on are checked word for word: submission failures, missing scripts, skipped tasks, backups, merges and the database commands.
 
 ---
 ## [0.18.0-alpha] – 2026-08-10
