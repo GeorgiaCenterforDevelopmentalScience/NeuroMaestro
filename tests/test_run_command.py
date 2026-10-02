@@ -1,7 +1,9 @@
 """`neuromaestro run` past the dry run: submission, --wait, --resume, pre-flight, BIDS validation and failures."""
 
 import json
+import sqlite3
 import subprocess
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -96,9 +98,21 @@ class TestRealSubmission:
     def test_follow_up_commands_point_at_the_shared_database(self, study):
         lines = study.invoke(*QUICK).output.splitlines()
         db = f"{study.root / 'work'}/database/pipeline_jobs.db"
-        assert f"  python -m neuromaestro.pipeline.utils.job_db query_jobs --db-path {db}" in lines
         # the database and merge-logs take --work without the project name
-        assert f"  neuromaestro merge-logs {study.root / 'work'}" in lines
+        merge = f"  neuromaestro merge-logs {study.root / 'work'} --db-path {db}"
+        query = f"  python -m neuromaestro.pipeline.utils.job_db query_jobs --db-path {db}"
+        # query_jobs reads only what merge-logs has written, so merging comes first
+        assert lines.index(merge) < lines.index(query)
+
+    def test_the_suggested_merge_reaches_a_custom_database(self, study):
+        study.edit_project_config(lambda c: c["database"].update(db_path="$WORK_DIR/elsewhere/jobs.db"))
+        lines = study.invoke(*QUICK).output.splitlines()
+        merge = next(line for line in lines if line.startswith("  neuromaestro merge-logs "))
+        from neuromaestro.pipeline.core import app
+        result = CliRunner().invoke(app, merge.split()[1:])
+        assert result.exit_code == 0, result.output
+        with closing(sqlite3.connect(study.root / "work" / "elsewhere" / "jobs.db")) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM pipeline_executions").fetchone() == (1,)
 
     def test_execution_is_recorded_as_a_real_run(self, study):
         study.invoke(*QUICK)
@@ -165,6 +179,8 @@ class TestResume:
     def test_missing_checks_config_warns_and_runs_everything(self, study):
         result = study.invoke(*QUICK, "--resume")
         assert result.exit_code == 0, result.output
+        checks = study.config_dir / "results_check" / f"{PROJECT}_checks.yaml"
+        assert f"Warning: Output checks config not found: {checks}" in result.output.splitlines()
         assert "Warning: --resume requested but no checks config found. Proceeding without skipping." in result.output
         assert len(study.sbatch.calls) == 2
 

@@ -111,7 +111,7 @@ class TestDAGExecutorResume:
         assert "001" not in submitted
         assert {"002", "003"}.issubset(submitted)
 
-    def test_resume_skips_task_entirely_when_all_complete(self):
+    def test_resume_skips_task_entirely_when_all_complete(self, capsys):
         """If all subjects are done for a task, _execute_single_task is never called for it."""
         _, all_job_ids, mock_execute, _ = self._run_execute(
             requested_tasks=["rest_preprocess"],
@@ -120,6 +120,7 @@ class TestDAGExecutorResume:
 
         assert all_job_ids["rest_preprocess"] == []
         mock_execute.assert_not_called()
+        assert "[resume] rest_preprocess: all subjects complete, skipping task." in capsys.readouterr().out.splitlines()
 
     def test_resume_partially_complete_task_still_submits(self):
         """At least one pending subject → job is still submitted."""
@@ -170,7 +171,7 @@ class TestDAGExecutorResume:
         assert submitted == set(self.SUBJECTS)
         mock_checker.get_pending_subjects.assert_called_once()
 
-    def test_resume_skips_group_task_when_group_result_passes(self):
+    def test_resume_skips_group_task_when_group_result_passes(self, capsys):
         """A group-scope task with a passing group result is skipped whole."""
         _, all_job_ids, mock_execute, _ = self._run_execute(
             requested_tasks=["rest_preprocess"],
@@ -181,6 +182,7 @@ class TestDAGExecutorResume:
 
         assert all_job_ids["rest_preprocess"] == []
         mock_execute.assert_not_called()
+        assert "[resume] rest_preprocess: group result complete, skipping task." in capsys.readouterr().out.splitlines()
 
     def test_resume_group_task_resubmits_all_subjects_when_group_fails(self):
         """A failing group result resubmits the task with the full subject list."""

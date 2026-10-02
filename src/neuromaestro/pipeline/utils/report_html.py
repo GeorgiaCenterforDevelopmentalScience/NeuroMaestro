@@ -410,7 +410,7 @@ def _section_failed_jobs(failed_jobs: list) -> str:
         )
         parts.append(
             f'<details>'
-            f'<summary>{_e(task)} — {len(jobs)} failed</summary>'
+            f'<summary>{_e(task)}: {len(jobs)} failed</summary>'
             f'<div class="details-body">{table}</div>'
             f'</details>'
         )

@@ -9,11 +9,31 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - **Renamed the project to NeuroMaestro.** The distribution is now `neuromaestro` (was `neuroimage-pipe`), the import package is `neuromaestro` (was `neuro_pipeline`), and the console entry points are `neuromaestro` and `neuromaestro-gui` (were `neuropipe` and `neuropipe-gui`).
 - `NEUROPIPE_CONFIG_DIR` is now `NEUROMAESTRO_CONFIG_DIR`. The old name is no longer read, so an existing shell profile export must be updated.
 - Earlier entries in this log were rewritten to the new names. No release carried the old ones to PyPI.
+- BIDS validation now runs the official validator, `bids-validator-deno`, in place of pybids, which only checked `dataset_description.json` and passed datasets with misnamed or empty files. It still only warns. It needs glibc 2.27 or newer and no `ulimit -v` below about 33 GB, and says so when it cannot start. pybids is no longer a dependency.
+
+### Fixed
+- PBS and Torque array jobs ran the first subject in every subtask, since only SLURM's array variables were read.
+- A run whose execution record could not be written lost every job from the database: the wrapper passed an empty `--execution-id`, which `job_db.py` rejected.
+- The report listed failures already fixed by a rerun, next to another attempt's output.
+- Each job left its environment file in the node's `/tmp`.
+- The report escaped session IDs in headings but not in its navigation links and section anchors.
+- `--skip-preflight` help and docs said pre-flight checks the filesystem. It checks only the config.
 
 ### Tests
 - Fixed tests that passed without checking what they claim: check-outputs exits, report matrices, wrapper logging, count tolerance, exit codes, input redirection, resume of group tasks and job monitor filters.
 - Pinned the scheduler contract: exact submit and status arguments, per-task dependencies, script validation before submission, profile precedence, wrapper syntax, re-runs into existing directories, and the job's exit code and end status.
 - Checked the GUI wiring against the real Dash app (argument order, page-load triggers, duplicate outputs), and the GUI's run command against the real CLI.
+- GUI callbacks are checked by their content: output-check summary, wrapper selection, merge-logs invocation, exported rows, and what each config editor writes to disk.
+- The job database is tested from the real log writers to whole rows, including repeated merges, rebuilds from archived logs, requeued jobs, and the command lines the wrapper uses.
+- The test workflow is now tracked, so CI runs the suite on Linux. Patches that had no effect, a duplicate test and stale fixture notes were removed.
+- First tests for `run` beyond the dry run (submission, `--wait`, `--resume`, pre-flight, when BIDS validation runs, failures), for the `check-outputs` CSV that `generate-report` reads, for BIDS validation itself, and for the force-rebuild and generate-report buttons.
+- The HTML report is checked row by row, including empty sections, multi-session navigation and escaping.
+- Submissions are checked for what they leave behind: log directories, the wrapper record the report reads, and GPU and extra scheduler flags.
+- `query_jobs` and `query_pipeline_executions` are checked by what they print, through the command line that `run` suggests.
+- The backup pruning test passed even when the backup itself failed. It now checks the exit code and which backups remain.
+- merge-logs' report of jobs killed before their end event is checked, including finished logs a job filter leaves unmerged.
+- Boundary values and defaults are pinned: output size and count limits, job duration in hours, output truncation, resume settings, the notice after a partial submission, config editor feedback and the wrapper inspector's filters.
+- First tests for loading files into the config editors, and for what every editor does when it cannot load or save.
 
 ---
 ## [0.18.0-alpha] – 2026-08-10

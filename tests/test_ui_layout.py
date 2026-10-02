@@ -434,7 +434,7 @@ class TestReportHtml:
              "stdout": "", "stderr": ""},
         ]
         html = self._minimal_html(failed_jobs=failed)
-        assert "recon — 2 failed" in html
+        assert "recon: 2 failed" in html
         assert "001" in html
 
     def test_failed_job_rows(self):
@@ -579,5 +579,5 @@ class TestReportHtml:
         assert f'<span class="meta-label">Work</span><span class="meta-val">{escaped}</span>' in html
         assert f'font-size:12px">{escaped}</span>' in html
         assert f"<th>{escaped}</th>" in html
-        assert f"<summary>{escaped} — 1 failed</summary>" in html
+        assert f"<summary>{escaped}: 1 failed</summary>" in html
         assert f"<pre>{escaped}</pre>" in html

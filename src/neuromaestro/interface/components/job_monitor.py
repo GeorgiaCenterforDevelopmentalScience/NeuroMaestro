@@ -201,7 +201,7 @@ def create_job_monitor_layout():
                                               persistence=True,
                                               persistence_type="session",
                                               ),
-                                    html.Small("Pipeline run ID — filter by this to isolate one run when a task was submitted multiple times.",
+                                    html.Small("Pipeline run ID. Filter by it to isolate one run when a task was submitted multiple times.",
                                                className="text-muted")
                                 ], width=2),
                                 dbc.Col([

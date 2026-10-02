@@ -79,7 +79,7 @@ def register_analysis_callbacks(app):
                 lines += [html.Br(), f"Scripts: {scripts_out}"]
             else:
                 lines += [html.Br(), html.Span(
-                    "Warning: script templates not found in package — scripts/ was not created.",
+                    "Warning: script templates not found in package, so scripts/ was not created.",
                     style={"color": "orange"},
                 )]
             lines += [html.Br(), "Click Apply to load the config."]

@@ -248,7 +248,7 @@ def run(
 
         db_path = db_config['db_path'].replace('$WORK_DIR', original_work_dir)
         if '$WORK_DIR' in db_path:
-            typer.echo("Error: 'database.db_path' contains unresolved '$WORK_DIR' — check your project config", err=True)
+            typer.echo("Error: 'database.db_path' contains unresolved '$WORK_DIR'. Check your project config.", err=True)
             raise typer.Exit(1)
 
         # Create db directory
@@ -334,14 +334,14 @@ def run(
             
         if not dry_run and all_job_ids:
             typer.echo("\n" + "="*60)
-            typer.echo(f"\nJSON logs location:")
+            typer.echo(f"\nJob logs are written as JSON under:")
             typer.echo(f"  {os.path.dirname(db_path)}/json/")
-            typer.echo(f"\nTo check job status, run:")
+            typer.echo(f"\nMerge them into the database before checking job status (again for newer results):")
+            typer.echo(f"  neuromaestro merge-logs {original_work_dir or work_dir} --db-path {db_path}")
+            typer.echo(f"\nThen check job status:")
             typer.echo(f"  python -m neuromaestro.pipeline.utils.job_db query_jobs --db-path {db_path}")
-            typer.echo(f"\nOr check recent jobs:")
+            typer.echo(f"\nOr only the 20 most recent jobs:")
             typer.echo(f"  python -m neuromaestro.pipeline.utils.job_db query_jobs --limit 20 --db-path {db_path}")
-            typer.echo(f"\nTo manually merge logs (optional):")
-            typer.echo(f"  neuromaestro merge-logs {original_work_dir or work_dir}")
 
         typer.echo("\n=== Completed ===")
     
@@ -621,9 +621,9 @@ def init(
     scripts_out = output / "scripts"
     typer.echo(f"\nInitialised at: {output}")
     typer.echo(f"\nNext steps:")
-    typer.echo(f"  1. Edit {config_out}/hpc_config.yaml  — scheduler & resource settings")
-    typer.echo(f"  2. Edit {config_out}/project_config/  — project-specific config")
-    typer.echo(f"  3. Edit {scripts_out}/                — adapt .sh scripts to your HPC")
+    typer.echo(f"  1. Edit {config_out}/hpc_config.yaml  (scheduler and resource settings)")
+    typer.echo(f"  2. Edit {config_out}/project_config/  (project-specific config)")
+    typer.echo(f"  3. Edit {scripts_out}/                (adapt the .sh scripts to your HPC)")
     typer.echo(f"\nThen run:")
     typer.echo(f"  neuromaestro run --config-dir {config_out} ...")
 

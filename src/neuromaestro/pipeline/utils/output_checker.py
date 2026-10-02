@@ -54,12 +54,12 @@ def _required_files_check(task, base_path, files_config,
         matches = _safe_glob(full_pattern)
 
         if not matches:
-            status = f"FAIL – file not found ({pattern})"
+            status = f"FAIL: file not found ({pattern})"
         elif min_size_kb is not None:
             threshold = min_size_kb * 1024
             big_enough = [m for m in matches if os.path.getsize(m) >= threshold]
             if not big_enough:
-                status = (f"FAIL – file exists but too small "
+                status = (f"FAIL: file exists but too small "
                           f"(< {min_size_kb} KB) ({pattern})")
             else:
                 status = "PASS"
@@ -95,9 +95,9 @@ def _count_check(task: str, base_path: str, count_config: dict,
         if abs(diff) <= tolerance:
             status = "PASS"
         elif diff > tolerance:
-            status = f"FAIL – too many files on {data_type} (got {actual}, expected {expected}±{tolerance})"
+            status = f"FAIL: too many files on {data_type} (got {actual}, expected {expected}±{tolerance})"
         else:
-            status = f"FAIL – too few files on {data_type} (got {actual}, expected {expected}±{tolerance})"
+            status = f"FAIL: too few files on {data_type} (got {actual}, expected {expected}±{tolerance})"
 
         rows.append({
             "task": task,

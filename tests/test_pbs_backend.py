@@ -153,13 +153,14 @@ class TestPBSSubmitJob:
         p.write_text("#!/bin/bash\n")
         return p
 
-    def test_successful_submission_parses_first_word(self, tmp_path):
+    def test_successful_submission_parses_first_word(self, tmp_path, capsys):
         backend = make_backend()
         with patch("subprocess.run") as mock_run:
             # a trailing token tells first_word apart from last_word and the raw line
             mock_run.return_value = MagicMock(stdout="4242.pbsserver queued\n")
             job_id = backend.submit_job(["-q batch"], self._script(tmp_path))
         assert job_id == "4242.pbsserver"
+        assert capsys.readouterr().out.splitlines() == ["Job submitted: 4242.pbsserver"]
 
     def test_command_is_qsub_plus_args_plus_script(self, tmp_path):
         backend = make_backend()
@@ -170,19 +171,23 @@ class TestPBSSubmitJob:
         assert mock_run.call_args.args[0] == ["qsub", "-q batch", str(script)]
         assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "check": True}
 
-    def test_failed_submission_returns_none(self, tmp_path):
+    def test_failed_submission_returns_none(self, tmp_path, capsys):
         backend = make_backend()
-        err = subprocess.CalledProcessError(1, "qsub", stderr="queue closed")
+        err = subprocess.CalledProcessError(1, "qsub", output="partial", stderr="queue closed")
         with patch("subprocess.run", side_effect=err):
             job_id = backend.submit_job(["-q batch"], self._script(tmp_path))
         assert job_id is None
+        assert capsys.readouterr().err.splitlines() == [
+            f"Job submission failed: {err}", "STDOUT: partial", "STDERR: queue closed"]
 
-    def test_exit_zero_with_no_parsable_id_returns_none(self, tmp_path):
+    def test_exit_zero_with_no_parsable_id_returns_none(self, tmp_path, capsys):
         backend = make_backend()
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout="\n")
+            mock_run.return_value = MagicMock(stdout="\n", stderr="qsub: warning")
             job_id = backend.submit_job(["-q batch"], self._script(tmp_path))
         assert job_id is None
+        assert capsys.readouterr().err.splitlines() == [
+            "Job submission returned no job id (exit 0). STDOUT: '\\n' STDERR: 'qsub: warning'"]
 
 
 class TestPBSWaitForJobs:

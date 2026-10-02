@@ -315,6 +315,8 @@ class TestForceRebuildCmd:
         runner, app = _runner()
         result = runner.invoke(app, ["force-rebuild", str(tmp_path)])
         assert result.exit_code == 1
+        json_dir = tmp_path / "database" / "json"
+        assert result.output.splitlines() == [f"Error: No JSON log directory found: {json_dir}"]
 
     def test_success_reports_count_and_path(self, tmp_path):
         runner, app = _runner()
@@ -323,8 +325,10 @@ class TestForceRebuildCmd:
                    return_value=(new_db, 7)):
             result = runner.invoke(app, ["force-rebuild", str(tmp_path)])
         assert result.exit_code == 0
-        assert "7" in result.output
-        assert new_db in result.output
+        assert result.output.splitlines() == [
+            "Rebuilt 7 record(s) from all JSONL logs (including archived).",
+            f"New database: {new_db}",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +348,7 @@ class TestGenerateReportCmd:
             "--check-results", str(csv_path),
         ])
         assert result.exit_code == 1
+        assert f"Error: Database not found: {tmp_path / 'nonexistent.db'}" in result.output.splitlines()
 
     def test_success_prints_report_path(self, tmp_path):
         runner, app = _runner()
@@ -356,7 +361,16 @@ class TestGenerateReportCmd:
                 "--project", "proj",
                 "--check-results", str(tmp_path / "results.csv"),
             ])
-        assert out_html in result.output
+        assert result.output.splitlines()[-1] == f"Report: {out_html}"
+
+    def test_without_a_config_dir_the_task_order_falls_back_with_a_warning(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
+        runner, app = _runner()
+        with patch("neuromaestro.pipeline.utils.report_generator.generate_report", return_value="r.html"):
+            result = runner.invoke(app, ["generate-report", "--db-path", str(tmp_path / "db.db"),
+                                         "--project", "proj", "--check-results", str(tmp_path / "r.csv")])
+        assert result.output.splitlines()[0] == (
+            "Warning: no --config-dir or $NEUROMAESTRO_CONFIG_DIR; report tasks will be listed alphabetically.")
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +558,7 @@ class TestDetectSubjectsCmd:
         runner, app = _runner()
         result = runner.invoke(app, ["detect-subjects", str(tmp_path / "nonexistent")])
         assert result.exit_code == 1
+        assert result.output.splitlines() == [f"Error: Directory not found: {tmp_path / 'nonexistent'}"]
 
     def test_prints_subjects_to_stdout(self, tmp_path):
         runner, app = _runner()
@@ -551,7 +566,7 @@ class TestDetectSubjectsCmd:
         (tmp_path / "sub-002").mkdir()
         result = runner.invoke(app, ["detect-subjects", str(tmp_path)])
         assert result.exit_code == 0
-        assert "001" in result.output
+        assert result.output.splitlines() == ["Detected 2 subjects:", "001,002"]
 
     def test_saves_subjects_to_file(self, tmp_path):
         runner, app = _runner()
@@ -561,6 +576,12 @@ class TestDetectSubjectsCmd:
         assert result.exit_code == 0
         from pathlib import Path
         assert Path(out_file).exists()
+        assert result.output.splitlines() == ["Detected 1 subjects", f"Saved to: {out_file}", "Subjects: 001"]
+
+    def test_no_subjects_is_not_an_error(self, tmp_path):
+        runner, app = _runner()
+        result = runner.invoke(app, ["detect-subjects", str(tmp_path)])
+        assert (result.exit_code, result.output.splitlines()) == (0, ["No subjects found with prefix: sub-"])
 
 
 # ---------------------------------------------------------------------------
@@ -591,6 +612,20 @@ class TestGenerateConfigCmd:
             ])
         mock_fn.assert_called_once()
 
+    @pytest.mark.parametrize("command, filename", [("generate-config", "my_study_config.yaml"),
+                                                   ("generate-checks", "my_study_checks.yaml")])
+    def test_existing_file_is_refused_with_the_reason(self, tmp_path, command, filename):
+        runner, app = _runner()
+        (tmp_path / filename).write_text("# my edits\n")
+        with patch("neuromaestro.pipeline.core.set_config_dir"):
+            result = runner.invoke(app, [command, "my_study", "--config-dir", str(tmp_path),
+                                         "--output-dir", str(tmp_path)])
+        assert result.exit_code == 1
+        (line,) = result.output.splitlines()
+        assert line.startswith(f"Error: {tmp_path / filename} already exists.")
+        assert line.endswith("Pass --force to replace it.")
+        assert (tmp_path / filename).read_text() == "# my edits\n"
+
 
 # ---------------------------------------------------------------------------
 # CLI — init
@@ -603,6 +638,17 @@ class TestInitCmd:
         result = runner.invoke(app, ["init", str(tmp_path / "study")])
         assert result.exit_code == 0
         assert "Initialised at" in result.output
+        lines = result.output.splitlines()
+        config, scripts = tmp_path / "study" / "config", tmp_path / "study" / "scripts"
+        start = lines.index("Next steps:")
+        assert lines[start + 1:start + 6] == [
+            f"  1. Edit {config}/hpc_config.yaml  (scheduler and resource settings)",
+            f"  2. Edit {config}/project_config/  (project-specific config)",
+            f"  3. Edit {scripts}/                (adapt the .sh scripts to your HPC)",
+            "",
+            "Then run:",
+        ]
+        assert lines[start + 6] == f"  neuromaestro run --config-dir {config} ..."
 
     def test_prints_env_var_tip(self, tmp_path):
         runner, app = _runner()

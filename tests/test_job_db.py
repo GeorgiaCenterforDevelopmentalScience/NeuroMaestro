@@ -121,7 +121,7 @@ class TestLogJobEnd:
         assert end_record["event"] == "end"
         assert end_record["status"] == "COMPLETED"
 
-    def test_unmatched_job_id_raises_instead_of_guessing(self, tmp_path):
+    def test_unmatched_job_id_raises_instead_of_guessing(self, tmp_path, capsys):
         # The regression: it fell back to the most recently written file in the
         # directory, which belongs to whichever array task logged last
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
@@ -137,6 +137,10 @@ class TestLogJobEnd:
         assert excinfo.value.exit_code == 1
 
         assert len(other.read_text().strip().splitlines()) == 1
+        # the wrapper's own log is the only place this job leaves a trace
+        assert capsys.readouterr().err.splitlines() == [
+            f"Error: no start log for 001/recon (job nonexistent_id) under {json_dir}. "
+            "This job will be absent from the database."]
 
     def test_subject_disambiguates_when_there_is_no_job_id(self, tmp_path):
         # Outside SLURM every task of one name writes unknown_*.jsonl
@@ -366,11 +370,14 @@ class TestLogCommandOutput:
         kept = self._read_command_record(tmp_path)[stream].split("\n")
         assert (kept[0], kept[-1], len(kept)) == ("line 1", "line 50", 50)
 
-    def test_missing_json_dir_raises(self, tmp_path):
+    def test_missing_json_dir_raises(self, tmp_path, capsys):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")
         with pytest.raises(typer.Exit) as excinfo:
             log_command_output("001", "recon", "script.sh", "cmd", db_path=db_path)
         assert excinfo.value.exit_code == 1
+        json_dir = tmp_path / "db" / "json" / "recon"
+        assert capsys.readouterr().err.splitlines() == [
+            f"Error: no start log for 001/recon (job unknown) under {json_dir}"]
 
     def test_output_goes_to_its_own_subject(self, tmp_path):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")

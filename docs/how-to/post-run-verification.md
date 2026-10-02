@@ -17,7 +17,7 @@ After your SLURM jobs finish, three commands help you verify results and documen
 | Step | Command | Purpose |
 |------|---------|---------|
 | 1 | `neuromaestro check-outputs` | Verify which subjects have complete outputs |
-| 2 | `neuromaestro merge-logs` | Sync JSONL logs into the database (if needed) |
+| 2 | `neuromaestro merge-logs` | Sync JSONL logs into the database (needed before querying jobs or generating a report) |
 | 3 | `neuromaestro generate-report` | Generate a standalone HTML report |
 
 Steps 1 and 3 are the most common. Step 2 is only needed if the database looks incomplete.

@@ -84,6 +84,7 @@ class TestBackupDatabase:
         assert result.exit_code == 0
         backups = list((tmp_path / "backup").glob("pipeline_jobs.backup_*.db"))
         assert len(backups) == 1
+        assert result.output.splitlines() == [f"Backup created: {backups[0]}"]
 
     def test_backup_content_matches_original(self, tmp_path):
         db = _make_db(tmp_path / "pipeline_jobs.db", content="original_data")
@@ -108,6 +109,7 @@ class TestBackupDatabase:
     def test_exits_when_db_not_found(self, tmp_path):
         result = runner.invoke(app, ["backup", str(tmp_path / "nonexistent.db")])
         assert result.exit_code == 1
+        assert result.output.splitlines() == [f"Database not found: {tmp_path / 'nonexistent.db'}"]
 
     def test_old_backups_pruned_after_eleven(self, tmp_path):
         db = _make_db(tmp_path / "pipeline_jobs.db")
@@ -119,6 +121,7 @@ class TestBackupDatabase:
         remaining = sorted(backup_dir.glob("pipeline_jobs.backup_*.db"))
         assert remaining[:-1] == sorted(old)[1:]
         assert remaining[-1].read_text() == "db_content"
+        assert result.output.splitlines()[-1] == f"Removed old backup: {sorted(old)[0].name}"
 
     def test_returns_the_backup_it_wrote(self, tmp_path):
         # merge_once reports this path
@@ -179,6 +182,7 @@ class TestRestoreDatabase:
         result = runner.invoke(app, ["restore", "latest", str(db),
                                      "--backup-dir", str(tmp_path / "nonexistent")])
         assert result.exit_code == 1
+        assert result.output.splitlines() == [f"Backup directory not found: {tmp_path / 'nonexistent'}"]
 
     def test_latest_exits_when_no_backups_exist(self, tmp_path):
         db = tmp_path / "pipeline_jobs.db"
@@ -187,12 +191,14 @@ class TestRestoreDatabase:
         result = runner.invoke(app, ["restore", "latest", str(db),
                                      "--backup-dir", str(backup_dir)])
         assert result.exit_code == 1
+        assert result.output.splitlines() == [f"No backups found in: {backup_dir}"]
 
     def test_exits_when_explicit_backup_missing(self, tmp_path):
         db = tmp_path / "pipeline_jobs.db"
         result = runner.invoke(app, ["restore",
                                      str(tmp_path / "nonexistent.db"), str(db)])
         assert result.exit_code == 1
+        assert result.output.splitlines() == [f"Backup not found: {tmp_path / 'nonexistent.db'}"]
 
     def test_restore_works_when_db_does_not_exist_yet(self, tmp_path):
         backup = tmp_path / "pipeline_jobs.backup_20240101_120000.db"

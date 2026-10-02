@@ -105,11 +105,12 @@ class TestFindTaskConfigByNameWithProject:
             result = find_task_config_by_name_with_project("recon", MOCK_PROJECT_CONFIG)
         assert result["container"] == "dcm2bids_3.2.0.sif"
 
-    def test_returns_none_for_unknown_task(self):
+    def test_returns_none_for_unknown_task(self, capsys):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuromaestro.pipeline.utils.config_utils import find_task_config_by_name_with_project
             result = find_task_config_by_name_with_project("ghost_task", MOCK_PROJECT_CONFIG)
         assert result is None
+        assert capsys.readouterr().out.splitlines() == ["Warning: No global config for: ghost_task"]
 
 
 # ===========================================================================

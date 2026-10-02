@@ -4,6 +4,7 @@ import json
 import sqlite3
 import tempfile
 import shutil
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 from datetime import datetime
@@ -371,6 +372,24 @@ class TestMergeOnce:
                 merge_once(work_dir, db_path)
 
         assert call_order == ["backup", "merge"]
+
+    def test_reports_the_backup_and_the_merge(self, temp_workspace, mock_db, capsys):
+        create_mock_json_log(temp_workspace['json_dir'], "sub001", "task1", "12345")
+        with patch("neuromaestro.pipeline.utils.db_backup.backup_database", return_value="/b/jobs.backup.db"):
+            merge_once(temp_workspace['work_dir'], temp_workspace['db_path'])
+        out = capsys.readouterr().out.splitlines()
+        assert out[0] == "Database backed up to: /b/jobs.backup.db"
+        assert out[-1] == "Merged 1 files"
+
+    def test_failed_backup_warns_and_still_merges(self, temp_workspace, mock_db, capsys):
+        create_mock_json_log(temp_workspace['json_dir'], "sub001", "task1", "12345")
+        with patch("neuromaestro.pipeline.utils.db_backup.backup_database", side_effect=OSError("disk full")):
+            merge_once(temp_workspace['work_dir'], temp_workspace['db_path'])
+        captured = capsys.readouterr()
+        assert captured.err.splitlines() == ["Warning: Backup failed: disk full"]
+        assert captured.out.splitlines()[-1] == "Merged 1 files"
+        with closing(sqlite3.connect(temp_workspace['db_path'])) as conn:
+            assert conn.execute("SELECT job_id FROM job_status").fetchall() == [("12345",)]
 
 
 class TestRebuildDb:

@@ -313,6 +313,11 @@ class TestTaskRegistry:
         result = expand(self.registry, prep=self.PrepChoice.unzip)
         assert result == ["unzip"]
 
+    def test_misspelled_intermed_task_is_skipped_out_loud(self, capsys):
+        result = expand(self.registry, intermed=["volume", "volumee"])
+        assert result == ["volume"]
+        assert capsys.readouterr().out.splitlines() == ["Warning: 'volumee' is not a valid intermed task, skipping"]
+
     def test_prep_unzip_recon_expands_to_both(self):
         result = expand(self.registry, prep=self.PrepChoice.unzip_recon)
         assert result == ["unzip", "recon"]

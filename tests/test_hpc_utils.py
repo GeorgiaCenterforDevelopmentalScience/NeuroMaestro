@@ -160,10 +160,21 @@ class TestGetScriptWithValidation:
         result = get_script_with_validation("nonexistent_script.sh", str(scripts_dir))
         assert result is None
 
-    def test_returns_none_when_scripts_dir_missing(self, tmp_path):
+    def test_returns_none_when_scripts_dir_missing(self, tmp_path, capsys):
         from neuromaestro.pipeline.utils.hpc_utils import get_script_with_validation
         result = get_script_with_validation("any.sh", str(tmp_path / "does_not_exist"))
         assert result is None
+        assert capsys.readouterr().err.splitlines() == [
+            f"[ERROR] Script 'any.sh' not found. Scripts directory {tmp_path / 'does_not_exist'} does not exist."]
+
+    def test_missing_script_lists_the_ones_that_are_there(self, tmp_path, capsys):
+        from neuromaestro.pipeline.utils.hpc_utils import get_script_with_validation
+        for name in ("b.sh", "a.sh"):
+            (tmp_path / name).write_text("#!/bin/bash\n")
+        (tmp_path / "subdir").mkdir()
+        assert get_script_with_validation("typo.sh", str(tmp_path)) is None
+        assert capsys.readouterr().err.splitlines() == [
+            f"[ERROR] Script 'typo.sh' not found in {tmp_path}. Available: a.sh, b.sh"]
 
 
 # ===========================================================================
@@ -534,7 +545,7 @@ class TestSLURMBackendSubmitJob:
         from neuromaestro.pipeline.utils.hpc_utils import SLURMBackend
         return SLURMBackend(MOCK_HPC_CONFIG["slurm"])
 
-    def test_successful_submission_returns_job_id(self, tmp_path):
+    def test_successful_submission_returns_job_id(self, tmp_path, capsys):
         backend = self._backend()
         fake_script = tmp_path / "wrapper.sh"
         fake_script.write_text("#!/bin/bash\n")
@@ -542,16 +553,20 @@ class TestSLURMBackendSubmitJob:
             mock_run.return_value = MagicMock(stdout="Submitted batch job 12345\n")
             job_id = backend.submit_job(["--partition=batch"], fake_script)
         assert job_id == "12345"
+        assert capsys.readouterr().out.splitlines() == ["Job submitted: 12345"]
 
-    def test_failed_submission_returns_none(self, tmp_path):
+    def test_failed_submission_returns_none(self, tmp_path, capsys):
         import subprocess
         backend = self._backend()
         fake_script = tmp_path / "wrapper.sh"
         fake_script.write_text("#!/bin/bash\n")
-        err = subprocess.CalledProcessError(1, "sbatch", stderr="permission denied")
+        err = subprocess.CalledProcessError(1, "sbatch", output="partial", stderr="permission denied")
         with patch("subprocess.run", side_effect=err):
             job_id = backend.submit_job(["--partition=batch"], fake_script)
         assert job_id is None
+        # what sbatch said is the only clue the user gets
+        assert capsys.readouterr().err.splitlines() == [
+            f"Job submission failed: {err}", "STDOUT: partial", "STDERR: permission denied"]
 
     def test_first_word_parse_strategy(self, tmp_path):
         from neuromaestro.pipeline.utils.hpc_utils import SLURMBackend
@@ -588,7 +603,7 @@ class TestSLURMBackendSubmitJob:
         # the mock returns str stdout regardless, so the decoding flags are pinned here
         assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "check": True}
 
-    def test_exit_zero_with_no_parsable_id_returns_none(self, tmp_path):
+    def test_exit_zero_with_no_parsable_id_returns_none(self, tmp_path, capsys):
         """sbatch can exit 0 and print nothing usable (a warning-only run).
 
         Only CalledProcessError is caught, so an unparsable stdout must not be
@@ -598,9 +613,11 @@ class TestSLURMBackendSubmitJob:
         fake_script = tmp_path / "wrapper.sh"
         fake_script.write_text("#!/bin/bash\n")
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(stdout="   \n")
+            mock_run.return_value = MagicMock(stdout="   \n", stderr="sbatch: warning: no partition")
             job_id = backend.submit_job(["--partition=batch"], fake_script)
         assert job_id is None
+        assert capsys.readouterr().err.splitlines() == [
+            "Job submission returned no job id (exit 0). STDOUT: '   \\n' STDERR: 'sbatch: warning: no partition'"]
 
 
 # ===========================================================================

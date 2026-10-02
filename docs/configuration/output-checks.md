@@ -72,7 +72,7 @@ The `output_path` and `pattern` fields support these placeholders:
 `output_path` is the base directory. Patterns are joined to it with `os.path.join` before globbing, so they are relative to `output_path`.
 
 :::{important}
-`{work_dir}` is whatever you pass to `check-outputs --work`. Every `output_path` is built relative to it (`{work_dir}/BIDS/...`, `{work_dir}/AFNI_derivatives/...`), so `--work` must point at the folder that holds those subdirectories, **not** the `run` `--work` directory that holds logs and the database. If the path is one level off (e.g. you pass `.../BIDS/branch/BIDS/work`), every glob resolves under a non-existent directory and all checks report `FAIL – file not found`. Under `--resume` the same value is supplied automatically as `run --output` plus the project name, so it always matches the tree the jobs write to and needs no separate configuration. Confirm your path first:
+`{work_dir}` is whatever you pass to `check-outputs --work`. Every `output_path` is built relative to it (`{work_dir}/BIDS/...`, `{work_dir}/AFNI_derivatives/...`), so `--work` must point at the folder that holds those subdirectories, **not** the `run` `--work` directory that holds logs and the database. If the path is one level off (e.g. you pass `.../BIDS/branch/BIDS/work`), every glob resolves under a non-existent directory and all checks report `FAIL: file not found`. Under `--resume` the same value is supplied automatically as `run --output` plus the project name, so it always matches the tree the jobs write to and needs no separate configuration. Confirm your path first:
 
 ```bash
 # Should list BIDS  AFNI_derivatives  BIDS_derivatives  quality_control
@@ -312,19 +312,19 @@ The CSV is written to `{work_dir}/check_results_{timestamp}.csv` with one row pe
 | `pattern` | The glob pattern that was evaluated |
 | `expected` | `exists`, `exists + ≥N KB`, or `N±tolerance` |
 | `actual` | Number of files found |
-| `status` | `PASS` or `FAIL – reason` |
+| `status` | `PASS` or `FAIL: reason` |
 
 Example output (3 subjects, 2 tasks):
 
 | task | subject | session | check_type | pattern | expected | actual | status |
 |------|---------|---------|------------|---------|----------|--------|--------|
 | rest_preprocess | 001 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 1 | PASS |
-| rest_preprocess | 002 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 0 | FAIL – file not found |
-| rest_preprocess | 003 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 1 | FAIL – file exists but too small (< 500 KB) |
+| rest_preprocess | 002 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 0 | FAIL: file not found |
+| rest_preprocess | 003 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 1 | FAIL: file exists but too small (< 500 KB) |
 | recon | 001 | 01 | count_check:anat | anat/*.nii.gz | 1±0 | 1 | PASS |
 | recon | 001 | 01 | count_check:fmap | fmap/*.nii.gz | 4±1 | 4 | PASS |
 | recon | 002 | 01 | count_check:anat | anat/*.nii.gz | 1±0 | 1 | PASS |
-| recon | 002 | 01 | count_check:fmap | fmap/*.nii.gz | 4±1 | 2 | FAIL – too few files on fmap (got 2, expected 4±1) |
+| recon | 002 | 01 | count_check:fmap | fmap/*.nii.gz | 4±1 | 2 | FAIL: too few files on fmap (got 2, expected 4±1) |
 | recon | 003 | 01 | count_check:anat | anat/*.nii.gz | 1±0 | 1 | PASS |
 | recon | 003 | 01 | count_check:fmap | fmap/*.nii.gz | 4±1 | 5 | PASS |
 
