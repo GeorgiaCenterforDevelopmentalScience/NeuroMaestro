@@ -41,7 +41,9 @@ Multiple flags can be combined freely in one command. The pipeline resolves all 
 
 ## Automatic BIDS Validation
 
-Before any jobs are submitted, the pipeline automatically validates your BIDS dataset when you use `--bids-prep` or `--mriqc individual` / `--mriqc all`. Validation checks that your BIDS directory conforms to the BIDS specification. Missing files, incorrect naming, or malformed metadata will be caught here before any cluster resources are used.
+Before any jobs are submitted, the pipeline automatically validates your BIDS dataset when you use `--bids-prep` or `--mriqc individual` / `--mriqc all`. Validation runs the official BIDS validator (`bids-validator-deno`, installed with neuromaestro), so missing files, incorrect naming, or malformed metadata are reported here before any cluster resources are used. Errors are listed by type with a few example paths, and warnings are counted. Both are warnings to you: the run continues either way.
+
+The validator needs glibc 2.27 or newer, and the machine that runs `neuromaestro run` must not cap virtual memory with `ulimit -v` below about 33 GB, because the validator's JavaScript engine reserves that much address space at startup (actual memory use is a few hundred MB). Where it cannot start, the run prints a warning saying so and continues.
 
 | Flag | BIDS validation runs? |
 |------|-----------------------|

@@ -225,7 +225,7 @@ class TestBidsValidationTrigger:
             result = study.invoke("--skip-preflight", "--dry-run", *extra, prep=prep)
         assert result.exit_code == 0, result.output
         if expected:
-            validate.assert_called_once_with(str(study.root / "input"), str(study.root / "work" / PROJECT))
+            validate.assert_called_once_with(str(study.root / "input"))
         else:
             validate.assert_not_called()
 

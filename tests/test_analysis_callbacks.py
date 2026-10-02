@@ -507,6 +507,16 @@ class TestExecutePipelineCallback:
         # the mock returns str output regardless, so the decoding flags are pinned here
         assert mock_run.call_args.kwargs == {"capture_output": True, "text": True}
 
+    def test_nothing_selected_builds_the_bare_command(self, callbacks):
+        # "none" is a dropdown value, not a task: it must not reach the CLI
+        _, mock_run = self._run(callbacks)
+        assert mock_run.call_args.args[0] == [
+            "neuromaestro", "run",
+            "--config-dir", "/cfg", "--subjects", "001",
+            "--input", "/in", "--output", "/out", "--work", "/work",
+            "--session", "01", "--project", "proj",
+        ]
+
     def test_command_parses_with_the_real_cli(self, callbacks):
         # the GUI and the CLI declare these flags separately
         import typer
@@ -602,3 +612,16 @@ class TestUpdateDagElements:
         elements = fn("/", "unzip_recon", ["volume"], [], [], [], [], "none")
         ids = {e["data"]["id"] for e in elements if "source" not in e["data"]}
         assert {"unzip", "recon", "intermed"} <= ids
+
+    BUILDER = "neuromaestro.interface.components.analysis_control.build_dag_elements"
+
+    def test_every_selection_reaches_the_builder(self, callbacks):
+        with patch(self.BUILDER, return_value=[]) as build:
+            callbacks.get("update_dag_elements")("/", "unzip_recon", ["volume"], ["rest"], ["dwi"],
+                                                 ["cards"], ["kidvid"], "all")
+        build.assert_called_once_with("unzip_recon", ["volume"], ["rest"], ["dwi"], ["cards"], ["kidvid"], "all")
+
+    def test_unset_controls_become_empty_selections(self, callbacks):
+        with patch(self.BUILDER, return_value=[]) as build:
+            callbacks.get("update_dag_elements")(None, None, None, None, None, None, None, None)
+        build.assert_called_once_with("none", [], [], [], [], [], "none")

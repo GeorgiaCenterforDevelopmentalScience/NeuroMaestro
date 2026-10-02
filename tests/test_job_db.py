@@ -193,6 +193,15 @@ class TestLogJobEnd:
             log_job_end("001", "recon", "COMPLETED", db_path=db_path)
         assert excinfo.value.exit_code == 1
 
+    @pytest.mark.parametrize("seconds, hours", [(7200, 2.0), (4000, 1.111), (0, 0.0), (None, None)])
+    def test_duration_is_recorded_in_hours(self, tmp_path, seconds, hours):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_job_start("001", "recon", session="01", job_id="5", db_path=db_path)
+        log_job_end("001", "recon", "SUCCESS", session="01", job_id="5",
+                    duration_seconds=seconds, db_path=db_path)
+        (log,) = (tmp_path / "db" / "json" / "recon").glob("*.jsonl")
+        assert json.loads(log.read_text().splitlines()[1])["duration_hours"] == hours
+
 
 # ---------------------------------------------------------------------------
 # log_pipeline_execution + update_pipeline_execution
@@ -348,6 +357,14 @@ class TestLogCommandOutput:
                            stderr=long_err, job_id="99", db_path=db_path)
         record = self._read_command_record(tmp_path)
         assert len(record["stderr"].split("\n")) == 50
+
+    @pytest.mark.parametrize("stream", ["stdout", "stderr"])
+    def test_one_line_over_the_limit_drops_the_oldest(self, tmp_path, stream):
+        db_path = self._setup_job(tmp_path)
+        text = "\n".join(f"line {i}" for i in range(51))
+        log_command_output("001", "recon", "script.sh", "cmd", job_id="99", db_path=db_path, **{stream: text})
+        kept = self._read_command_record(tmp_path)[stream].split("\n")
+        assert (kept[0], kept[-1], len(kept)) == ("line 1", "line 50", 50)
 
     def test_missing_json_dir_raises(self, tmp_path):
         db_path = str(tmp_path / "db" / "pipeline_jobs.db")

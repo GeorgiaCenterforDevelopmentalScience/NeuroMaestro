@@ -341,3 +341,49 @@ class TestSiblingEditorsSave:
         result = self._call(tmp_path, editor, editor[1], "key: [unclosed")
         assert result.children[1].startswith("Invalid YAML")
         assert self._written(tmp_path) == []
+
+    # config.yaml and hpc_config.yaml are read once at startup, the checks file on every run
+    @pytest.mark.parametrize("editor, needs_restart", zip(EDITORS, (False, True, True)),
+                             ids=[e[0] for e in EDITORS])
+    def test_restart_note_only_where_the_file_is_cached(self, tmp_path, editor, needs_restart):
+        result = self._call(tmp_path, editor, editor[1], self.CONTENT)
+        assert ("Restart the pipeline process for changes to take effect." in str(result)) is needs_restart
+
+
+class TestValidateFeedback:
+
+    @staticmethod
+    def _validate(name, button, content, *extra):
+        import neuromaestro.interface.callbacks.config_callbacks as mod
+        with patch(f"{_CB_MOD}.callback_context", _make_triggered(button)):
+            return getattr(mod, name)(None, 1, *extra, content)
+
+    @staticmethod
+    def _message(alert):
+        return alert.children if isinstance(alert.children, str) else alert.children[1]
+
+    @pytest.mark.parametrize("content, color, message", [
+        ("prep: [{}, {}]\nintermed: [{}]\nqc: none\n", "success", "Valid YAML · 3 task(s) across 2 section(s)"),
+        ("prep: []\n", "warning", "Valid YAML but missing expected top-level keys: intermed, qc"),
+        ("- a\n- b\n", "warning", "Valid YAML but missing expected top-level keys: intermed, prep, qc"),
+    ])
+    def test_global_config(self, content, color, message):
+        result = self._validate("save_global_config_callback", "validate-global-config-btn", content)
+        assert (_get_alert_color(result), self._message(result)) == (color, message)
+
+    @pytest.mark.parametrize("content, color, message", [
+        ("resource_profiles:\n  a: {}\n  b: {}\ndefaults: {}\n", "success", "Valid YAML · 2 resource profile(s)"),
+        ("defaults: {}\n", "warning", "Valid YAML but missing expected keys: resource_profiles"),
+        ("- x\n", "warning", "Valid YAML but missing expected keys: defaults, resource_profiles"),
+    ])
+    def test_hpc_config(self, content, color, message):
+        result = self._validate("save_hpc_config_callback", "validate-hpc-config-btn", content)
+        assert (_get_alert_color(result), self._message(result)) == (color, message)
+
+    @pytest.mark.parametrize("content, color, message", [
+        ("recon: {}\nunzip: {}\n", "success", "Valid YAML · 2 task(s) defined: recon, unzip"),
+        ("- recon\n", "warning", "Top-level must be a YAML mapping (task_name: ...)."),
+    ])
+    def test_checks(self, content, color, message):
+        result = self._validate("save_checks_callback", "validate-checks-btn", content, "proj")
+        assert (_get_alert_color(result), self._message(result)) == (color, message)

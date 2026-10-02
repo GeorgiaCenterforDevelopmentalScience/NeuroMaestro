@@ -9,6 +9,7 @@ Tests for DAGExecutor.execute() resume mode (dag.py):
     (rest_post waits for rest_preprocess even when recon is skipped)
 """
 
+import pytest
 from unittest.mock import patch, MagicMock
 
 from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
@@ -318,3 +319,61 @@ class TestResumeChecksTheOutputTree:
     def test_output_dir_is_followed_when_it_changes(self):
         mock_cls = self._execute_with(output_dir="/elsewhere/derivatives")
         assert mock_cls.call_args.kwargs["work_dir"] == "/elsewhere/derivatives"
+
+
+class TestCheckerSettingsAndMessages:
+
+    SUBJECTS = ["001", "002"]
+
+    def _execute(self, completed=(), fail_on=None, resume=True, checks="checks.yaml",
+                 tasks=("rest_preprocess",)):
+        executor = make_executor()
+
+        def fake_task(node, **kwargs):
+            if node.name == fail_on:
+                raise RuntimeError("sbatch: error")
+            return [f"job_{node.name}"]
+
+        checker = MagicMock()
+        checker.is_group.return_value = False
+        checker.get_pending_subjects.side_effect = lambda task, subjects: [s for s in subjects if s not in completed]
+        with patch(CONFIG_PATH, MOCK_CONFIG), \
+             patch.object(executor, "_execute_single_task", MagicMock(side_effect=fake_task)), \
+             patch("neuromaestro.pipeline.dag.OutputChecker", return_value=checker) as checker_cls:
+            executor.execute(
+                requested_tasks=list(tasks), input_dir="/in", output_dir="/out", work_dir="/work",
+                container_dir="/c", dry_run=False, context={"subjects": self.SUBJECTS},
+                option_env={"session": "02"}, project_config={**MOCK_PROJECT_CONFIG, "prefix": "P"},
+                resume=resume, checks_config_path=checks,
+            )
+        return checker_cls, checker
+
+    def test_checker_uses_the_projects_prefix_and_the_run_session(self):
+        checker_cls, checker = self._execute()
+        checker_cls.assert_called_once_with(config_path="checks.yaml", work_dir="/out", prefix="P", session="02")
+        checker.warn_missing_configs.assert_called_once_with(["rest_preprocess"])
+
+    def test_resume_without_a_checks_config_checks_nothing(self):
+        # run() passes resume=True with no path when the checks file is missing
+        checker_cls, _ = self._execute(checks=None)
+        checker_cls.assert_not_called()
+
+    def test_skipped_subjects_are_named(self, capsys):
+        self._execute(completed=("001",))
+        assert "[resume] rest_preprocess: skipping 1 completed subject(s): 001" in capsys.readouterr().out.splitlines()
+
+    def test_nothing_is_reported_when_nothing_was_skipped(self, capsys):
+        self._execute()
+        assert not any(line.startswith("[resume]") for line in capsys.readouterr().out.splitlines())
+
+    def test_failure_after_a_submission_names_the_queued_jobs(self, capsys):
+        with pytest.raises(RuntimeError, match="sbatch: error"):
+            self._execute(resume=False, tasks=("rest_preprocess", "rest_post"), fail_on="rest_post")
+        err = capsys.readouterr().err
+        assert "Already submitted before this failure: job_rest_preprocess" in err
+        assert "These jobs stay queued; cancel them if the partial run is unwanted." in err
+
+    def test_failure_before_any_submission_mentions_no_queued_jobs(self, capsys):
+        with pytest.raises(RuntimeError):
+            self._execute(resume=False, fail_on="rest_preprocess")
+        assert "Already submitted" not in capsys.readouterr().err

@@ -193,6 +193,58 @@ class TestCountCheck:
         assert rows[0]["status"].startswith("FAIL")
 
 
+class TestCheckBoundaries:
+
+    @staticmethod
+    def _rows(tmp_path, task_config):
+        out = tmp_path / "out"
+        out.mkdir(exist_ok=True)
+        checker = make_checker(tmp_path, {"t": {"output_path": str(out), **task_config}})
+        return checker.check_subject("t", "001")
+
+    @pytest.mark.parametrize("size, status", [(1024, "PASS"), (1023, "FAIL")])
+    def test_min_size_includes_the_limit(self, tmp_path, size, status):
+        (tmp_path / "out").mkdir()
+        (tmp_path / "out" / "sub-001.html").write_bytes(b"x" * size)
+        rows = self._rows(tmp_path, {"required_files": [{"pattern": "sub-{subject}.html", "min_size_kb": 1}]})
+        assert rows[0]["status"].startswith(status)
+
+    def test_expected_column_says_what_was_required(self, tmp_path):
+        (tmp_path / "out").mkdir()
+        (tmp_path / "out" / "a.txt").write_text("x")
+        rows = self._rows(tmp_path, {"required_files": ["a.txt", {"pattern": "a.txt", "min_size_kb": 2}]})
+        assert [r["expected"] for r in rows] == ["exists", "exists + ≥2 KB"]
+
+    def test_count_without_tolerance_must_be_exact(self, tmp_path):
+        (tmp_path / "out").mkdir()
+        for i in range(3):
+            (tmp_path / "out" / f"{i}.nii.gz").write_text("x")
+        rows = self._rows(tmp_path, {"count_check": {"anat": {"pattern": "*.nii.gz", "expected_count": 2}}})
+        assert rows[0]["status"] == "FAIL – too many files on anat (got 3, expected 2±0)"
+
+    def test_count_without_expected_count_expects_none(self, tmp_path):
+        (tmp_path / "out").mkdir()
+        (tmp_path / "out" / "0.nii.gz").write_text("x")
+        rows = self._rows(tmp_path, {"count_check": {"anat": {"pattern": "*.nii.gz"}}})
+        assert rows[0]["status"] == "FAIL – too many files on anat (got 1, expected 0±0)"
+
+    def test_double_star_reaches_nested_directories(self, tmp_path):
+        deep = tmp_path / "out" / "a" / "b"
+        deep.mkdir(parents=True)
+        (deep / "sub-001_T1w.nii.gz").write_text("x")
+        rows = self._rows(tmp_path, {"required_files": ["**/sub-{subject}_T1w.nii.gz"]})
+        assert rows[0]["status"] == "PASS"
+
+    def test_csv_goes_into_a_new_or_existing_directory(self, tmp_path):
+        import pandas as pd
+        checker = make_checker(tmp_path, {})
+        target = tmp_path / "reports" / "nested"
+        first = checker.save_csv(pd.DataFrame([{"task": "t"}]), str(target))
+        second = checker.save_csv(pd.DataFrame([{"task": "u"}]), str(target))
+        assert Path(first).parent == target
+        assert pd.read_csv(second)["task"].tolist() == ["u"]
+
+
 # ---------------------------------------------------------------------------
 # 2b. group-scope tasks
 #

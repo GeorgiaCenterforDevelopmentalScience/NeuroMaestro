@@ -49,7 +49,7 @@ dependencies = [
   # to keep requires-python = ">=3.10" honest
   "pandas>=2.2",
   "matplotlib>=3.8",
-  "pybids>=0.17"
+  "bids-validator-deno>=3.0.2"
 ]
 
 [project.optional-dependencies]
@@ -70,7 +70,7 @@ Changelog = "https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestr
 testpaths = ["tests"]
 # strict-markers turns a typo'd @pytest.mark into an error instead of a warning
 addopts = "--strict-markers --strict-config"
-# deprecations from pandas/plotly/dash/pybids fail now rather than on the HPC
+# deprecations from pandas/plotly/dash fail now rather than on the HPC
 filterwarnings = ["error"]
 
 [tool.coverage.run]

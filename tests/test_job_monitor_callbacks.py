@@ -723,6 +723,31 @@ class TestWrapperInspectorShowsProvenance:
         assert "sbatch y" in text
         assert "sbatch x" not in text
 
+    # Dash sends None for an input that was never typed in
+    @pytest.mark.parametrize("blank", [None, "   "])
+    def test_unset_or_whitespace_filters_are_ignored(self, callbacks, tmp_path, blank):
+        fn = callbacks.get("load_wrapper_callback")
+        text = str(fn(1, db_path=self._db_with_newer_wrapper(tmp_path), task_filter=blank, job_id=blank))
+        assert "sbatch y" in text
+
+    @pytest.mark.parametrize("job_id, shown", [("99", "sbatch x"), ("00", None)])
+    def test_job_id_matches_from_the_start(self, callbacks, tmp_path, job_id, shown):
+        # an array parent id finds its subjobs, a fragment from the middle finds nothing
+        fn = callbacks.get("load_wrapper_callback")
+        result = fn(1, db_path=self._db_with_newer_wrapper(tmp_path), task_filter="", job_id=job_id)
+        if shown:
+            assert shown in str(result)
+        else:
+            assert result.children == "No wrapper script found matching the filters."
+
+    def test_task_filter_matches_part_of_the_name(self, callbacks, tmp_path):
+        fn = callbacks.get("load_wrapper_callback")
+        assert "sbatch x" in str(fn(1, db_path=self._db(tmp_path), task_filter=" eco ", job_id=""))
+
+    def test_no_database_given(self, callbacks):
+        result = callbacks.get("load_wrapper_callback")(1, db_path=None, task_filter="", job_id="")
+        assert (result.color, result.children) == ("danger", "Database file not found: None")
+
 
 # ---------------------------------------------------------------------------
 # _build_query
