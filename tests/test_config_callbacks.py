@@ -1,4 +1,5 @@
 import os
+import pytest
 import yaml
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -239,11 +240,12 @@ class TestSaveConfigCallback:
             return save_config_callback(1, None, project_name, yaml_content)
 
     def test_saves_valid_yaml(self, tmp_path):
-        content = "prefix: sub-\ntasks: {}"
+        # a comment and a non-ASCII character: the file must be the editor text, byte for byte
+        content = "# geändert\nprefix: sub-\ntasks: {}\n"
         result = self._call_save(tmp_path, content, "save_test")
         assert _get_alert_color(result) == "success"
-        saved = (tmp_path / "config" / "project_config" / "save_test_config.yaml").read_text()
-        assert "prefix" in saved
+        saved = (tmp_path / "config" / "project_config" / "save_test_config.yaml").read_text(encoding="utf-8")
+        assert saved == content
 
     def test_warns_on_empty_editor(self, tmp_path):
         result = self._call_save(tmp_path, "", "x")
@@ -260,6 +262,8 @@ class TestSaveConfigCallback:
     def test_errors_on_invalid_yaml(self, tmp_path):
         result = self._call_save(tmp_path, "key: [unclosed", "x")
         assert _get_alert_color(result) == "danger"
+        # the catch-all handler is danger too, so the message tells them apart
+        assert result.children[1].startswith("Invalid YAML")
 
     def test_validate_does_not_write_file(self, tmp_path):
         result = self._call_save(tmp_path, "key: value", "nowrite", trigger="validate-config-btn")
@@ -287,6 +291,53 @@ class TestSaveConfigCallback:
 
         assert _get_alert_color(save_result) == "success"
         saved_file = config_root / "project_config" / "roundtrip_copy_config.yaml"
-        saved_data = yaml.safe_load(saved_file.read_text())
-        assert saved_data["prefix"] == "sub-"
-        assert "tasks" in saved_data
+        assert saved_file.read_text(encoding="utf-8") == editor_content
+
+
+# ---------------------------------------------------------------------------
+# save_checks / save_global_config / save_hpc_config
+#
+# Each writes one file under the config dir; config.yaml affects every project.
+# ---------------------------------------------------------------------------
+
+class TestSiblingEditorsSave:
+
+    # (callback, save button, validate button, extra args before the content, target)
+    EDITORS = [
+        ("save_checks_callback", "save-checks-btn", "validate-checks-btn", ("proj",),
+         "results_check/proj_checks.yaml"),
+        ("save_global_config_callback", "save-global-config-btn", "validate-global-config-btn", (),
+         "config.yaml"),
+        ("save_hpc_config_callback", "save-hpc-config-btn", "validate-hpc-config-btn", (),
+         "hpc_config.yaml"),
+    ]
+    CONTENT = "# geändert\nkey: value\n"
+
+    def _call(self, tmp_path, editor, trigger, content):
+        import neuromaestro.interface.callbacks.config_callbacks as mod
+        name, _save, _validate, extra, _target = editor
+        with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path), \
+             patch(f"{_CB_MOD}.callback_context", _make_triggered(trigger)):
+            return getattr(mod, name)(1, None, *extra, content)
+
+    @staticmethod
+    def _written(root):
+        return sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
+
+    @pytest.mark.parametrize("editor", EDITORS, ids=[e[0] for e in EDITORS])
+    def test_save_writes_only_its_own_file(self, tmp_path, editor):
+        result = self._call(tmp_path, editor, editor[1], self.CONTENT)
+        assert _get_alert_color(result) == "success"
+        assert self._written(tmp_path) == [editor[4]]
+        assert (tmp_path / editor[4]).read_text(encoding="utf-8") == self.CONTENT
+
+    @pytest.mark.parametrize("editor", EDITORS, ids=[e[0] for e in EDITORS])
+    def test_validate_writes_nothing(self, tmp_path, editor):
+        self._call(tmp_path, editor, editor[2], self.CONTENT)
+        assert self._written(tmp_path) == []
+
+    @pytest.mark.parametrize("editor", EDITORS, ids=[e[0] for e in EDITORS])
+    def test_invalid_yaml_writes_nothing(self, tmp_path, editor):
+        result = self._call(tmp_path, editor, editor[1], "key: [unclosed")
+        assert result.children[1].startswith("Invalid YAML")
+        assert self._written(tmp_path) == []

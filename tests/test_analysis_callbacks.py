@@ -152,9 +152,10 @@ class TestInitStudy:
     def test_scripts_are_reported_beside_the_config_dir(self, callbacks, tmp_path):
         # init_project_templates writes scripts/ next to config/, not inside it
         config_dir = tmp_path / "study" / "config"
-        with patch(_INIT_FN, return_value=["config.yaml", "scripts/"]):
+        with patch(_INIT_FN, return_value=["config.yaml", "scripts/"]) as mock_init:
             result = callbacks.get("init_study")(1, str(config_dir))
 
+        mock_init.assert_called_once_with(config_dir)
         assert result.color == "success"
         # _text, not str(children): repr() escapes the backslashes in a Windows path
         assert str(config_dir.parent / "scripts") in _text(result)
@@ -244,6 +245,14 @@ class TestDetectSubjectsCallback:
                                         detected=["101", "102"])
         assert store == ["101", "102"]
         assert "Found 2 subjects" in _text(alert)
+
+    def test_detection_scans_the_entered_directory_with_the_prefix(self, callbacks):
+        fn = callbacks.get("detect_subjects_callback")
+        with patch(f"{_MOD}.callback_context", _ctx("detect-subjects-btn")), \
+             patch("neuromaestro.pipeline.utils.detect_subjects.detect_subjects",
+                   return_value=["101"]) as mock_detect:
+            fn(1, None, None, "sub-", "/data")
+        mock_detect.assert_called_once_with("/data", "sub-")
 
     def test_detection_clears_the_manual_field(self, callbacks):
         _, _, _, manual = self._call(callbacks, "detect-subjects-btn", detect=1,

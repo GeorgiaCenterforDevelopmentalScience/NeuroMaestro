@@ -129,11 +129,22 @@ class TestMergeLogsCallback:
         mock_result.stdout = "Merged 5 records."
 
         with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.subprocess.run",
-                   return_value=mock_result):
+                   return_value=mock_result) as mock_run:
             result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "success"
+        assert "Merged 5 records." in result.children
+        assert mock_run.call_args.args[0] == ["neuromaestro", "merge-logs", str(tmp_path)]
+        # the mock returns str output regardless, so the decoding flags are pinned here
+        assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "timeout": 600}
+
+    def test_db_path_is_forwarded(self, callbacks, tmp_path):
+        fn = callbacks.get("merge_logs_callback")
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.subprocess.run",
+                   return_value=MagicMock(returncode=0, stdout="")) as mock_run:
+            fn(n_clicks=1, work_dir=str(tmp_path), db_path=" /db/jobs.db ")
+        assert mock_run.call_args.args[0][-2:] == ["--db-path", "/db/jobs.db"]
 
     def test_failed_command_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("merge_logs_callback")
@@ -148,6 +159,7 @@ class TestMergeLogsCallback:
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
+        assert result.children == "merge-logs failed: merge failed"
 
     def test_timeout_returns_danger(self, callbacks, tmp_path):
         import subprocess
@@ -238,15 +250,25 @@ class TestRunOutputCheckCallback:
             {"task": "my_task", "subject": "001", "session": "01",
              "check_type": "required_files", "pattern": "*.html",
              "expected": "exists", "actual": 1, "status": "PASS"},
+            {"task": "my_task", "subject": "002", "session": "01",
+             "check_type": "required_files", "pattern": "*.html",
+             "expected": "exists", "actual": 0, "status": "FAIL - file not found"},
+            {"task": "my_task", "subject": "003", "session": "01",
+             "check_type": "required_files", "pattern": "*.html",
+             "expected": "exists", "actual": 1, "status": "PASS"},
         ])
         with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
              patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks",
                    return_value=(fake_df, ["my_task"], [])):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
-                        subjects_raw="001", task_filter="", session="01", prefix="sub-")
+                        subjects_raw="001,002,003", task_filter="", session="01", prefix="sub-")
 
         assert isinstance(result, html.Div)
+        # unequal counts, so swapping the two cannot go unnoticed
+        counts, failures = result.children[0].children
+        assert counts.children == "2 checks passed, 1 checks failed. "
+        assert failures == "Subjects with failures: 002"
 
     def test_all_pass_summary_is_success_color(self, callbacks, tmp_path):
         fn = callbacks.get("run_output_check_callback")
@@ -460,10 +482,13 @@ class TestOutputCheckRequiresSession:
 
     def test_blank_session_does_not_reach_the_checker(self, callbacks, tmp_path):
         fn = callbacks.get("run_output_check_callback")
-        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.OutputChecker") as mock_cls:
+        # the checks config must resolve, or the callback stops before the checker either way
+        with patch("neuromaestro.interface.callbacks.job_monitor_callbacks.load_checks_config",
+                   return_value="/fake/path.yaml"), \
+             patch("neuromaestro.interface.callbacks.job_monitor_callbacks.run_output_checks") as mock_run:
             fn(1, project="myproject", work_dir=str(tmp_path),
                subjects_raw="001", task_filter="", session="", prefix="sub-")
-        mock_cls.assert_not_called()
+        mock_run.assert_not_called()
 
 
 class TestWrapperInspectorShowsProvenance:
@@ -518,6 +543,31 @@ class TestWrapperInspectorShowsProvenance:
         fn = callbacks.get("load_wrapper_callback")
         result = fn(1, db_path=self._db(tmp_path), task_filter="", job_id="999")
         assert "Job ID: 999" in str(result)
+
+    @staticmethod
+    def _db_with_newer_wrapper(tmp_path):
+        db_path = TestWrapperInspectorShowsProvenance._db(tmp_path)
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO wrapper_scripts "
+            "(execution_id, task_name, job_id, submission_time, wrapper_path, slurm_cmd) "
+            "VALUES (7, 'recon', '1000', '2026-07-02 09:00:00', '/w/y.sh', 'sbatch y')"
+        )
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def test_job_id_filter_picks_its_own_wrapper_over_a_newer_one(self, callbacks, tmp_path):
+        fn = callbacks.get("load_wrapper_callback")
+        text = str(fn(1, db_path=self._db_with_newer_wrapper(tmp_path), task_filter="", job_id="999"))
+        assert "sbatch x" in text
+        assert "sbatch y" not in text
+
+    def test_blank_filters_show_the_newest_wrapper(self, callbacks, tmp_path):
+        fn = callbacks.get("load_wrapper_callback")
+        text = str(fn(1, db_path=self._db_with_newer_wrapper(tmp_path), task_filter="", job_id=""))
+        assert "sbatch y" in text
+        assert "sbatch x" not in text
 
 
 # ---------------------------------------------------------------------------
@@ -853,9 +903,13 @@ class TestExecuteSqlQueryPaging:
         assert charts == ""
 
     def test_missing_database_returns_danger(self, callbacks, tmp_path):
-        results, _charts = self._run(callbacks, str(tmp_path / "nope.db"))
+        missing = tmp_path / "nope.db"
+        results, _charts = self._run(callbacks, str(missing))
         assert isinstance(results, dbc.Alert)
         assert results.color == "danger"
+        assert results.children == f"Database file not found: {missing}"
+        # sqlite3.connect would have created an empty file at the mistyped path
+        assert not missing.exists()
 
     def test_unknown_query_type_returns_warning(self, callbacks, tmp_path):
         results, _charts = self._run(callbacks, self._db(tmp_path, 1), query_type="bogus")
@@ -919,6 +973,9 @@ class TestExportCsvDestination:
         result = fn(1, str(db_path), "job_status", None, None, None, "all", None)
 
         assert "150 records" in str(result.children)
+        exported = pd.read_csv(next(tmp_path.glob("job_status_*.csv")), dtype=str)
+        assert len(exported) == 150
+        assert exported.columns[0] != "Unnamed: 0"   # no pandas index column
 
 
 # ---------------------------------------------------------------------------

@@ -176,6 +176,8 @@ class TestCreateStatusDonut:
         colors = dict(zip(pie.labels, pie.marker.colors))
         assert colors["SUCCESS"] == PLOT_COLORS["SUCCESS"]
         assert colors["FAILED"] == PLOT_COLORS["FAILED"]
+        # comparing against the palette alone would pass with FAILED painted green
+        assert colors["FAILED"] != colors["SUCCESS"]
 
     def test_status_outside_the_palette_falls_back_to_grey(self):
         from neuromaestro.interface.utils.plot_utils import create_status_donut
