@@ -4,6 +4,8 @@ test_job_monitor_callbacks.py
 Unit tests for the job monitor callbacks:
   - _render_check_table
   - merge_logs_callback
+  - force_rebuild_callback
+  - generate_report_callback
   - run_output_check_callback
   - export_check_csv_callback
   - execute_sql_query_callback
@@ -14,6 +16,7 @@ Unit tests for the job monitor callbacks:
 import os
 import pytest
 import sqlite3
+import subprocess
 import yaml
 import pandas as pd
 from pathlib import Path
@@ -183,6 +186,150 @@ class TestMergeLogsCallback:
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
         assert "not found" in str(result.children).lower()
+
+
+# ---------------------------------------------------------------------------
+# force_rebuild_callback
+# ---------------------------------------------------------------------------
+
+SUBPROCESS_RUN = "neuromaestro.interface.callbacks.job_monitor_callbacks.subprocess.run"
+
+
+class TestForceRebuildCallback:
+
+    def test_empty_work_dir_returns_warning(self, callbacks):
+        with patch(SUBPROCESS_RUN) as mock_run:
+            result = callbacks.get("force_rebuild_callback")(n_clicks=1, work_dir="", db_path="")
+        assert result.color == "warning"
+        assert result.children == "Please enter the work directory."
+        mock_run.assert_not_called()
+
+    def test_missing_work_dir_returns_danger(self, callbacks, tmp_path):
+        missing = str(tmp_path / "does_not_exist")
+        with patch(SUBPROCESS_RUN) as mock_run:
+            result = callbacks.get("force_rebuild_callback")(n_clicks=1, work_dir=missing, db_path="")
+        assert result.color == "danger"
+        assert result.children == f"Directory not found: {missing}"
+        mock_run.assert_not_called()
+
+    def test_successful_rebuild(self, callbacks, tmp_path):
+        with patch(SUBPROCESS_RUN, return_value=MagicMock(returncode=0, stdout="Rebuilt 3 tables.\n")) as mock_run:
+            result = callbacks.get("force_rebuild_callback")(n_clicks=1, work_dir=str(tmp_path), db_path="")
+        assert mock_run.call_args.args[0] == ["neuromaestro", "force-rebuild", str(tmp_path)]
+        assert mock_run.call_args.kwargs == {"capture_output": True, "text": True, "timeout": 300}
+        assert result.color == "success"
+        assert result.children[0].children == "Rebuild complete. "
+        assert result.children[1] == "Rebuilt 3 tables."
+
+    def test_empty_stdout_gets_a_default_message(self, callbacks, tmp_path):
+        with patch(SUBPROCESS_RUN, return_value=MagicMock(returncode=0, stdout="")):
+            result = callbacks.get("force_rebuild_callback")(n_clicks=1, work_dir=str(tmp_path), db_path="")
+        assert result.children[1] == "Rebuild complete."
+
+    @pytest.mark.parametrize("db_path, tail", [
+        (" /db/jobs.db ", ["--db-path", "/db/jobs.db"]),
+        ("   ", []),
+        (None, []),
+    ])
+    def test_db_path_is_forwarded_only_when_set(self, callbacks, tmp_path, db_path, tail):
+        with patch(SUBPROCESS_RUN, return_value=MagicMock(returncode=0, stdout="")) as mock_run:
+            callbacks.get("force_rebuild_callback")(n_clicks=1, work_dir=str(tmp_path), db_path=db_path)
+        assert mock_run.call_args.args[0] == ["neuromaestro", "force-rebuild", str(tmp_path)] + tail
+
+    @pytest.mark.parametrize("stderr, stdout, shown", [
+        ("database is locked\n", "partial", "database is locked"),
+        ("", "partial\n", "partial"),
+        ("", "", "Unknown error."),
+    ])
+    def test_failure_shows_stderr_then_stdout(self, callbacks, tmp_path, stderr, stdout, shown):
+        with patch(SUBPROCESS_RUN, return_value=MagicMock(returncode=1, stderr=stderr, stdout=stdout)):
+            result = callbacks.get("force_rebuild_callback")(n_clicks=1, work_dir=str(tmp_path), db_path="")
+        assert result.color == "danger"
+        assert result.children == f"force-rebuild failed: {shown}"
+
+    @pytest.mark.parametrize("error, shown", [
+        (subprocess.TimeoutExpired(cmd="neuromaestro", timeout=300),
+         "force-rebuild timed out after 300 seconds."),
+        (FileNotFoundError(),
+         "neuromaestro command not found. Make sure the package is installed in the active environment."),
+        (OSError("disk full"), "Error: disk full"),
+    ])
+    def test_launch_errors_are_reported(self, callbacks, tmp_path, error, shown):
+        with patch(SUBPROCESS_RUN, side_effect=error):
+            result = callbacks.get("force_rebuild_callback")(n_clicks=1, work_dir=str(tmp_path), db_path="")
+        assert result.color == "danger"
+        assert result.children == shown
+
+
+# ---------------------------------------------------------------------------
+# generate_report_callback
+# ---------------------------------------------------------------------------
+
+GENERATE_REPORT = "neuromaestro.pipeline.utils.report_generator.generate_report"
+
+
+class TestGenerateReportCallback:
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        path = tmp_path / "jobs.db"
+        path.touch()
+        return str(path)
+
+    @pytest.mark.parametrize("db_path, project", [("", "proj"), (None, "proj"), ("x.db", ""), ("x.db", None)])
+    def test_db_and_project_are_required(self, callbacks, db_path, project):
+        with patch(GENERATE_REPORT) as gen:
+            result = callbacks.get("generate_report_callback")(1, db_path, project, None, "checks.csv", None)
+        assert result.color == "warning"
+        assert result.children == "Database path and project name are required."
+        gen.assert_not_called()
+
+    @pytest.mark.parametrize("check_results", ["", "   ", None])
+    def test_check_results_are_required(self, callbacks, db, check_results):
+        with patch(GENERATE_REPORT) as gen:
+            result = callbacks.get("generate_report_callback")(1, db, "proj", None, check_results, None)
+        assert result.color == "warning"
+        assert result.children == "Check Results CSV is required."
+        gen.assert_not_called()
+
+    def test_missing_db_returns_danger(self, callbacks, tmp_path):
+        missing = str(tmp_path / "missing.db")
+        with patch(GENERATE_REPORT) as gen:
+            result = callbacks.get("generate_report_callback")(1, missing, "proj", None, "checks.csv", None)
+        assert result.color == "danger"
+        assert result.children == f"Database not found: {missing}"
+        gen.assert_not_called()
+
+    def test_fields_are_stripped_and_passed_by_name(self, callbacks, db):
+        # autospec: a renamed generate_report parameter fails here instead of at click time
+        with patch(GENERATE_REPORT, autospec=True, return_value="/out/report.html") as gen:
+            result = callbacks.get("generate_report_callback")(
+                1, db, " proj ", " ses-01 ", " /in/checks.csv ", " /out/report.html ")
+        gen.assert_called_once_with(
+            db_path=db, project_name="proj", check_results_path="/in/checks.csv",
+            output_path="/out/report.html", session="ses-01",
+        )
+        assert result.color == "success"
+        assert result.children[0] == "Report saved: "
+        assert result.children[1].children == "/out/report.html"
+
+    @pytest.mark.parametrize("blank", ["", "   ", None])
+    def test_blank_optional_fields_become_none(self, callbacks, db, blank):
+        with patch(GENERATE_REPORT, autospec=True, return_value="r.html") as gen:
+            callbacks.get("generate_report_callback")(1, db, "proj", blank, "checks.csv", blank)
+        assert gen.call_args.kwargs["output_path"] is None
+        assert gen.call_args.kwargs["session"] is None
+
+    @pytest.mark.parametrize("error, shown", [
+        (ValueError("no jobs for project proj"), "no jobs for project proj"),
+        (FileNotFoundError("checks.csv"), "checks.csv"),
+        (RuntimeError("boom"), "Error generating report: boom"),
+    ])
+    def test_errors_are_reported(self, callbacks, db, error, shown):
+        with patch(GENERATE_REPORT, side_effect=error):
+            result = callbacks.get("generate_report_callback")(1, db, "proj", None, "checks.csv", None)
+        assert result.color == "danger"
+        assert result.children == shown
 
 
 # ---------------------------------------------------------------------------
