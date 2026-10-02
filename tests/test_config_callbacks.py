@@ -375,7 +375,7 @@ class TestSiblingEditorsSave:
         assert self._written(tmp_path) == []
 
     # config.yaml and hpc_config.yaml are read once at startup, the checks file on every run
-    @pytest.mark.parametrize("editor, needs_restart", zip(EDITORS, (False, True, True)),
+    @pytest.mark.parametrize("editor, needs_restart", list(zip(EDITORS, (False, True, True))),
                              ids=[e[0] for e in EDITORS])
     def test_restart_note_only_where_the_file_is_cached(self, tmp_path, editor, needs_restart):
         result = self._call(tmp_path, editor, editor[1], self.CONTENT)
