@@ -5,7 +5,6 @@
 .github/*
 !.github/workflows/
 !.github/workflows/*.yml
-.github/workflows/tests.yml
 ### Java ###
 # Compiled class file
 *.class

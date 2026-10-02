@@ -13,10 +13,6 @@ from unittest.mock import MagicMock, patch
 
 from tests.conftest import MOCK_CONFIG
 
-# core.py loads config.yaml at module level; patch the resulting variable
-# for tests that invoke code paths touching it.
-CORE_CONFIG_PATH = "neuromaestro.pipeline.core.config"
-
 
 def _import_helpers():
     from neuromaestro.pipeline.core import _parse_comma_list, parse_and_expand_tasks
@@ -158,8 +154,7 @@ class TestCliRunErrors:
     def test_exits_when_config_dir_missing_and_no_env(self, tmp_path, monkeypatch):
         monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
         from typer.testing import CliRunner
-        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuromaestro.pipeline.core import app
+        from neuromaestro.pipeline.core import app
         runner = CliRunner()
         result = runner.invoke(app, [
             "run",
@@ -176,8 +171,7 @@ class TestCliRunErrors:
     def test_env_var_used_when_no_config_dir_flag(self, tmp_path, monkeypatch):
         monkeypatch.setenv("NEUROMAESTRO_CONFIG_DIR", str(tmp_path))
         from typer.testing import CliRunner
-        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuromaestro.pipeline.core import app
+        from neuromaestro.pipeline.core import app
         runner = CliRunner()
         with patch("neuromaestro.pipeline.core.set_config_dir") as mock_set, \
              patch("neuromaestro.pipeline.core.get_config", return_value=MOCK_CONFIG):
@@ -194,8 +188,7 @@ class TestCliRunErrors:
 
     def test_exits_when_input_dir_missing(self, tmp_path):
         from typer.testing import CliRunner
-        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuromaestro.pipeline.core import app
+        from neuromaestro.pipeline.core import app
         runner = CliRunner()
         with patch("neuromaestro.pipeline.core.set_config_dir"), \
              patch("neuromaestro.pipeline.core.get_config", return_value=MOCK_CONFIG):
@@ -220,8 +213,7 @@ class TestCliRunErrors:
     @pytest.mark.parametrize("blank_flag", ["--input", "--output", "--work"])
     def test_blank_path_option_is_rejected(self, tmp_path, blank_flag):
         from typer.testing import CliRunner
-        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuromaestro.pipeline.core import app
+        from neuromaestro.pipeline.core import app
 
         paths = {
             "--input": str(tmp_path),
@@ -246,8 +238,7 @@ class TestCliRunErrors:
 
     def test_whitespace_only_path_is_rejected(self, tmp_path):
         from typer.testing import CliRunner
-        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuromaestro.pipeline.core import app
+        from neuromaestro.pipeline.core import app
         result = CliRunner().invoke(app, [
             "run",
             "--subjects", "001",
@@ -266,8 +257,7 @@ class TestCliRunErrors:
         """
         monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
         from typer.testing import CliRunner
-        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-            from neuromaestro.pipeline.core import app
+        from neuromaestro.pipeline.core import app
         result = CliRunner().invoke(app, [
             "run",
             "--subjects", "001",
@@ -291,8 +281,7 @@ class TestCliRunErrors:
 
 def _runner():
     from typer.testing import CliRunner
-    with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
-        from neuromaestro.pipeline.core import app
+    from neuromaestro.pipeline.core import app
     return CliRunner(), app
 
 

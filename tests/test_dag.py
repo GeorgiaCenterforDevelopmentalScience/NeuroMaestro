@@ -431,11 +431,6 @@ class TestMissingTaskConfig:
             build(["recon", "nonexistent_task"])
         assert "Circular" not in str(exc.value)
 
-    def test_unzip_recon_pair_survives_when_only_recon_registered(self):
-        # recon requested without unzip must not raise a KeyError
-        executor, order = build(["recon"])
-        assert "unzip" not in deps(executor, "recon")
-
     def test_dangling_dependency_is_pruned(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):

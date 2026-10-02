@@ -12,6 +12,7 @@ Covers:
 """
 
 import os
+import sys
 import pytest
 import yaml
 from pathlib import Path
@@ -25,7 +26,6 @@ from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 # the single place to patch.
 PIPELINE_CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
 HPC_CONFIG_PATH      = "neuromaestro.pipeline.utils.hpc_utils.hpc_config"
-CONFIG_UTILS_PATH    = "neuromaestro.pipeline.utils.config_utils.config"
 
 
 # ===========================================================================
@@ -205,12 +205,7 @@ class TestCreateWrapperScript:
         task_cfg = {**self.TASK_CONFIG, **(extra_task_config or {})}
         fake_script = scripts_dir / "afni_cards_preprocessing.sh"
 
-        # Fake SCRIPTS_DIR import inside hpc_utils
-        fake_scripts_pkg = MagicMock()
-        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
-
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuromaestro.pipeline.utils.hpc_utils import create_wrapper_script
 
             wrapper_path, sections = create_wrapper_script(
@@ -236,9 +231,10 @@ class TestCreateWrapperScript:
         assert wrapper.exists()
         assert wrapper.suffix == ".sh"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows has no executable bit; os.access is always true there")
     def test_wrapper_is_executable(self, tmp_path, scripts_dir):
         wrapper = self._create(tmp_path, scripts_dir)
-        assert os.access(wrapper, os.X_OK)
+        assert wrapper.stat().st_mode & 0o111 == 0o111
 
     def test_wrapper_has_shebang(self, tmp_path, scripts_dir):
         wrapper = self._create(tmp_path, scripts_dir)
@@ -403,9 +399,6 @@ class TestSubmitSlurmJobDryRun:
     )
 
     def test_dry_run_returns_string_job_id(self, tmp_path, scripts_dir):
-        fake_scripts_pkg = MagicMock()
-        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
-
         task_config = {
             "name": "cards_preprocess",
             "profile": "standard",
@@ -421,8 +414,7 @@ class TestSubmitSlurmJobDryRun:
         }
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
 
             job_id = submit_slurm_job(
@@ -438,9 +430,6 @@ class TestSubmitSlurmJobDryRun:
         assert "dry_run" in job_id
 
     def test_dry_run_does_not_call_sbatch(self, tmp_path, scripts_dir):
-        fake_scripts_pkg = MagicMock()
-        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
-
         task_config = {
             "name": "cards_preprocess",
             "profile": "standard",
@@ -457,7 +446,6 @@ class TestSubmitSlurmJobDryRun:
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}), \
              patch("subprocess.run") as mock_run:
 
             from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
@@ -474,9 +462,6 @@ class TestSubmitSlurmJobDryRun:
         mock_run.assert_not_called()
 
     def test_missing_script_raises(self, tmp_path, scripts_dir):
-        fake_scripts_pkg = MagicMock()
-        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
-
         task_config = {
             "name": "ghost_task",
             "profile": "standard",
@@ -485,8 +470,7 @@ class TestSubmitSlurmJobDryRun:
         }
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
 
             with pytest.raises(FileNotFoundError, match="ghost_script.sh"):
@@ -501,9 +485,6 @@ class TestSubmitSlurmJobDryRun:
 
     def test_wait_jobs_produces_dependency_in_slurm_args(self, tmp_path, scripts_dir):
         """When wait_jobs is set, --dependency=afterany:... should appear in the wrapper."""
-        fake_scripts_pkg = MagicMock()
-        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
-
         task_config = {
             "name": "cards_preprocess",
             "profile": "standard",
@@ -521,8 +502,7 @@ class TestSubmitSlurmJobDryRun:
         }
 
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
 
             submit_slurm_job(
@@ -751,12 +731,9 @@ class TestSubmitSlurmJobExtras:
     )
 
     def _invoke(self, tmp_path, scripts_dir, task_config, extra_kwargs=None):
-        fake_scripts_pkg = MagicMock()
-        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
         kwargs = {**self.BASE_KWARGS, "output_dir": str(tmp_path / "output"), **(extra_kwargs or {})}
         project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
-        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuromaestro.scripts": fake_scripts_pkg}):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
             return submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",

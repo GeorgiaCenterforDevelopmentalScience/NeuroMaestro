@@ -1,30 +1,4 @@
-"""
-conftest.py — Shared fixtures for all test modules
-
-Assumed package layout:
-    neuromaestro/
-        config/
-            config.yaml
-            hpc_config.yaml
-            project_config/
-            results_check/
-        scripts/
-            template/
-            ...
-        pipeline/
-            core.py
-            dag.py
-            utils/
-                config_utils.py
-                hpc_utils.py
-                detect_subjects.py
-                job_db.py
-    tests/
-        conftest.py
-        test_config_utils.py
-        test_dag.py
-        test_hpc_utils.py
-"""
+"""Shared mock configs and fixtures; test_config_contract.py keeps the mocks in step with the shipped YAML."""
 
 import pytest
 
@@ -212,8 +186,7 @@ MOCK_CONFIG = {
 # pytest and any --dry-run invocation that runs preflight checks.
 #
 # Use /tmp-based paths: they resolve instantly even when they don't exist.
-# Tests that need the directories to actually exist should use the
-# `preflight_project_config` fixture below, which creates them under tmp_path.
+# Tests that need the directories to exist create their own under tmp_path.
 MOCK_PROJECT_CONFIG = {
     "prefix": "sub-",
     "scripts_dir": "scripts/test",

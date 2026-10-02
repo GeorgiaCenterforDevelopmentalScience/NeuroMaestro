@@ -210,7 +210,7 @@ class TestCallbackWiring:
     }
     QUALIFIERS = ("_clicks", "_value", "_data", "_input", "_raw", "_class", "_content")
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def wiring(self):
         import inspect
         from neuromaestro.interface.app import app

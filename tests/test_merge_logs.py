@@ -1054,7 +1054,8 @@ class TestProducersToRows:
         self._log_job(db, subject="003", job_id="1_3")
         assert self._merge(db) == 1
         assert self._merge(db) == 0
-        assert [r["subject"] for r in _rows(db, "job_status")] == ["001", "002", "003"]
+        # glob order follows the directory, which on Linux is not sorted
+        assert sorted(r["subject"] for r in _rows(db, "job_status")) == ["001", "002", "003"]
         recon = db.parent / "json" / "recon"
         assert list(recon.glob("*.jsonl")) == []
         assert len(list((recon / "archived").glob("*.jsonl"))) == 3
