@@ -230,6 +230,51 @@ class TestMergeLogsFunction:
         assert archived_file.exists()
 
 
+class TestIncompleteLogsAreReported:
+    """A job killed before its end event is never merged, so this report is its only trace."""
+
+    REPORT = "Skipped {} incomplete log(s) with no end event: {}"
+
+    @staticmethod
+    def _merge(json_dir, db, capsys):
+        merge_json_to_db(json_dir, db)
+        return capsys.readouterr().out.splitlines()
+
+    def test_counted_per_task(self, temp_workspace, mock_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        create_incomplete_json_log(json_dir, "sub001", "task1", "1")
+        create_incomplete_json_log(json_dir, "sub002", "task1", "2")
+        create_mock_json_log(json_dir, "sub003", "task1", "3")
+        create_incomplete_json_log(json_dir, "sub001", "task2", "4")
+        assert self.REPORT.format(3, "task1 (2), task2 (1)") in self._merge(json_dir, mock_db, capsys)
+
+    def test_nothing_reported_when_every_job_finished(self, temp_workspace, mock_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "1")
+        create_mock_json_log(json_dir, "sub002", "task1", "2")
+        assert not any(l.startswith("Skipped") for l in self._merge(json_dir, mock_db, capsys))
+
+    def test_blank_lines_are_skipped(self, temp_workspace, mock_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        log = Path(create_incomplete_json_log(json_dir, "sub001", "task1", "1"))
+        log.write_text("\n" + log.read_text() + "\n")
+        assert self.REPORT.format(1, "task1 (1)") in self._merge(json_dir, mock_db, capsys)
+
+    def test_unreadable_log_is_not_counted(self, temp_workspace, mock_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        create_incomplete_json_log(json_dir, "sub001", "task1", "1")
+        (Path(json_dir) / "task1" / "sub002_task1_2.jsonl").write_text("not json\n")
+        assert self.REPORT.format(1, "task1 (1)") in self._merge(json_dir, mock_db, capsys)
+
+    def test_finished_job_left_unmerged_by_a_job_filter_is_not_incomplete(self, temp_workspace, mock_db, capsys):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "1")
+        create_mock_json_log(json_dir, "sub002", "task1", "2")
+        merge_json_to_db(json_dir, mock_db, job_ids=["1"])
+        assert (Path(json_dir) / "task1" / "sub002_task1_2.jsonl").exists()
+        assert not any(l.startswith("Skipped") for l in capsys.readouterr().out.splitlines())
+
+
 class TestEndToEndMergeLogsWorkflow:
     """End-to-end integration test"""
     
