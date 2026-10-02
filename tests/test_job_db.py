@@ -479,3 +479,126 @@ class TestQueryFunctions:
         db_path = self._make_db(tmp_path)
         rows = query_jobs(subject="999", db_path=db_path)
         assert rows == []
+
+
+class TestQueryOutput:
+    """What the query commands print, through the CLI that run() tells users to call."""
+
+    @staticmethod
+    def _insert(db_path, table, rows):
+        conn = get_db_connection(db_path)
+        for row in rows:
+            cols = ", ".join(row)
+            conn.execute(f"INSERT INTO {table} ({cols}) VALUES ({', '.join('?' * len(row))})", list(row.values()))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def _cli(*args):
+        from typer.testing import CliRunner
+        from neuromaestro.pipeline.utils.job_db import app
+        result = CliRunner().invoke(app, list(args))
+        assert result.exit_code == 0, result.output
+        return result.output.splitlines()
+
+    FAILED_JOB = dict(execution_id=1001, subject="001", task_name="recon", session="01",
+                      start_time="2026-10-01T10:00:00", end_time="2026-10-01T12:30:00", status="FAILED",
+                      exit_code=1, error_msg="segfault", duration_hours=2.5, log_path="/logs/recon_1.out",
+                      job_id="555_1", node_name="node7")
+    RUNNING_JOB = dict(execution_id=1001, subject="002", task_name="recon", session=None,
+                       start_time="2026-10-01T11:00:00", status="RUNNING", log_path="/logs/recon_2.out",
+                       job_id="555_2", node_name="node8")
+
+    def test_job_fields_are_printed_from_the_right_columns(self, tmp_path):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "job_status", [self.FAILED_JOB, self.RUNNING_JOB])
+        # newest start first
+        assert self._cli("query_jobs", "--db-path", db) == [
+            "Subject: 002 | Task: recon | Session: N/A",
+            "Status: RUNNING | Exit code: None",
+            "Start: 2026-10-01T11:00:00",
+            "End: Running",
+            "Log: /logs/recon_2.out",
+            "Job ID: 555_2 | Node: node8",
+            "-" * 60,
+            "Subject: 001 | Task: recon | Session: 01",
+            "Status: FAILED | Exit code: 1",
+            "Start: 2026-10-01T10:00:00",
+            "End: 2026-10-01T12:30:00",
+            "Duration: 2.500h",
+            "Error: segfault",
+            "Log: /logs/recon_1.out",
+            "Job ID: 555_1 | Node: node7",
+            "-" * 60,
+        ]
+
+    def test_job_filters_parse_from_the_command_line(self, tmp_path):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "job_status", [self.FAILED_JOB, self.RUNNING_JOB])
+        lines = self._cli("query_jobs", "--task-name", "recon", "--status", "FAILED", "--subject", "001",
+                          "--session", "01", "--db-path", db)
+        assert [l for l in lines if l.startswith("Subject:")] == ["Subject: 001 | Task: recon | Session: 01"]
+
+    @pytest.mark.parametrize("args, shown", [((), 20), (("--limit", "3"), 3)])
+    def test_job_limit(self, tmp_path, args, shown):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "job_status", [{**self.FAILED_JOB, "subject": f"{i:03d}",
+                                         "start_time": f"2026-10-01T10:{i:02d}:00"} for i in range(21)])
+        lines = self._cli("query_jobs", *args, "--db-path", db)
+        assert len([l for l in lines if l.startswith("Subject:")]) == shown
+
+    def test_no_jobs(self, tmp_path):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "job_status", [])
+        assert self._cli("query_jobs", "--db-path", db) == ["No matching records found"]
+
+    FAILED_RUN = dict(execution_id=1001, execution_time="2026-10-01T10:00:00", command_line="neuromaestro run",
+                      project_name="proj_a", session="01", subjects="001,002", requested_tasks="recon",
+                      dry_run=0, total_jobs=2, status="FAILED", error_msg="scheduler down")
+    BARE_RUN = dict(execution_id=1002, execution_time="2026-10-01T11:00:00", project_name="proj_b",
+                    total_jobs=0, status="COMPLETED")
+
+    def test_execution_fields_are_printed_from_the_right_columns(self, tmp_path):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "pipeline_executions", [self.FAILED_RUN, self.BARE_RUN])
+        assert self._cli("query_pipeline_executions", "--db-path", db) == [
+            "Execution ID: 1002",
+            "Project: proj_b",
+            "Session: N/A",
+            "Status: COMPLETED",
+            "Execution time: 2026-10-01T11:00:00",
+            "Subjects: N/A",
+            "Tasks: N/A",
+            "Total jobs: 0",
+            "-" * 40,
+            "Execution ID: 1001",
+            "Project: proj_a",
+            "Session: 01",
+            "Status: FAILED",
+            "Execution time: 2026-10-01T10:00:00",
+            "Subjects: 001,002",
+            "Tasks: recon",
+            "Total jobs: 2",
+            "Error: scheduler down",
+            "-" * 40,
+        ]
+
+    def test_execution_filters_parse_from_the_command_line(self, tmp_path):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "pipeline_executions", [self.FAILED_RUN, self.BARE_RUN])
+        lines = self._cli("query_pipeline_executions", "--project-name", "proj_a", "--session", "01",
+                          "--status", "FAILED", "--db-path", db)
+        assert [l for l in lines if l.startswith("Execution ID:")] == ["Execution ID: 1001"]
+
+    @pytest.mark.parametrize("args, shown", [((), 10), (("--limit", "2"), 2)])
+    def test_execution_limit(self, tmp_path, args, shown):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "pipeline_executions", [{**self.BARE_RUN, "execution_id": i,
+                                                  "execution_time": f"2026-10-01T10:{i:02d}:00"} for i in range(11)])
+        lines = self._cli("query_pipeline_executions", *args, "--db-path", db)
+        assert len([l for l in lines if l.startswith("Execution ID:")]) == shown
+
+    def test_no_executions(self, tmp_path):
+        db = str(tmp_path / "jobs.db")
+        self._insert(db, "pipeline_executions", [])
+        assert self._cli("query_pipeline_executions", "--db-path", db) == ["No matching records found"]
