@@ -24,6 +24,10 @@ def _get_alert_color(component):
     return component.color
 
 
+def _no_config_dir():
+    return patch(f"{_CB_MOD}._effective_config_dir", side_effect=RuntimeError("Config directory not set."))
+
+
 # ---------------------------------------------------------------------------
 # _effective_config_dir / _resolved_config_dir
 #
@@ -176,7 +180,30 @@ class TestGenerateTemplate:
             result = generate_new_config_callback(1, "demo")
 
         assert _get_alert_color(result) == "success"
-        assert (config_root / "project_config" / "demo_config.yaml").exists()
+        created = config_root / "project_config" / "demo_config.yaml"
+        assert created.exists()
+        assert result.children[1].children[0] == f"Configuration template generated: {created}"
+
+    def test_existing_config_is_not_overwritten(self, tmp_path):
+        from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
+        config_root = tmp_path / "config"
+        with patch(f"{_CB_MOD}._CONFIG_DIR", config_root):
+            generate_new_config_callback(1, "demo")
+            edited = config_root / "project_config" / "demo_config.yaml"
+            edited.write_text("# my edits\n", encoding="utf-8")
+            result = generate_new_config_callback(1, "demo")
+        assert _get_alert_color(result) == "warning"
+        assert result.children[1].children[0] == "A config for 'demo' already exists."
+        assert edited.read_text(encoding="utf-8") == "# my edits\n"
+
+    def test_generator_failure_is_reported(self, tmp_path):
+        from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
+        with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"), \
+             patch("neuromaestro.pipeline.utils.generate_project_config.generate_project_config",
+                   side_effect=ValueError("bad name")):
+            result = generate_new_config_callback(1, "demo")
+        assert _get_alert_color(result) == "danger"
+        assert result.children[1] == "Error generating configuration: bad name"
 
     def test_callback_warns_on_missing_project_name(self):
         from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
@@ -211,13 +238,18 @@ class TestLoadConfigCallback:
         from neuromaestro.interface.callbacks.config_callbacks import load_config_callback
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
             result = load_config_callback(1, "missing")
-        assert result.startswith("# ")
+        assert result == f"# File not found: {tmp_path / 'config' / 'project_config' / 'missing_config.yaml'}"
 
     def test_returns_error_comment_for_no_project_name(self, tmp_path):
         from neuromaestro.interface.callbacks.config_callbacks import load_config_callback
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
             result = load_config_callback(1, "")
-        assert result.startswith("# ")
+        assert result == "# Please provide a project name."
+
+    def test_returns_error_comment_without_a_config_dir(self):
+        from neuromaestro.interface.callbacks.config_callbacks import load_config_callback, _NO_CONFIG_DIR
+        with _no_config_dir():
+            assert load_config_callback(1, "proj") == f"# {_NO_CONFIG_DIR}"
 
     def test_returns_empty_string_on_initial_call(self, tmp_path):
         from neuromaestro.interface.callbacks.config_callbacks import load_config_callback
@@ -387,3 +419,149 @@ class TestValidateFeedback:
     def test_checks(self, content, color, message):
         result = self._validate("save_checks_callback", "validate-checks-btn", content, "proj")
         assert (_get_alert_color(result), self._message(result)) == (color, message)
+
+
+# ---------------------------------------------------------------------------
+# Loading into the editors
+# ---------------------------------------------------------------------------
+
+class TestLoadChecksCallback:
+
+    @staticmethod
+    def _load(config_dir, trigger, project="proj"):
+        from neuromaestro.interface.callbacks.config_callbacks import load_checks_callback
+        ctx = _make_triggered(trigger) if trigger else MagicMock(triggered=[])
+        with patch(f"{_CB_MOD}._CONFIG_DIR", config_dir), patch(f"{_CB_MOD}.callback_context", ctx):
+            return load_checks_callback(1, None, project)
+
+    def test_nothing_triggered(self, tmp_path):
+        assert self._load(tmp_path, None) == ("", "")
+
+    def test_new_starts_from_the_template_without_a_project(self, tmp_path):
+        from neuromaestro.pipeline.utils.generate_results_check import RESULTS_CHECK_TEMPLATE
+        content, alert = self._load(tmp_path, "new-checks-btn", project=None)
+        assert content == RESULTS_CHECK_TEMPLATE
+        assert (alert.color, alert.children) == ("info", "New template loaded. Fill in your task checks and save.")
+
+    def test_existing_file_is_loaded_as_written(self, tmp_path):
+        path = tmp_path / "results_check" / "proj_checks.yaml"
+        path.parent.mkdir()
+        path.write_text("# geändert\nrecon: {}\n", encoding="utf-8")
+        content, alert = self._load(tmp_path, "load-checks-btn")
+        assert content == "# geändert\nrecon: {}\n"
+        assert (alert.color, alert.children[1]) == ("success", f"Loaded: {path}")
+
+    def test_missing_file_points_to_new(self, tmp_path):
+        content, alert = self._load(tmp_path, "load-checks-btn")
+        path = tmp_path / "results_check" / "proj_checks.yaml"
+        assert content == ""
+        assert (alert.color, alert.children) == (
+            "warning", f"File not found: {path}. Click 'New' to start from a template.")
+
+    @pytest.mark.parametrize("project", ["", None])
+    def test_project_name_is_required(self, tmp_path, project):
+        content, alert = self._load(tmp_path, "load-checks-btn", project=project)
+        assert (content, alert.color, alert.children) == ("", "warning", "Please provide a project name.")
+
+    def test_no_config_dir(self, tmp_path):
+        from neuromaestro.interface.callbacks.config_callbacks import _NO_CONFIG_DIR
+        with _no_config_dir():
+            content, alert = self._load(None, "load-checks-btn")
+        assert (content, alert.color, alert.children) == ("", "warning", _NO_CONFIG_DIR)
+
+    def test_unreadable_file(self, tmp_path):
+        # a directory where the file should be: it exists but cannot be read
+        (tmp_path / "results_check" / "proj_checks.yaml").mkdir(parents=True)
+        content, alert = self._load(tmp_path, "load-checks-btn")
+        assert (content, alert.color) == ("", "danger")
+        assert alert.children.startswith("Error loading file: ")
+
+
+class TestLoadGlobalAndHpcConfig:
+
+    LOADERS = [("load_global_config_callback", "config.yaml"), ("load_hpc_config_callback", "hpc_config.yaml")]
+
+    @staticmethod
+    def _load(name, config_dir, clicks=1):
+        import neuromaestro.interface.callbacks.config_callbacks as mod
+        with patch(f"{_CB_MOD}._CONFIG_DIR", config_dir):
+            return getattr(mod, name)(clicks)
+
+    @pytest.mark.parametrize("name, filename", LOADERS)
+    def test_file_is_loaded_as_written(self, tmp_path, name, filename):
+        (tmp_path / filename).write_text("# geändert\nkey: 1\n", encoding="utf-8")
+        content, alert = self._load(name, tmp_path)
+        assert content == "# geändert\nkey: 1\n"
+        assert (alert.color, alert.children[1]) == ("success", f"Loaded: {tmp_path / filename}")
+
+    @pytest.mark.parametrize("name, filename", LOADERS)
+    def test_missing_file(self, tmp_path, name, filename):
+        content, alert = self._load(name, tmp_path)
+        assert (content, alert.color, alert.children[1]) == ("", "danger", f"File not found: {tmp_path / filename}")
+
+    @pytest.mark.parametrize("name, filename", LOADERS)
+    def test_unreadable_file(self, tmp_path, name, filename):
+        (tmp_path / filename).mkdir()
+        content, alert = self._load(name, tmp_path)
+        assert (content, alert.color) == ("", "danger")
+        assert alert.children[1].startswith("Error loading file: ")
+
+    @pytest.mark.parametrize("name, filename", LOADERS)
+    @pytest.mark.parametrize("clicks", [None, 0])
+    def test_nothing_happens_before_a_click(self, tmp_path, name, filename, clicks):
+        (tmp_path / filename).write_text("key: 1\n", encoding="utf-8")
+        assert self._load(name, tmp_path, clicks=clicks) == ("", "")
+
+
+# ---------------------------------------------------------------------------
+# What every save does when it cannot save
+# ---------------------------------------------------------------------------
+
+class TestSaveErrorPaths:
+
+    # (callback, save button, arguments before the content)
+    EDITORS = [
+        ("save_config_callback", "save-config-btn", ("proj",)),
+        ("save_checks_callback", "save-checks-btn", ("proj",)),
+        ("save_global_config_callback", "save-global-config-btn", ()),
+        ("save_hpc_config_callback", "save-hpc-config-btn", ()),
+    ]
+    IDS = [e[0] for e in EDITORS]
+
+    @staticmethod
+    def _save(editor, content, config_dir, args=None):
+        import neuromaestro.interface.callbacks.config_callbacks as mod
+        name, button, extra = editor
+        with patch(f"{_CB_MOD}._CONFIG_DIR", config_dir), \
+             patch(f"{_CB_MOD}.callback_context", _make_triggered(button)):
+            return getattr(mod, name)(1, None, *(extra if args is None else args), content)
+
+    @staticmethod
+    def _written(root):
+        return [p for p in root.rglob("*") if p.is_file()]
+
+    @pytest.mark.parametrize("editor", EDITORS, ids=IDS)
+    @pytest.mark.parametrize("content", ["", None])
+    def test_empty_editor(self, tmp_path, editor, content):
+        result = self._save(editor, content, tmp_path)
+        assert (result.color, result.children) == ("warning", "Editor is empty.")
+        assert self._written(tmp_path) == []
+
+    @pytest.mark.parametrize("editor", EDITORS, ids=IDS)
+    def test_no_config_dir(self, editor):
+        from neuromaestro.interface.callbacks.config_callbacks import _NO_CONFIG_DIR
+        with _no_config_dir():
+            result = self._save(editor, "key: value\n", None)
+        assert (result.color, result.children) == ("warning", _NO_CONFIG_DIR)
+
+    @pytest.mark.parametrize("editor", EDITORS, ids=IDS)
+    def test_unexpected_error_is_reported(self, tmp_path, editor):
+        with patch(f"{_CB_MOD}._save_file", side_effect=RuntimeError("disk gone")):
+            result = self._save(editor, "key: value\n", tmp_path)
+        assert (result.color, result.children[1]) == ("danger", "Unexpected error: disk gone")
+
+    @pytest.mark.parametrize("project", ["", None])
+    def test_checks_need_a_project_name(self, tmp_path, project):
+        result = self._save(self.EDITORS[1], "recon: {}\n", tmp_path, args=(project,))
+        assert (result.color, result.children) == ("warning", "Please provide a project name.")
+        assert self._written(tmp_path) == []
