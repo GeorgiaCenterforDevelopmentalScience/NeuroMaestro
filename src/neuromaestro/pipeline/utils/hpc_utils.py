@@ -9,6 +9,7 @@ import typer
 import yaml
 
 from .config_utils import get_config_dir
+from .detect_subjects import subject_id_error
 
 hpc_config: Optional[dict] = None
 
@@ -516,6 +517,10 @@ def submit_slurm_job(
 
     if not subjects_list:
         typer.echo("Error: No subjects provided", err=True)
+        return None
+    id_error = subject_id_error(subjects_list)
+    if id_error:
+        typer.echo(f"Error: {id_error}", err=True)
         return None
 
     is_array_job = task_config and 'array' in task_config and task_config['array']

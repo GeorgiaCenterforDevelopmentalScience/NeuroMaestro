@@ -10,6 +10,7 @@ from neuromaestro.pipeline.utils.detect_subjects import (
     detect_subjects,
     parse_subjects_input,
     save_subjects_to_file,
+    subject_id_error,
 )
 
 
@@ -84,3 +85,21 @@ class TestSaveSubjectsToFile:
         f = tmp_path / "out.txt"
         save_subjects_to_file([], str(f))
         assert f.read_text() == ""
+
+
+class TestSubjectIdError:
+
+    def test_ordinary_ids_pass(self):
+        assert subject_id_error(["001", "A12", "pilot_01", "s1.2", "x-y"]) is None
+
+    @pytest.mark.parametrize("bad", [
+        "0 1", "$(id)", "`id`", "a;b", "a'b", 'a"b', "a\nb", "a/b", "..", ".hidden", "-rf", "é",
+    ])
+    def test_unsafe_id_is_named(self, bad):
+        message = subject_id_error(["001", bad])
+        assert message.startswith(f"invalid subject ID(s): {bad!r}.")
+
+    def test_long_lists_are_truncated(self):
+        message = subject_id_error([f"bad {i}" for i in range(7)])
+        assert "'bad 4', ..." in message
+        assert "'bad 5'" not in message

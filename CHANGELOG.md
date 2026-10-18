@@ -12,6 +12,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - `check-outputs` statuses read `FAIL: reason` instead of `FAIL – reason`, and the other user-facing dashes became colons or parentheses. Anything matching on `FAIL` at the start is unaffected.
 - `neuromaestro-gui` listens on `127.0.0.1` by default (was `0.0.0.0`) and rejects requests without the token in the link it prints at launch. Anyone who could reach the port, including other users on a shared login node, could otherwise edit files and submit jobs as the user who started it. Pass `--host 0.0.0.0` to accept remote connections, which still need the token.
 - `neuromaestro-gui --debug` no longer starts the Werkzeug debugger console, which bypassed the token and ran Python code as the user. Dash dev tools and hot reload still work.
+- `run` refuses subject IDs that contain anything other than letters, digits, `.`, `_` and `-`, or that start with `.` or `-`. IDs reach the generated job scripts and log paths, where a directory named like `sub-$(...)` or one containing a newline ran as a command.
 - BIDS validation now runs the official validator, `bids-validator-deno`, in place of pybids, which only checked `dataset_description.json` and passed datasets with misnamed or empty files. It still only warns. It needs glibc 2.27 or newer and no `ulimit -v` below about 33 GB, and says so when it cannot start. pybids is no longer a dependency.
 
 ### Fixed
@@ -19,6 +20,9 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - A run whose execution record could not be written lost every job from the database: the wrapper passed an empty `--execution-id`, which `job_db.py` rejected.
 - The report listed failures already fixed by a rerun, next to another attempt's output.
 - Each job left its environment file in the node's `/tmp`.
+- Each job's environment file had a guessable name in the shared `/tmp`, so another user on the node could plant a file the job then sourced. It is now made by `mktemp` with mode 0600 under `$TMPDIR` when set, and the job stops if it cannot be written.
+- Values written to the environment file, such as the subject ID and the input and output paths, were expanded a second time when it was sourced, so `$`, backticks and quotes in them were interpreted. They are now passed verbatim.
+- The GUI's command preview did not quote paths and other values, so pasting it into a shell could split or run them.
 - The report escaped session IDs in headings but not in its navigation links and section anchors.
 - `--skip-preflight` help and docs said pre-flight checks the filesystem. It checks only the config.
 - After a run, the hints called merging the logs optional and listed the status queries first, although jobs reach the database only through `merge-logs`. The merge command now comes first and names the database, so it also works with a custom `database.db_path`.
@@ -27,6 +31,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - Fixed tests that passed without checking what they claim: check-outputs exits, report matrices, wrapper logging, count tolerance, exit codes, input redirection, resume of group tasks and job monitor filters.
 - Pinned the scheduler contract: exact submit and status arguments, per-task dependencies, script validation before submission, profile precedence, wrapper syntax, re-runs into existing directories, and the job's exit code and end status.
 - Checked the GUI wiring against the real Dash app (argument order, page-load triggers, duplicate outputs), and the GUI's run command against the real CLI.
+- The job environment file is tested for its mode, location, verbatim values and a failed write, and subject ID validation for both `run` and direct submission. The GUI command preview is run through bash with hostile values.
 - GUI callbacks are checked by their content: output-check summary, wrapper selection, merge-logs invocation, exported rows, and what each config editor writes to disk.
 - The job database is tested from the real log writers to whole rows, including repeated merges, rebuilds from archived logs, requeued jobs, and the command lines the wrapper uses.
 - The GUI token check is tested for missing, wrong, forged and correct tokens, on page loads and callback requests, and with Dash dev tools' catch-all error handler in place. The launcher test pins the loopback default and the disabled debugger.

@@ -151,7 +151,10 @@ execute_wrapper() {
     export EXECUTION_ID="${EXECUTION_ID:-}"
     
     # Create and source environment file
-    create_env_file
+    if ! create_env_file; then
+        echo "ERROR: Could not write the job environment file in ${TMPDIR:-/tmp}" | tee -a "$LOG_PATH"
+        return 1
+    fi
     source "$ENV_FILE"
     # read once; one per job would otherwise pile up in the node's /tmp
     rm -f "$ENV_FILE"
@@ -160,70 +163,73 @@ execute_wrapper() {
     execute_script_with_logging "$script_path" "$subject" "$task_name"
 }
 
+# One export line, quoted so the value is not expanded again when the file is sourced
+_export_quoted() {
+    printf 'export %s=%q\n' "$1" "$2"
+}
+
 # Create environment file with all necessary variables
 create_env_file() {
-    ENV_FILE="/tmp/env_${TASK_NAME}_${SCHED_JOB_ID}_${ARRAY_INDEX:-0}_${subject}_$RANDOM.sh"
+    # mktemp, not a guessable name: other users on the node can write to /tmp too.
+    ENV_FILE=$(umask 077 && mktemp "${TMPDIR:-/tmp}/neuromaestro_env.XXXXXXXXXX") || return 1
     export ENV_FILE
-    
-    cat > "$ENV_FILE" << 'ENV_EOF'
-#!/bin/bash
-# Auto-generated environment file
-ENV_EOF
-    
-    # Load global Python environment
-    if [ -n "$GLOBAL_PYTHON_COMMANDS" ]; then
-        echo "# Load global Python environment" >> "$ENV_FILE"
-        echo "$GLOBAL_PYTHON_COMMANDS" >> "$ENV_FILE"
-        echo "" >> "$ENV_FILE"
-    fi
 
-    # Load environment modules
-    if [ -n "$ENV_COMMANDS" ]; then
-        echo "# Load environment modules" >> "$ENV_FILE"
-        echo "$ENV_COMMANDS" >> "$ENV_FILE"
-        echo "" >> "$ENV_FILE"
-    fi
+    {
+        echo "#!/bin/bash"
+        echo "# Auto-generated environment file"
 
-    # Re-apply Python isolation after module load / venv activate
-    cat >> "$ENV_FILE" << 'PYISO_EOF'
+        # Load global Python environment
+        if [ -n "$GLOBAL_PYTHON_COMMANDS" ]; then
+            echo "# Load global Python environment"
+            echo "$GLOBAL_PYTHON_COMMANDS"
+            echo ""
+        fi
+
+        # Load environment modules
+        if [ -n "$ENV_COMMANDS" ]; then
+            echo "# Load environment modules"
+            echo "$ENV_COMMANDS"
+            echo ""
+        fi
+
+        # Re-apply Python isolation after module load / venv activate
+        cat << 'PYISO_EOF'
 # Python isolation (re-applied after env setup)
 export PYTHONNOUSERSITE=1
 unset PYTHONPATH
 PYISO_EOF
-    
-    # Export basic variables
-    cat >> "$ENV_FILE" << ENV_EOF
-# Basic environment variables
-export SUBJECT_ID="$subject"
-export NUM_SUBJECTS="$NUM_SUBJECTS"
-export SUBJECTS_ARRAY="${subjects_array[*]}"
-export INPUT_DIR="$INPUT_DIR"
-export OUTPUT_DIR="$OUTPUT_DIR"
-export WORK_DIR="$WORK_DIR"
-export CONTAINER_DIR="$CONTAINER_DIR"
-export LOG_DIR="$LOG_DIR"
-export DB_PATH="$DB_PATH"
-export TASK_NAME="$TASK_NAME"
-export SUB_LOG_DIR="$SUB_LOG_DIR"
-export LOG_PATH="$LOG_PATH"
-export SESSION="${SESSION:-}"
-export SCRIPT_DIR="$SCRIPT_DIR"
-export EXECUTION_ID="${EXECUTION_ID:-}"
-ENV_EOF
-    
-    # Export global environment variables
-    if [ -n "$GLOBAL_ENV_VARS" ]; then
-        echo "" >> "$ENV_FILE"
-        echo "# Global environment variables" >> "$ENV_FILE"
-        echo "$GLOBAL_ENV_VARS" >> "$ENV_FILE"
-    fi
-    
-    # Export task-specific parameters
-    if [ -n "$TASK_PARAMS" ]; then
-        echo "" >> "$ENV_FILE"
-        echo "# Task-specific parameters" >> "$ENV_FILE"
-        echo "$TASK_PARAMS" >> "$ENV_FILE"
-    fi
+
+        echo "# Basic environment variables"
+        _export_quoted SUBJECT_ID "$subject"
+        _export_quoted NUM_SUBJECTS "$NUM_SUBJECTS"
+        _export_quoted SUBJECTS_ARRAY "${subjects_array[*]}"
+        _export_quoted INPUT_DIR "$INPUT_DIR"
+        _export_quoted OUTPUT_DIR "$OUTPUT_DIR"
+        _export_quoted WORK_DIR "$WORK_DIR"
+        _export_quoted CONTAINER_DIR "$CONTAINER_DIR"
+        _export_quoted LOG_DIR "$LOG_DIR"
+        _export_quoted DB_PATH "$DB_PATH"
+        _export_quoted TASK_NAME "$TASK_NAME"
+        _export_quoted SUB_LOG_DIR "$SUB_LOG_DIR"
+        _export_quoted LOG_PATH "$LOG_PATH"
+        _export_quoted SESSION "${SESSION:-}"
+        _export_quoted SCRIPT_DIR "$SCRIPT_DIR"
+        _export_quoted EXECUTION_ID "${EXECUTION_ID:-}"
+
+        # Export global environment variables
+        if [ -n "$GLOBAL_ENV_VARS" ]; then
+            echo ""
+            echo "# Global environment variables"
+            echo "$GLOBAL_ENV_VARS"
+        fi
+
+        # Export task-specific parameters
+        if [ -n "$TASK_PARAMS" ]; then
+            echo ""
+            echo "# Task-specific parameters"
+            echo "$TASK_PARAMS"
+        fi
+    } > "$ENV_FILE" || return 1
 }
 
 # Execute script with logging

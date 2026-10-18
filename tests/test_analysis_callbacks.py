@@ -367,12 +367,12 @@ class TestGenerateCommandCallback:
     def test_command_contains_core_flags(self, callbacks):
         text, data = self._call(callbacks)
         assert text.splitlines() == [
-            'input_dir="/in"',
-            'output_dir="/out"',
-            'work_dir="/work"',
+            'input_dir=/in',
+            'output_dir=/out',
+            'work_dir=/work',
             '',
             'neuromaestro run \\',
-            '  --config-dir "/cfg" \\',
+            '  --config-dir /cfg \\',
             '  --subjects 001 \\',
             '  --input "$input_dir" \\',
             '  --output "$output_dir" \\',
@@ -405,6 +405,24 @@ class TestGenerateCommandCallback:
                              skip_bids_validation=["skip_bids_validation"])
         for flag in ("--dry-run", "--resume", "--skip-preflight", "--skip-bids-validation"):
             assert flag in text
+
+    def test_pasted_command_passes_values_verbatim(self, callbacks, tmp_path):
+        import subprocess
+        values = dict(input_dir="/in/a b", output_dir='/out/"$(touch pwned)"',
+                      work_dir="/w/`touch pwned`", config_dir="/c/it's",
+                      subjects=["0 1", "$(touch pwned)"], session="01;touch pwned",
+                      project_name="p&q")
+        text, _ = self._call(callbacks, **values)
+        # stand-in for the CLI: print each argument it receives
+        script = 'neuromaestro() { printf "%s\\n" "$@"; }\n' + text
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                             cwd=tmp_path).stdout
+        assert out.splitlines() == [
+            "run", "--config-dir", "/c/it's", "--subjects", "0 1,$(touch pwned)",
+            "--input", "/in/a b", "--output", '/out/"$(touch pwned)"',
+            "--work", "/w/`touch pwned`", "--session", "01;touch pwned", "--project", "p&q",
+        ]
+        assert not (tmp_path / "pwned").exists()
 
     def test_last_line_has_no_dangling_continuation(self, callbacks):
         text, _ = self._call(callbacks, dry_run=["dry_run"])

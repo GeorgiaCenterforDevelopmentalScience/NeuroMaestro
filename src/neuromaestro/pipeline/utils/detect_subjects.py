@@ -1,6 +1,10 @@
 import os
+import re
 import sys
-from typing import List
+from typing import List, Optional
+
+# IDs reach generated bash and file paths, so anything beyond this is refused.
+_SUBJECT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 def detect_subjects(input_dir: str, prefix: str = "sub-") -> List[str]:
     """
@@ -49,6 +53,16 @@ def parse_subjects_input(subjects: str) -> List[str]:
             subjects = f.read().strip()
     subjects = subjects.replace("\n", ",").replace("\r", "")
     return [s.strip() for s in subjects.split(",") if s.strip()]
+
+
+def subject_id_error(subjects: List[str]) -> Optional[str]:
+    """Error message naming the unsafe subject IDs, or None if all are valid."""
+    bad = [s for s in subjects if not _SUBJECT_ID.fullmatch(s)]
+    if not bad:
+        return None
+    shown = ", ".join(repr(s) for s in bad[:5]) + (", ..." if len(bad) > 5 else "")
+    return (f"invalid subject ID(s): {shown}. Subject IDs must start with a letter or digit "
+            "and contain only letters, digits, '.', '_' and '-'.")
 
 
 def save_subjects_to_file(subjects: List[str], output_file: str) -> None:

@@ -7,11 +7,15 @@ Only the units that can run without a scheduler are covered:
   - warn_if_failed (logging failures were masked by the tee pipeline)
   - resolve_scheduler_ids (array index and job id under SLURM, PBS Pro and Torque)
   - execute_script_with_logging (exit code and end status of the task script)
-  - create_env_file (Python isolation after module loads)
+  - create_env_file (Python isolation after module loads, private file, values sourced verbatim)
 """
 
+import getpass
 import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 WRAPPER = (Path(__file__).resolve().parent.parent
            / "src" / "neuromaestro" / "pipeline" / "utils" / "wrapper_functions.sh")
@@ -217,3 +221,50 @@ class TestEnvFile:
             'echo "pythonpath=${PYTHONPATH-unset} nousersite=$PYTHONNOUSERSITE"'
         )
         assert "pythonpath=unset nousersite=1" in result.stdout
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
+    def test_env_file_is_private_and_under_tmpdir(self, tmp_path):
+        # other users on the node can write to /tmp, so the name must not be guessable
+        result = run_bash(
+            "TASK_NAME=t subject=001\n"
+            "create_env_file\n"
+            'stat -c "%a %U" "$ENV_FILE"; dirname "$ENV_FILE"; basename "$ENV_FILE"; rm -f "$ENV_FILE"',
+            env={"TMPDIR": str(tmp_path)},
+        )
+        mode, directory, name = result.stdout.splitlines()
+        assert mode == f"600 {getpass.getuser()}"
+        assert directory == str(tmp_path)
+        assert name.startswith("neuromaestro_env.") and "001" not in name
+
+    def test_values_are_not_expanded_again_when_sourced(self, tmp_path):
+        values = {
+            "subject": "$(touch pwned)",
+            "INPUT_DIR": "/data/a b/`touch pwned`",
+            "OUTPUT_DIR": "it's \"x\"\nnext; touch pwned",
+            "SESSION": "$HOME",
+        }
+        result = run_bash(
+            f'cd "{tmp_path.as_posix()}"\n'
+            "TASK_NAME=t\n"
+            "create_env_file\n"
+            "unset subject INPUT_DIR OUTPUT_DIR SESSION\n"
+            'source "$ENV_FILE"; rm -f "$ENV_FILE"\n'
+            "printf '%s\\n--\\n' \"$SUBJECT_ID\" \"$INPUT_DIR\" \"$OUTPUT_DIR\" \"$SESSION\"",
+            env=values,
+        )
+        expected = [values[k] for k in ("subject", "INPUT_DIR", "OUTPUT_DIR", "SESSION")]
+        assert result.stdout == "".join(f"{v}\n--\n" for v in expected)
+        assert not (tmp_path / "pwned").exists()
+
+    def test_unwritable_tmpdir_stops_before_the_task(self, tmp_path):
+        marker = tmp_path / "task_ran"
+        script = tmp_path / "task.sh"
+        script.write_text(f'touch "{marker.as_posix()}"\n')
+        result = run_bash(
+            f'execute_wrapper "{script.as_posix()}"\necho "rc=$?"',
+            env={"SUBJECTS": "001", "LOG_DIR": (tmp_path / "log").as_posix(), "TASK_NAME": "recon",
+                 "TMPDIR": (tmp_path / "missing").as_posix()},
+        )
+        assert "ERROR: Could not write the job environment file" in result.stdout
+        assert result.stdout.splitlines()[-1] == "rc=1"
+        assert not marker.exists()

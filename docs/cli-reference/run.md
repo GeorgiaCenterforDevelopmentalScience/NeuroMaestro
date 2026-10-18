@@ -104,6 +104,8 @@ neuromaestro run --subjects subjects.txt ...
 
 The subject prefix (`sub-`) comes from the project config `prefix` field; do not include it in subject IDs.
 
+Subject IDs may contain only letters, digits, `.`, `_` and `-`, and must start with a letter or digit. `run` stops with an error naming any other ID, because IDs end up in generated job scripts and log paths.
+
 :::{tip}
 On HPC systems, pasting a long comma-separated list directly into the terminal can hit the shell's line-length limit and cause an error. If you have more than a few dozen subjects, use a text file instead.
 :::

@@ -20,6 +20,7 @@ app = typer.Typer(pretty_exceptions_enable=False)
 config: dict = {}
 
 from .utils.detect_subjects import parse_subjects_input as _parse_subjects
+from .utils.detect_subjects import subject_id_error
 
 
 def _resolve_config_dir(config_dir: Optional[str]) -> str:
@@ -225,6 +226,10 @@ def run(
 
         # Parse subjects (from file or string)
         user_subjects = _parse_subjects(subjects)
+        id_error = subject_id_error(user_subjects)
+        if id_error:
+            typer.echo(f"Error: {id_error}", err=True)
+            raise typer.Exit(1)
         context = {'subjects': user_subjects}
         typer.echo(f"Subjects: {user_subjects}")
 

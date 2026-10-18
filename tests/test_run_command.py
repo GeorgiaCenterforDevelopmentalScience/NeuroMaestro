@@ -271,6 +271,13 @@ class TestFailures:
         assert message in result.output.splitlines()
         assert study.sbatch.calls == []
 
+    def test_unsafe_subject_id_exits_before_anything_is_recorded_or_submitted(self, study):
+        result = study.invoke("--subjects", "001,$(touch pwned)", *QUICK)
+        assert result.exit_code == 1
+        assert "Error: invalid subject ID(s): '$(touch pwned)'." in result.output
+        assert study.sbatch.calls == []
+        assert study.records() == []
+
     def test_missing_container_dir_raises(self, study):
         study.edit_project_config(lambda c: c["envir_dir"].pop("container_dir"))
         result = study.invoke(*QUICK)

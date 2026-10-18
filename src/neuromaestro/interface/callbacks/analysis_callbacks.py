@@ -1,4 +1,5 @@
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -216,46 +217,47 @@ def register_analysis_callbacks(app):
             return "Error: Please fill in all required fields (input, output, work directories, project name, session)", {}
 
         try:
+            # The preview is meant to be pasted into a shell.
+            q = shlex.quote
             cmd_parts = []
 
-            cmd_parts.append(f'input_dir="{input_dir}"')
-            cmd_parts.append(f'output_dir="{output_dir}"')
-            cmd_parts.append(f'work_dir="{work_dir}"')
+            cmd_parts.append(f'input_dir={q(input_dir)}')
+            cmd_parts.append(f'output_dir={q(output_dir)}')
+            cmd_parts.append(f'work_dir={q(work_dir)}')
             cmd_parts.append('')
 
             cmd_parts.append('neuromaestro run \\')
 
             if config_dir:
-                cmd_parts.append(f'  --config-dir "{config_dir}" \\')
+                cmd_parts.append(f'  --config-dir {q(config_dir)} \\')
 
-            subjects_str = ",".join(subjects)
-            cmd_parts.append(f'  --subjects {subjects_str} \\')
+            cmd_parts.append(f'  --subjects {q(",".join(subjects))} \\')
 
             cmd_parts.append(f'  --input "$input_dir" \\')
             cmd_parts.append(f'  --output "$output_dir" \\')
             cmd_parts.append(f'  --work "$work_dir" \\')
 
-            cmd_parts.append(f'  --session {session} \\')
-            cmd_parts.append(f'  --project {project_name} \\')
+            cmd_parts.append(f'  --session {q(session)} \\')
+            cmd_parts.append(f'  --project {q(project_name)} \\')
 
             if prep_option and prep_option != "none":
-                cmd_parts.append(f'  --prep {prep_option} \\')
+                cmd_parts.append(f'  --prep {q(prep_option)} \\')
 
             if intermed_value:
-                cmd_parts.append(f'  --intermed {",".join(intermed_value)} \\')
+                cmd_parts.append(f'  --intermed {q(",".join(intermed_value))} \\')
 
             if bids_prep:
-                cmd_parts.append(f'  --bids-prep {",".join(bids_prep)} \\')
+                cmd_parts.append(f'  --bids-prep {q(",".join(bids_prep))} \\')
             if bids_post:
-                cmd_parts.append(f'  --bids-post {",".join(bids_post)} \\')
+                cmd_parts.append(f'  --bids-post {q(",".join(bids_post))} \\')
 
             if staged_prep:
-                cmd_parts.append(f'  --staged-prep {",".join(staged_prep)} \\')
+                cmd_parts.append(f'  --staged-prep {q(",".join(staged_prep))} \\')
             if staged_post:
-                cmd_parts.append(f'  --staged-post {",".join(staged_post)} \\')
+                cmd_parts.append(f'  --staged-post {q(",".join(staged_post))} \\')
 
             if mriqc_option and mriqc_option != "none":
-                cmd_parts.append(f'  --mriqc {mriqc_option} \\')
+                cmd_parts.append(f'  --mriqc {q(mriqc_option)} \\')
 
             if dry_run and "dry_run" in dry_run:
                 cmd_parts.append(f'  --dry-run \\')

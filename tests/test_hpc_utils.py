@@ -763,6 +763,18 @@ class TestSubmitSlurmJobExtras:
                 **kwargs,
             )
 
+    def test_unsafe_subject_id_writes_no_wrapper(self, tmp_path, scripts_dir, capsys):
+        # a newline would end the wrapper's "# Subjects:" comment and run the rest
+        subjects_file = tmp_path / "subjects.txt"
+        subjects_file.write_text("001\n002 ; touch pwned\n")
+        task_config = {"name": "cards_preprocess", "profile": "standard",
+                       "array": True, "scripts": ["afni_cards_preprocessing.sh"]}
+        job_id = self._invoke(tmp_path, scripts_dir, task_config,
+                              {"subjects": str(subjects_file)})
+        assert job_id is None
+        assert "invalid subject ID(s): '002 ; touch pwned'" in capsys.readouterr().err
+        assert not (tmp_path / "work" / "log").exists()
+
     def test_subjects_read_from_file(self, tmp_path, scripts_dir):
         subjects_file = tmp_path / "subjects.txt"
         subjects_file.write_text("001\n002\n003\n")
