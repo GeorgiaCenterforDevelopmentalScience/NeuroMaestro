@@ -1,6 +1,9 @@
 import hmac
 
-from flask import abort, redirect, request
+from flask import redirect, request
+
+
+_FORBIDDEN = ("Forbidden: open the link printed when the GUI started.", 403)
 
 
 def install_token_auth(server, token, cookie_name):
@@ -11,11 +14,12 @@ def install_token_auth(server, token, cookie_name):
     def _check_token():
         supplied = request.args.get("token")
         if supplied is not None:
+            # Returned, not raised: Dash dev tools render raised errors as tracebacks.
             if not hmac.compare_digest(supplied.encode(), expected):
-                abort(403)
+                return _FORBIDDEN
             # Drop the token from the address bar once the cookie is set.
             response = redirect(request.path)
             response.set_cookie(cookie_name, token, httponly=True, samesite="Strict")
             return response
         if not hmac.compare_digest(request.cookies.get(cookie_name, "").encode(), expected):
-            abort(403)
+            return _FORBIDDEN

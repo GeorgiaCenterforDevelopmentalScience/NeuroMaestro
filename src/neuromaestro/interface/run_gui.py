@@ -33,6 +33,8 @@ def main():
         from neuromaestro.interface.app import app
         from neuromaestro.interface.auth import install_token_auth
         install_token_auth(app.server, token, f"neuromaestro_token_{args.port}")
+        # Dash would also print the bare address, which the token check rejects.
+        app.logger.setLevel(logging.WARNING)
 
         print("Starting NeuroMaestro GUI...")
         print(f"Access the GUI at: http://{shown_host}:{args.port}/?token={token}")
@@ -40,7 +42,9 @@ def main():
             debug=args.debug,
             host=args.host,
             port=args.port,
-            use_reloader=args.debug
+            use_reloader=args.debug,
+            # The Werkzeug console sits outside Flask, so the token check would not cover it.
+            use_debugger=False,
         )
     except KeyboardInterrupt:
         print("\nShutting down GUI server...")

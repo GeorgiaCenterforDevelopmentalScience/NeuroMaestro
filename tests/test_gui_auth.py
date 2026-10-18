@@ -54,3 +54,33 @@ def test_cookie_admits_later_requests(client):
 def test_forged_cookie_is_rejected(client):
     client.set_cookie(_COOKIE, "forged")
     assert client.get("/").status_code == 403
+
+
+def test_rejection_survives_a_catch_all_error_handler():
+    # Dash dev tools turn any raised error into a 500 traceback page.
+    server = Flask(__name__)
+    server.route("/")(lambda: "ok")
+    server.errorhandler(Exception)(lambda e: ("traceback", 500))
+    install_token_auth(server, _TOKEN, _COOKIE)
+    assert server.test_client().get("/").status_code == 403
+
+
+def test_launcher_binds_loopback_with_token_and_no_debugger(monkeypatch, tmp_path):
+    import neuromaestro.interface.auth as auth_mod
+    from neuromaestro.interface import run_gui
+    from neuromaestro.interface.app import app
+
+    monkeypatch.delenv("_NEUROMAESTRO_GUI_TOKEN", raising=False)
+    monkeypatch.setenv("CONFIG_DIR", str(tmp_path))
+    monkeypatch.setattr("sys.argv", ["neuromaestro-gui", "--debug", "--config-dir", str(tmp_path)])
+    installed = {}
+    monkeypatch.setattr(auth_mod, "install_token_auth",
+                        lambda server, token, cookie: installed.update(token=token, cookie=cookie))
+    runs = []
+    monkeypatch.setattr(app, "run", lambda **kw: runs.append(kw))
+
+    run_gui.main()
+
+    assert installed["token"] and installed["cookie"] == "neuromaestro_token_8050"
+    assert runs == [{"debug": True, "host": "127.0.0.1", "port": 8050,
+                     "use_reloader": True, "use_debugger": False}]
