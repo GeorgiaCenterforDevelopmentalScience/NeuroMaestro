@@ -121,7 +121,3 @@ def display_page(pathname):
         _SHOW if is_jm else _HIDE,
         pathname,
     )
-
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8050)

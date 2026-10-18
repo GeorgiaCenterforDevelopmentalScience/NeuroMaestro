@@ -11,7 +11,7 @@ neuromaestro-gui                 # default port 8050
 neuromaestro-gui --port 8051     # if 8050 is already in use
 ```
 
-Open `http://localhost:8050` in your browser. The GUI has three top-level tabs:
+On startup it prints a link with a token made for that launch, such as `http://127.0.0.1:8050/?token=...`. Open that link: the GUI rejects requests without the token, so other users on a shared login node cannot use it. The server listens on `127.0.0.1` only, unless `--host 0.0.0.0` is given. The GUI has three top-level tabs:
 
 | Tab | Purpose |
 |-----|---------|

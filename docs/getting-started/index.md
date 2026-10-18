@@ -107,8 +107,10 @@ neuromaestro-gui
 
 :::{note}
 `neuromaestro-gui` runs a web server **on the HPC login node**. To view it in a browser:
-- **VNC / remote desktop session on the HPC** — open `http://localhost:8050` directly.
-- **Terminal-only SSH from your laptop** — run `ssh -L 8050:localhost:8050 user@cluster` to forward the port, then open `http://localhost:8050` in your local browser.
+- **VNC / remote desktop session on the HPC**: open the link it prints, `http://127.0.0.1:8050/?token=...`, directly.
+- **Terminal-only SSH from your laptop**: run `ssh -L 8050:127.0.0.1:8050 user@cluster` to forward the port, then open the printed link in your local browser.
+
+The token in the link keeps other users on the login node out of your GUI. A new one is made at each launch.
 
 See the [GUI Reference](../gui/index.md) for a full walkthrough including job monitoring and output verification.
 :::
