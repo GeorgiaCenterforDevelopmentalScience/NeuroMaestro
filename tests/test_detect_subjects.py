@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from neuromaestro.pipeline.utils.detect_subjects import (
     detect_subjects,
+    missing_subjects_error,
     parse_subjects_input,
     save_subjects_to_file,
     subject_id_error,
@@ -103,3 +104,29 @@ class TestSubjectIdError:
         message = subject_id_error([f"bad {i}" for i in range(7)])
         assert "'bad 4', ..." in message
         assert "'bad 5'" not in message
+
+
+class TestMissingSubjectsError:
+
+    @pytest.fixture
+    def bids(self, tmp_path):
+        (tmp_path / "sub-0001").mkdir()
+        (tmp_path / "sub-0002").mkdir()
+        (tmp_path / "dataset_description.json").write_text("{}")
+        return tmp_path
+
+    def test_present_subjects_pass(self, bids):
+        assert missing_subjects_error(str(bids), ["0001", "0002"], "sub-") is None
+
+    def test_missing_subject_is_named(self, bids):
+        message = missing_subjects_error(str(bids), ["001", "0002"], "sub-")
+        assert message.startswith(f"subject(s) not found in {bids}: '001'. Each needs a 'sub-<id>' entry")
+
+    def test_input_without_prefixed_entries_is_not_checked(self, tmp_path):
+        (tmp_path / "raw_0001").mkdir()
+        assert missing_subjects_error(str(tmp_path), ["0001"], "sub-") is None
+
+    def test_long_lists_are_truncated(self, bids):
+        message = missing_subjects_error(str(bids), [f"9{i}" for i in range(7)], "sub-")
+        assert "'94', ..." in message
+        assert "'95'" not in message

@@ -65,6 +65,21 @@ def subject_id_error(subjects: List[str]) -> Optional[str]:
             "and contain only letters, digits, '.', '_' and '-'.")
 
 
+def missing_subjects_error(input_dir: str, subjects: List[str], prefix: str) -> Optional[str]:
+    """Error message naming subjects with no '<prefix><id>' entry in input_dir, or None."""
+    # Names only, one directory read: a stat per entry can hang on network filesystems.
+    with os.scandir(input_dir) as entries:
+        present = {e.name[len(prefix):] for e in entries if e.name.startswith(prefix)}
+    if not present:
+        return None
+    missing = [s for s in subjects if s not in present]
+    if not missing:
+        return None
+    shown = ", ".join(repr(s) for s in missing[:5]) + (", ..." if len(missing) > 5 else "")
+    return (f"subject(s) not found in {input_dir}: {shown}. Each needs a '{prefix}<id>' entry there "
+            "(--skip-bids-validation skips this check).")
+
+
 def save_subjects_to_file(subjects: List[str], output_file: str) -> None:
     """Save subjects to file (comma-separated)"""
     output_dir = os.path.dirname(output_file)

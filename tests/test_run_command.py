@@ -278,6 +278,18 @@ class TestFailures:
         assert study.sbatch.calls == []
         assert study.records() == []
 
+    def test_subject_missing_from_input_exits_before_anything_is_recorded_or_submitted(self, study):
+        result = study.invoke("--subjects", "001,002", "--skip-preflight")
+        assert result.exit_code == 1
+        assert f"Error: subject(s) not found in {study.root / 'input'}: '002'." in result.output
+        assert study.sbatch.calls == []
+        assert study.records() == []
+
+    def test_skip_bids_validation_also_skips_the_subject_check(self, study):
+        result = study.invoke("--subjects", "001,002", *QUICK)
+        assert result.exit_code == 0, result.output
+        assert study.sbatch.calls != []
+
     def test_missing_container_dir_raises(self, study):
         study.edit_project_config(lambda c: c["envir_dir"].pop("container_dir"))
         result = study.invoke(*QUICK)

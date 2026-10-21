@@ -1,7 +1,7 @@
 # Dev Log - [NeuroMaestro]
 
 ---
-## [1.0.0] – 2026-09-01
+## [1.0.0] – Unreleased
 
 First stable release. The public API, the CLI, and the YAML configuration schema are stable from this point on. Breaking changes to any of them raise the major version.
 
@@ -13,6 +13,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - `neuromaestro-gui` listens on `127.0.0.1` by default (was `0.0.0.0`) and rejects requests without the token in the link it prints at launch. Anyone who could reach the port, including other users on a shared login node, could otherwise edit files and submit jobs as the user who started it. Pass `--host 0.0.0.0` to accept remote connections, which still need the token.
 - `neuromaestro-gui --debug` no longer starts the Werkzeug debugger console, which bypassed the token and ran Python code as the user. Dash dev tools and hot reload still work.
 - `run` refuses subject IDs that contain anything other than letters, digits, `.`, `_` and `-`, or that start with `.` or `-`. IDs reach the generated job scripts and log paths, where a directory named like `sub-$(...)` or one containing a newline ran as a command.
+- `run` stops before submission when a subject has no `<prefix><id>` entry in `--input`. A mistyped ID used to be submitted and fail in every job. `--skip-bids-validation` also skips this check.
 - BIDS validation now runs the official validator, `bids-validator-deno`, in place of pybids, which only checked `dataset_description.json` and passed datasets with misnamed or empty files. It still only warns. It needs glibc 2.27 or newer and no `ulimit -v` below about 33 GB, and says so when it cannot start. pybids is no longer a dependency.
 
 ### Fixed

@@ -20,7 +20,7 @@ app = typer.Typer(pretty_exceptions_enable=False)
 config: dict = {}
 
 from .utils.detect_subjects import parse_subjects_input as _parse_subjects
-from .utils.detect_subjects import subject_id_error
+from .utils.detect_subjects import missing_subjects_error, subject_id_error
 
 
 def _resolve_config_dir(config_dir: Optional[str]) -> str:
@@ -124,7 +124,7 @@ def run(
     resume: bool = typer.Option(False, "--resume", help="Skip subjects whose outputs already exist"),
 
     skip_preflight: bool = typer.Option(False, "--skip-preflight", help="Skip pre-flight config checks"),
-    skip_bids_validation: bool = typer.Option(False, "--skip-bids-validation", help="Skip BIDS format validation"),
+    skip_bids_validation: bool = typer.Option(False, "--skip-bids-validation", help="Skip BIDS format validation and the check that each subject exists in --input"),
 
     wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),
     polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
@@ -227,6 +227,8 @@ def run(
         # Parse subjects (from file or string)
         user_subjects = _parse_subjects(subjects)
         id_error = subject_id_error(user_subjects)
+        if not id_error and not skip_bids_validation:
+            id_error = missing_subjects_error(input_dir, user_subjects, prefix)
         if id_error:
             typer.echo(f"Error: {id_error}", err=True)
             raise typer.Exit(1)
