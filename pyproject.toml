@@ -98,6 +98,7 @@ include = ["neuromaestro*"]
 "neuromaestro" = [
   "config/**/*.yaml",
   "scripts/**/*.sh",
+  "scripts/ds027/*.py",
   # sourced by the generated bash wrapper via SCRIPT_DIR
   "pipeline/utils/*.sh",
   # Dash discovers this folder relative to interface/app.py

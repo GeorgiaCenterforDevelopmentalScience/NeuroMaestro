@@ -5,6 +5,9 @@
 
 First stable release. The public API, the CLI, and the YAML configuration schema are stable from this point on. Breaking changes to any of them raise the major version.
 
+### Added
+- `scripts/ds027/make_afni_timing.py`, which converts the `events.tsv` files into the AFNI timing files the three `ds027` task fMRI scripts read. Without it the task fMRI part of the bundle could not be rerun.
+
 ### Changed
 - **Renamed the project to NeuroMaestro.** The distribution is now `neuromaestro` (was `neuroimage-pipe`), the import package is `neuromaestro` (was `neuro_pipeline`), and the console entry points are `neuromaestro` and `neuromaestro-gui` (were `neuropipe` and `neuropipe-gui`).
 - `NEUROPIPE_CONFIG_DIR` is now `NEUROMAESTRO_CONFIG_DIR`. The old name is no longer read, so an existing shell profile export must be updated.

@@ -112,22 +112,22 @@ Resource profiles come from `hpc_config.yaml`, which is cluster-wide rather than
 python -c "import neuromaestro, pathlib; print(pathlib.Path(neuromaestro.__file__).parent / 'scripts' / 'ds027')"
 ```
 
-Copy that directory to wherever you pointed `scripts_dir`. It contains 13 scripts, one per task.
+Copy that directory to wherever you pointed `scripts_dir`. It contains 13 task scripts, one per task, plus `make_afni_timing.py` for Step 4.
 
 ---
 
 ## Step 4: Generate the AFNI timing files
 
-The three task fMRI pipelines are AFNI based and consume `stim_times` files rather than the BIDS `events.tsv` directly. The reference run converted them with a helper script (`make_afni_timing.py`) that walks the BIDS root and writes one `.1D` per condition per subject into `stimulus_dir`.
+The three task fMRI pipelines are AFNI based and consume `stim_times` files rather than the BIDS `events.tsv` directly. `make_afni_timing.py`, copied out with the other `ds027` scripts in Step 3, converts them and writes one `.1D` per condition per subject. Set `ROOT` to the BIDS directory from Step 1 and `OUT_DIR` to where the timing files should go, at the top of the script, then run it:
 
 ```bash
 python3 make_afni_timing.py
 ```
 
-Point `envir_dir.stimulus_dir` at the output directory. The scripts expect one subdirectory per subject, named with the full BIDS ID (`sub-0001`).
+Point `envir_dir.stimulus_dir` at `OUT_DIR`. The scripts expect one subdirectory per subject, named with the full BIDS ID (`sub-0001`).
 
 :::{important}
-This conversion step is dataset-specific and lives with the AOMIC materials rather than in the package. Without it, the `emomatching`, `stopsignal`, and `workingmemory` tasks have no regressors to model.
+Without these files, the `emomatching`, `stopsignal`, and `workingmemory` tasks have no regressors to model.
 :::
 
 ---
