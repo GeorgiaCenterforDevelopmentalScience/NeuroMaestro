@@ -1,4 +1,4 @@
-# test_checks.yaml
+# template_checks.yaml
 # Per-project output check configuration for resume / check-outputs.
 #
 # Each key is a task name (must match the task names in config.yaml).

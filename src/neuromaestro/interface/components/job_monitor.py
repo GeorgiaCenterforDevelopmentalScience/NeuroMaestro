@@ -21,7 +21,7 @@ def create_job_monitor_layout():
                         dbc.Input(
                             id="work-dir-input",
                             type="text",
-                            placeholder="/data/work/my_study",
+                            placeholder="/data/work",
                             value=os.getcwd(),
                             persistence=True,
                             persistence_type="session",
@@ -348,7 +348,7 @@ def create_job_monitor_layout():
                                 dbc.Col([
                                     dbc.Label("Check Results CSV:", html_for="report-check-results"),
                                     dbc.Input(id="report-check-results", type="text",
-                                              placeholder="e.g., /data/work/check_results_20260421.csv", className="mb-3",
+                                              placeholder="e.g., /data/processed/my_study/check_results_20260421_120000.csv", className="mb-3",
                                               persistence=True,
                                               persistence_type="session",
                                               )

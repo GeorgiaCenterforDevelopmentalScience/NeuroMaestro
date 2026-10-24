@@ -443,7 +443,7 @@ def force_rebuild_cmd(
     The original database is never modified.
 
     Example:
-      neuromaestro force-rebuild /data/work/my_study
+      neuromaestro force-rebuild /data/work
     """
     from .utils.merge_logs_create_db import rebuild_db
     try:
@@ -465,7 +465,7 @@ def generate_report_cmd(
     ),
     session: Optional[str] = typer.Option(
         None, "--session",
-        help="Filter by session ID (recommended when multiple projects share a database)."
+        help="Session ID(s) to include, comma-separated (e.g. 01,02). Defaults to all sessions."
     ),
     check_results: str = typer.Option(..., "--check-results",
         help="Path to a check_results_*.csv produced by check-outputs."
@@ -478,8 +478,9 @@ def generate_report_cmd(
     """
     Generate a standalone HTML pipeline report for a project.
     Example:
-      neuromaestro generate-report --db-path /scratch/log/database/pipeline_jobs.db \\
-          --project GCDS --session 01 --check-results /data/work/check_results_20260421.csv
+      neuromaestro generate-report --db-path /data/work/database/pipeline_jobs.db \\
+          --project my_study --session 01 \\
+          --check-results /data/processed/my_study/check_results_20260421_120000.csv
     """
     # Optional: without it the report still renders, just in alphabetical task order
     resolved_config_dir = config_dir or os.environ.get("NEUROMAESTRO_CONFIG_DIR")
@@ -511,7 +512,7 @@ def generate_report_cmd(
 @app.command("check-outputs")
 def check_outputs_cmd(
     project: str = typer.Option(..., help="Project name"),
-    work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
+    work_dir: str = typer.Option(..., "--work", help="Output data root: the run's --output with the project name appended (e.g. /data/processed/my_study)"),
     config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROMAESTRO_CONFIG_DIR."),
     subjects: Optional[str] = typer.Option(None, help="Subject list or file path (auto-detected from work_dir if omitted)"),
     session: str = typer.Option(..., help="Session ID(s), comma-separated (e.g. 01,02). Required so each result row is attributable to a session; projects without sessions may pass any value."),
@@ -533,8 +534,8 @@ def check_outputs_cmd(
     Without --subjects, scans all subjects found in work_dir.
 
     Examples:
-      neuromaestro check-outputs --project test --work /data/processed --session 01
-      neuromaestro check-outputs --project test --work /data/processed \\
+      neuromaestro check-outputs --project test --work /data/processed/test --session 01
+      neuromaestro check-outputs --project test --work /data/processed/test \\
           --subjects 001,002 --session 01,02
     """
     set_config_dir(_resolve_config_dir(config_dir))
