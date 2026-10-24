@@ -104,9 +104,6 @@ slurm:
   status_args: ["--noheader", "--format=%i %T"]
   active_states: [PENDING, RUNNING]
 
-  # Job cancellation
-  cancel_cmd: scancel
-
 # PBS/Torque
 # To use PBS: change `scheduler` above to `pbs` and adjust values below.
 #
@@ -129,4 +126,3 @@ slurm:
 #     error:         "-e {value}"
 #   status_cmd: qstat
 #   active_states: [Q, R, H]
-#   cancel_cmd: qdel

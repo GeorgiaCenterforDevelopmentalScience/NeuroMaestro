@@ -165,7 +165,6 @@ slurm:
   status_cmd: squeue
   status_args: ["--noheader", "--format=%i %T"]
   active_states: [PENDING, RUNNING]
-  cancel_cmd: scancel
 ```
 
 ### Submission
@@ -194,14 +193,13 @@ resource_flags:
 
 ### Job monitoring (`--wait`)
 
-The first three fields are used when `--wait` is passed to `neuromaestro run`:
+These fields are used when `--wait` is passed to `neuromaestro run`:
 
 | Key | Description |
 |-----|-------------|
 | `status_cmd` | Command to query job status. `squeue` for SLURM. |
 | `status_args` | Arguments passed to `status_cmd`. The default `--noheader --format="%i %T"` produces `12345 RUNNING` lines, which the pipeline parses to extract job ID and state. |
 | `active_states` | States considered "still running". The pipeline keeps polling while any job has one of these states. SLURM: `PENDING`, `RUNNING`. PBS equivalent: `Q`, `R`, `H`. |
-| `cancel_cmd` | Cancel command for the scheduler (`scancel` for SLURM, `qdel` for PBS). Not read by the pipeline at present: cancel jobs yourself with this command. |
 
 ---
 
@@ -229,5 +227,4 @@ To use PBS/Torque, set `scheduler: pbs` and uncomment the `pbs:` block in `hpc_c
 #     error:         "-e {value}"
 #   status_cmd: qstat
 #   active_states: [Q, R, H]
-#   cancel_cmd: qdel
 ```

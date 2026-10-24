@@ -43,7 +43,6 @@ MOCK_HPC_CONFIG = {
         "status_cmd": "squeue",
         "status_args": ["--noheader", "--format=%i %T"],
         "active_states": ["PENDING", "RUNNING"],
-        "cancel_cmd": "scancel",
     },
 }
 

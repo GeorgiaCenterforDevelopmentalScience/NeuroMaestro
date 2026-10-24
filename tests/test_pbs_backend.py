@@ -25,7 +25,6 @@ PBS_CONFIG = {
     },
     "status_cmd": "qstat",
     "active_states": ["Q", "R", "H"],
-    "cancel_cmd": "qdel",
 }
 
 MOCK_RESOURCES_KWARGS = dict(
