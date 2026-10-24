@@ -80,7 +80,7 @@ The following are checked:
 | `schema` | `database.db_path` is defined |
 | `schema` | Each task name under `tasks:` exists in global `config.yaml` |
 | `schema` | Each task's resource `profile`, in global `config.yaml` and wherever the project config overrides it, exists in `hpc_config.yaml` |
-| `schema` | Each `environ` module listed under a task is defined in `modules:` in the project config |
+| `schema` | Each `environ` module listed under a task, as a list or a single name, is defined in `modules:` in the project config |
 
 Issues are reported as **ERROR** (blocks submission) or **warning** (informational). If any errors are found, the run exits before submitting any jobs.
 

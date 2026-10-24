@@ -136,6 +136,20 @@ class TestSchemaChecks:
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
         assert any("nonexistent_module" in m for m in messages)
 
+    def test_environ_as_a_string_is_one_module_name(self, tmp_path):
+        # the runtime accepts a bare string, so it must not be checked letter by letter
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"environ": "data_manage_1"}}}
+        checker = make_checker(project_config=pc, tmp_path=tmp_path)
+        checker.check_schema()
+        assert [i for i in checker._issues if i.severity == "ERROR"] == []
+
+    def test_undefined_environ_string_is_reported_once(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"environ": "ghost"}}}
+        checker = make_checker(project_config=pc, tmp_path=tmp_path)
+        checker.check_schema()
+        errors = [i.message for i in checker._issues if i.severity == "ERROR"]
+        assert errors == ["task 'unzip': environ entry 'ghost' is not defined in project config modules"]
+
     def test_no_error_for_known_module(self, tmp_path):
         # data_manage_1 is defined in MOCK_PROJECT_CONFIG.modules
         checker = make_checker(tmp_path=tmp_path)
@@ -193,6 +207,14 @@ class TestSchemaChecks:
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         assert [i for i in checker._issues if i.severity == "ERROR"] == []
+
+    def test_empty_profile_override_is_an_error(self, tmp_path):
+        # `profile:` with no value is null, which the merge copies over the global profile
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"profile": None}}}
+        checker = make_checker(project_config=pc, tmp_path=tmp_path)
+        checker.check_schema()
+        errors = [i.message for i in checker._issues if i.severity == "ERROR"]
+        assert errors == ["tasks.unzip: sets no resource profile"]
 
 
 # ===========================================================================
