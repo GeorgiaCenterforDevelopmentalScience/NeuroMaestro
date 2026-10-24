@@ -47,6 +47,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - A `count_check` pattern was globbed as written, so `{subject}`, `{session}` or `{prefix}` in it matched no file and the check failed. It is now expanded like a `required_files` pattern.
 - `neuromaestro-gui` ignored `$NEUROMAESTRO_CONFIG_DIR`, prefilled its config directory field with `./config`, and created that empty folder in the current directory at every launch. `--config-dir` now defaults to the environment variable, and the launcher creates nothing.
 - The `--help` examples of `force-rebuild` and `generate-report` put the database under the project work directory, and those of `check-outputs` passed `--output` without the project name, so following them found no database or failed every check.
+- `neuromaestro --help` listed `run` without a description.
 - After a run, the hints called merging the logs optional and listed the status queries first, although jobs reach the database only through `merge-logs`. The merge command now comes first and names the database, so it also works with a custom `database.db_path`.
 
 ### Tests

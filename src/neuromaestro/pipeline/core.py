@@ -129,7 +129,7 @@ def run(
     wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),
     polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
 ):
-
+    """Submit pipeline jobs to the scheduler."""
     set_config_dir(_resolve_config_dir(config_dir))
     config = get_config()
 
