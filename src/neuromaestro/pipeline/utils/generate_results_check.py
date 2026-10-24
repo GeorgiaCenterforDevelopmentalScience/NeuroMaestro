@@ -28,7 +28,7 @@ recon:
 
 def generate_results_check(project_name: str, output_dir: str = None,
                            force: bool = False) -> Path:
-    """Write a blank results-check template for project_name. Returns the output path."""
+    """Write a starter results-check config for project_name. Returns the output path."""
     out = Path(output_dir) if output_dir else get_config_dir() / "results_check"
     out.mkdir(parents=True, exist_ok=True)
     config_file = out / f"{project_name}_checks.yaml"
@@ -45,7 +45,7 @@ def generate_results_check(project_name: str, output_dir: str = None,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate a blank results-check config template")
+    parser = argparse.ArgumentParser(description="Generate a starter results-check config with two example checks to replace")
     parser.add_argument("project_name", type=str, help="Project name (e.g., branch, study1)")
     parser.add_argument("--output-dir", type=str, default=None,
                         help="Output directory (default: config/results_check/)")
