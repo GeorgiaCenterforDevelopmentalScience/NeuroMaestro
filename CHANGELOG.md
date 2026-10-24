@@ -18,6 +18,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - `run` refuses subject IDs that contain anything other than letters, digits, `.`, `_` and `-`, or that start with `.` or `-`. IDs reach the generated job scripts and log paths, where a directory named like `sub-$(...)` or one containing a newline ran as a command.
 - `run` stops before submission when a subject has no `<prefix><id>` entry in `--input`. A mistyped ID used to be submitted and fail in every job. `--skip-bids-validation` also skips this check.
 - BIDS validation now runs the official validator, `bids-validator-deno`, in place of pybids, which only checked `dataset_description.json` and passed datasets with misnamed or empty files. It still only warns. It needs glibc 2.27 or newer and no `ulimit -v` below about 33 GB, and says so when it cannot start. pybids is no longer a dependency.
+- `matplotlib` is no longer a dependency. Nothing in the package imported it.
 
 ### Fixed
 - PBS and Torque array jobs ran the first subject in every subtask, since only SLURM's array variables were read.

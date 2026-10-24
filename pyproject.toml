@@ -45,10 +45,9 @@ dependencies = [
   "dash-cytoscape>=1.0",
   "dash-bootstrap-components>=2.0",
   "plotly>=6.0",
-  # pandas 3.x and matplotlib 3.11 need Python >=3.11, so these stay one major back
+  # pandas 3.x needs Python >=3.11, so it stays one major back
   # to keep requires-python = ">=3.10" honest
   "pandas>=2.2",
-  "matplotlib>=3.8",
   "bids-validator-deno>=3.0.2"
 ]
 
