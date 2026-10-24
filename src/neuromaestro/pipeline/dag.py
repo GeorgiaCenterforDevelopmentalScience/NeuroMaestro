@@ -50,9 +50,13 @@ class DAGExecutor:
         for task_name in requested_tasks:
             self._register_task(task_name)
 
+        from .utils.config_utils import get_intermed_task_names
+        intermed_names = set(get_intermed_task_names())
+        intermed_tasks = [t for t in requested_tasks if t in intermed_names]
+
         self._apply_prep_sequence(requested_tasks)
-        self._apply_recon_dependencies(requested_tasks)
-        self._apply_intermed_dependencies(requested_tasks)
+        self._apply_recon_dependencies(requested_tasks, intermed_tasks)
+        self._apply_intermed_dependencies(requested_tasks, intermed_tasks)
         self._apply_section_dependencies(requested_tasks)
         self._prune_dangling_dependencies()
 
@@ -85,31 +89,23 @@ class DAGExecutor:
         if 'unzip' in self.nodes and 'recon' in self.nodes:
             self.nodes['recon'].add_dependency('unzip')
 
-    def _apply_recon_dependencies(self, requested_tasks: List[str]):
-        """recon -> all downstream non-staged tasks, and staged prep tasks when no intermed is requested.
-
-        With intermed requested, staged prep tasks wait for it instead, and it waits
-        for recon. Staged post tasks follow their prep task through the section rule.
-        """
+    def _apply_recon_dependencies(self, requested_tasks: List[str], intermed_tasks: List[str]):
+        """recon -> all downstream non-staged tasks, and staged prep tasks when no intermed is requested."""
         if 'recon' not in requested_tasks:
             return
-
-        from .utils.config_utils import get_all_task_names
-        intermed_requested = any(t in get_all_task_names('intermed') for t in requested_tasks)
 
         downstream = set(requested_tasks) - {'unzip', 'recon'}
         for task_name in downstream:
             if task_name not in self.nodes:
                 continue
             cfg = self.nodes[task_name].task_config
-            if cfg.get('multi_stage') and (intermed_requested or cfg.get('stage') != 'prep'):
+            # staged post tasks follow their prep task through the section rule instead
+            if cfg.get('multi_stage') and (intermed_tasks or cfg.get('stage') != 'prep'):
                 continue
             self.nodes[task_name].add_dependency('recon')
 
-    def _apply_intermed_dependencies(self, requested_tasks: List[str]):
+    def _apply_intermed_dependencies(self, requested_tasks: List[str], intermed_tasks: List[str]):
         """intermed -> staged prep tasks only (multi_stage: true, stage: prep)"""
-        from .utils.config_utils import get_all_task_names
-        intermed_tasks = [t for t in requested_tasks if t in get_all_task_names('intermed')]
         if not intermed_tasks:
             return
         for task_name in requested_tasks:
