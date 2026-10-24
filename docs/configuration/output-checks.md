@@ -62,7 +62,7 @@ Both check types are optional and can be combined freely within one task.
 
 ## Path Placeholders
 
-`output_path` supports all four placeholders below. A `required_files` pattern supports `{subject}`, `{prefix}` and `{session}`. A `count_check` pattern is used as written, with no placeholder substitution, so keep subject-specific parts of the path in `output_path`.
+`output_path` supports all four placeholders below. A `pattern`, in `required_files` and `count_check` alike, supports `{subject}`, `{prefix}` and `{session}`.
 
 | Placeholder | Expands to | Example |
 |-------------|-----------|---------|
@@ -135,7 +135,7 @@ recon:
 
 **Logic:**
 
-- `actual` = number of files matching `output_path/pattern` (the pattern is not expanded, see [Path Placeholders](#path-placeholders))
+- `actual` = number of files matching `output_path/pattern`
 - `|actual − expected_count| ≤ tolerance` → **PASS**
 - `actual > expected_count + tolerance` → **FAIL** (`too many files`)
 - `actual < expected_count − tolerance` → **FAIL** (`too few files`)

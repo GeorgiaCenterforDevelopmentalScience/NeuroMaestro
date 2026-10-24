@@ -79,14 +79,19 @@ def _required_files_check(task, base_path, files_config,
     return rows
 
 def _count_check(task: str, base_path: str, count_config: dict,
-                 subject: str, session: str) -> List[dict]:
+                 subject: str, session: str, prefix: str = "sub-") -> List[dict]:
     rows = []
     for data_type, spec in count_config.items():
         pattern = spec.get("pattern", "")
         expected = spec.get("expected_count", 0)
         tolerance = spec.get("tolerance", 0)
 
-        full_pattern = os.path.join(base_path, pattern)
+        expanded_pattern = pattern.format(
+            subject=subject,
+            prefix=prefix,
+            session=session,
+        )
+        full_pattern = os.path.join(base_path, expanded_pattern)
         matches = _safe_glob(full_pattern)
         
         actual = len(matches)
@@ -177,7 +182,7 @@ class OutputChecker:
             rows.extend(_count_check(
                 task_name, base_path,
                 task_cfg["count_check"],
-                subject, self.session,
+                subject, self.session, self.prefix,
             ))
 
         return rows

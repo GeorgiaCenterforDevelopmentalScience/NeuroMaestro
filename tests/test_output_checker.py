@@ -192,6 +192,29 @@ class TestCountCheck:
         rows = checker.check_subject("recon", "001")
         assert rows[0]["status"].startswith("FAIL")
 
+    def test_pattern_placeholders_are_expanded_like_required_files(self, tmp_path):
+        # A shared output_path, so only the expanded pattern tells the two subjects apart.
+        out = tmp_path / "func"
+        out.mkdir()
+        self._make_files(out, ["sub-001_ses-01_run-1_bold.nii.gz",
+                               "sub-001_ses-01_run-2_bold.nii.gz",
+                               "sub-002_ses-01_run-1_bold.nii.gz"])
+
+        checker = make_checker(tmp_path, {
+            "rest_preprocess": {
+                "output_path": str(out),
+                "count_check": {
+                    "bold": {"pattern": "{prefix}{subject}_ses-{session}_*_bold.nii.gz",
+                             "expected_count": 2, "tolerance": 0}
+                },
+            }
+        })
+        assert [checker.check_subject("rest_preprocess", s)[0]["actual"]
+                for s in ("001", "002")] == [2, 1]
+        # the CSV keeps the template, as for required_files
+        assert checker.check_subject("rest_preprocess", "001")[0]["pattern"] == \
+            "{prefix}{subject}_ses-{session}_*_bold.nii.gz"
+
 
 class TestCheckBoundaries:
 

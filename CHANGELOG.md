@@ -32,6 +32,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - The report escaped session IDs in headings but not in its navigation links and section anchors.
 - `--skip-preflight` help and docs said pre-flight checks the filesystem. It checks only the config.
 - A task parameter or `envir_dir` key that is not a valid shell variable name, such as `my-param` or `voxel.size`, was exported as written, so the job failed on the compute node when its environment file was sourced. Generating the wrapper now stops with an error naming the key, so `--dry-run` reports it too.
+- A `count_check` pattern was globbed as written, so `{subject}`, `{session}` or `{prefix}` in it matched no file and the check failed. It is now expanded like a `required_files` pattern.
 - After a run, the hints called merging the logs optional and listed the status queries first, although jobs reach the database only through `merge-logs`. The merge command now comes first and names the database, so it also works with a custom `database.db_path`.
 
 ### Tests
