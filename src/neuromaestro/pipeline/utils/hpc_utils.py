@@ -410,11 +410,11 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     
     merged_config = {**defaults, **profile_config}
 
-    # memory_per_cpu replaces --mem in the submission, so either one is enough
+    # a non-empty memory_per_cpu replaces --mem in the submission, so either one is enough
     required = {key: key for key in ('partition', 'nodes', 'ntasks', 'cpus_per_task', 'time')}
-    if 'memory_per_cpu' not in merged_config:
+    if not merged_config.get('memory_per_cpu'):
         required['memory'] = 'memory (or memory_per_cpu)'
-    missing = [label for key, label in required.items() if key not in merged_config]
+    missing = [label for key, label in required.items() if merged_config.get(key) is None]
     if missing:
         raise ValueError(
             f"Profile '{profile_name}' in hpc_config.yaml sets no {', '.join(missing)}. "

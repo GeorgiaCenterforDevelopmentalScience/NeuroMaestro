@@ -120,6 +120,19 @@ class TestGetHPCResources:
         assert str(exc.value) == ("Profile 'p' in hpc_config.yaml sets no memory (or memory_per_cpu). "
                                   "Add it to the profile or to 'defaults'.")
 
+    def test_null_memory_per_cpu_does_not_stand_in_for_memory(self):
+        # the backends would fall back to --mem with no value, emitting --mem=None
+        with self._with_profile({"memory_per_cpu": None, "time": "01:00:00"}):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
+            with pytest.raises(ValueError, match=r"sets no memory \(or memory_per_cpu\)\. "):
+                get_hpc_resources({"name": "t", "profile": "p"})
+
+    def test_null_required_field_counts_as_missing(self):
+        with self._with_profile({"memory": "8gb", "time": None}):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
+            with pytest.raises(ValueError, match=r"^Profile 'p' in hpc_config.yaml sets no time\. "):
+                get_hpc_resources({"name": "t", "profile": "p"})
+
     def test_partition_missing_from_profile_and_defaults_names_the_key(self):
         with self._with_profile({"memory": "8gb", "time": "01:00:00"},
                                 defaults={"nodes": 1, "ntasks": 1, "cpus_per_task": 4}):
