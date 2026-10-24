@@ -22,7 +22,7 @@ The pipeline is organized into four stages. The software used at each stage is c
 | **Quality control** | Image quality metrics | MRIQC |
 
 The key distinction between pipeline types:
-- **Staged pipelines** (`--staged-prep`) require an intermediate structural or bias field correction step before modality preprocessing. Designed for workflows like AFNI that operate on locally processed data, but can be adapted to any pipeline requiring intermediate steps.
+- **Staged pipelines** (`--staged-prep`) require an intermediate step before modality preprocessing, by default skull stripping and nonlinear registration of the T1w image. Designed for workflows like AFNI that operate on locally processed data, but can be adapted to any pipeline requiring intermediate steps.
 - **BIDS pipelines** (`--bids-prep`) run directly on BIDS-formatted data without intermediate steps (e.g. fMRIPrep, QSIPrep).
 
 ---
@@ -51,9 +51,9 @@ pip install -e '.[dev]'
 
 ## Configuration
 
-Each project requires a `{project}_config.yaml` in the `project_config/` folder of your config directory, the one `--config-dir` points at. Run `neuromaestro generate-config {project}` to create one from the template, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
+Each project requires a `{project}_config.yaml` in the `project_config/` folder of your config directory, the one `--config-dir` points at. Run `neuromaestro generate-config {project}` to create one from the template, then fill in paths, HPC modules, and pipeline options.
 
-Modalities available under `--bids-prep` and `--staged-prep` are declared in `config.yaml`.
+Modalities available under `--bids-prep` and `--staged-prep`, and the output folder of each task (`output_pattern`), are declared in `config.yaml`.
 
 Expected output files for `--resume` are defined in `config/results_check/{project}_checks.yaml`. Edit this file to specify which files should exist (and optionally their minimum size) for a subject to be considered complete.
 
