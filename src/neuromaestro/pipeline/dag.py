@@ -2,8 +2,8 @@
 DAG dependency rules:
   1. unzip -> recon (if both requested)
   2. recon -> all downstream non-staged tasks (bids, mriqc, intermed)
-  3. intermed -> staged tasks (multi_stage: true in config)
-  4. Without intermed, staged tasks run in parallel with recon
+  3. intermed -> staged prep tasks (multi_stage: true in config)
+  4. Without intermed, staged prep tasks depend on recon instead
   5. Within each config section: post -> prep
 """
 
@@ -86,19 +86,23 @@ class DAGExecutor:
             self.nodes['recon'].add_dependency('unzip')
 
     def _apply_recon_dependencies(self, requested_tasks: List[str]):
-        """recon -> all downstream non-staged tasks.
+        """recon -> all downstream non-staged tasks, and staged prep tasks when no intermed is requested.
 
-        Staged tasks (multi_stage=true) are always excluded: without intermed
-        they run in parallel with recon; with intermed they depend on it instead.
+        With intermed requested, staged prep tasks wait for it instead, and it waits
+        for recon. Staged post tasks follow their prep task through the section rule.
         """
         if 'recon' not in requested_tasks:
             return
+
+        from .utils.config_utils import get_all_task_names
+        intermed_requested = any(t in get_all_task_names('intermed') for t in requested_tasks)
 
         downstream = set(requested_tasks) - {'unzip', 'recon'}
         for task_name in downstream:
             if task_name not in self.nodes:
                 continue
-            if self.nodes[task_name].task_config.get('multi_stage'):
+            cfg = self.nodes[task_name].task_config
+            if cfg.get('multi_stage') and (intermed_requested or cfg.get('stage') != 'prep'):
                 continue
             self.nodes[task_name].add_dependency('recon')
 

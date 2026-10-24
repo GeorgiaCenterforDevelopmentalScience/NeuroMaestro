@@ -12,7 +12,7 @@ This walkthrough adds a new task called `flanker_preprocess` to the task fMRI pi
 1. Add a top-level section (e.g. `mid:`) with one or two task entries.
 2. Choose the correct type:
    - BIDS-native (depends on `recon`): leave out `multi_stage`. The task waits for `recon` whenever `recon` runs in the same submission. Run with `--bids-prep/post mid`
-   - Staged (depends on intermed): add `multi_stage: true`. The prep task waits for every requested intermed task. Without `--intermed` it gets no dependency and starts in parallel with `recon`. Run with `--staged-prep/post mid`
+   - Staged (depends on intermed): add `multi_stage: true`. The prep task waits for every requested intermed task. Without `--intermed` it waits for `recon` when `recon` runs in the same submission. Run with `--staged-prep/post mid`
 3. If the section has both a prep and post step, set `stage: prep` / `stage: post`. The post task then waits for the prep task automatically. Set `input_from` on the post task to the prep task's name so its `$INPUT_DIR` points at the prep output when both run together.
 4. Pick a `name` you won't need to change — it becomes the permanent identifier in the database and checks file.
 5. Add a matching entry under `tasks:` in your project's `{project}_config.yaml`.

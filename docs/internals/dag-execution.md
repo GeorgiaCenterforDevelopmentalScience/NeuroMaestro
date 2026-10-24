@@ -116,7 +116,7 @@ Four private methods are called in sequence to populate each node's `dependencie
 | `_apply_intermed_dependencies` | All requested intermed tasks become dependencies of staged prep tasks (`multi_stage: true` + `stage: prep`) |
 | `_apply_section_dependencies` | Within each `config.yaml` section, `stage: post` tasks depend on all `stage: prep` tasks in the same section |
 
-`multi_stage: true` is the flag that distinguishes staged pipelines from BIDS pipelines. `_apply_recon_dependencies` explicitly skips `multi_stage` tasks so they are not wired directly to `recon`: they wait for intermed instead (rule 3). If no intermed was requested, `_apply_intermed_dependencies` returns early (the intermed set is empty), so staged tasks have no upstream dependency and run in parallel with recon. Users should omit `--intermed` only when the BIDS data and the intermed outputs already exist from an earlier run.
+`multi_stage: true` is the flag that distinguishes staged pipelines from BIDS pipelines. When intermed tasks are requested, `_apply_recon_dependencies` skips `multi_stage` tasks so they are not wired directly to `recon`: they wait for intermed instead (rule 3), and intermed waits for `recon`. If no intermed was requested, `_apply_intermed_dependencies` returns early (the intermed set is empty) and `_apply_recon_dependencies` wires each staged prep task to `recon` instead (rule 4). Staged post tasks are never wired to `recon`: they follow their prep task through the section rule. Users should omit `--intermed` only when the intermed outputs already exist from an earlier run.
 
 ### Step 4: Topological sort (Kahn's algorithm)
 

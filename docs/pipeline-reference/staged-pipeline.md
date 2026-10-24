@@ -28,17 +28,17 @@ The pattern itself is not specific to AFNI. Any pipeline that requires one or mo
 ```
 With --intermed:               Without --intermed:
 
-[recon]                        [recon]  [cards_preprocess]  [kidvid_preprocess]
-   |                           (no dependencies: all three start at once)
-[volume]  [bfc]
-   |          |
+[recon]                        [recon]
+   |                              |
+[volume]  [bfc]                [cards_preprocess]
+   |          |                [kidvid_preprocess]
    +----------+
         |
 [cards_preprocess]
 [kidvid_preprocess]
 ```
 
-Without `--intermed`, staged tasks get no dependency at all, not even on `recon`, and start as soon as they are submitted. Omit `--intermed` only when the BIDS data and the intermed outputs already exist from an earlier run.
+Without `--intermed`, staged prep tasks wait for `recon` when it is in the same command, and start right away when it is not. Omit `--intermed` only when the intermed outputs already exist from an earlier run.
 
 Multiple staged tasks run in parallel with each other — they are independent of each other, both waiting for the same set of intermed tasks:
 
@@ -61,7 +61,7 @@ The `cards` and `kidvid` sections used as examples below come from the `branch` 
 **Tool:** AFNI (`afni_proc.py`)  
 **SLURM profile:** `standard` (32 GB, 20 h) — array job  
 **Script:** `afni_cards_preprocessing.sh`  
-**Depends on:** all requested intermed tasks (nothing without `--intermed`)  
+**Depends on:** all requested intermed tasks, or `recon` without `--intermed` (each only when requested in the same command)  
 **Input:** `{output}/BIDS/sub-{subject}/`  
 **Output:** `{output}/AFNI_derivatives/sub-{subject}/ses-{session}/cards_output/`
 
@@ -84,7 +84,7 @@ tasks:
 **Tool:** AFNI (`afni_proc.py`)  
 **SLURM profile:** `standard` (32 GB, 20 h) — array job  
 **Script:** `afni_kidvid_preprocess.sh`  
-**Depends on:** all requested intermed tasks (nothing without `--intermed`)  
+**Depends on:** all requested intermed tasks, or `recon` without `--intermed` (each only when requested in the same command)  
 **Input:** `{output}/BIDS/sub-{subject}/`  
 **Output:** `{output}/AFNI_derivatives/sub-{subject}/ses-{session}/kidvid_output/`
 
@@ -185,7 +185,7 @@ neuromaestro run \
 # Multiple intermed tasks (staged tasks wait for ALL of them)
 neuromaestro run ... --intermed volume,bfc --staged-prep cards,kidvid
 
-# Without intermed: no dependencies, so BIDS data and volume outputs must already exist
+# Without intermed: waits only for recon (if requested), so volume outputs must already exist
 neuromaestro run ... --staged-prep cards,kidvid
 ```
 
@@ -227,4 +227,4 @@ The steps below use AFNI as an example, but the same pattern applies to any tool
    neuromaestro run ... --intermed volume --staged-prep my_task
    ```
 
-The key field is `multi_stage: true`. It tells the DAG that the task belongs to a staged pipeline: it waits for all requested intermed tasks and is never wired to `recon`. Without it, the task is treated like a BIDS pipeline task: it waits for `recon` (when `recon` is in the same command) and ignores `--intermed`. See [How-To: Add a Custom Task](../how-to/add-custom-task.md) for a full walkthrough.
+The key field is `multi_stage: true`. It tells the DAG that the task belongs to a staged pipeline: its prep task waits for all requested intermed tasks, or for `recon` when no intermed task is requested. Without it, the task is treated like a BIDS pipeline task: it waits for `recon` (when `recon` is in the same command) and ignores `--intermed`. See [How-To: Add a Custom Task](../how-to/add-custom-task.md) for a full walkthrough.

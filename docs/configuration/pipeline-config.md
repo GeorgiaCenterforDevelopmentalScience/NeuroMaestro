@@ -158,7 +158,7 @@ qc:
 | `array` | **Rarely** | `true` = one SLURM array job covering all subjects, with one array element per subject. Nearly always `true` for subject-level tasks, and `false` only for group-level steps like `mriqc_post`. How many of those subjects run at once is set by `array_limit` on the task's resource profile, in [`hpc_config.yaml`](hpc-config.md). |
 | `input_from` | **Set at design time** | Name of the upstream task whose output directory becomes this task's `$INPUT_DIR`, but only when that upstream task is requested in the same run. Otherwise `$INPUT_DIR` is the `run --input` directory. It controls where the task reads data from and adds no dependency edge (job dependency order is handled internally by the pipeline). |
 | `output_pattern` | **Before first run only** | Directory the task writes to (`$OUTPUT_DIR`), and the `$INPUT_DIR` of downstream tasks requested in the same run. `--resume` does not read it: it checks the `output_path` in your [output checks file](output-checks.md). Changing it after subjects have been processed sends new outputs to a different folder than earlier ones, so update the matching `output_path` in `{project}_checks.yaml` at the same time. Set it here rather than in the project config, since downstream tasks read the upstream `output_pattern` from `config.yaml` only. |
-| `multi_stage` | **Set at design time** | `true` = this task belongs to a staged pipeline. When any `--intermed` tasks are requested, the section's `stage: prep` task waits for **all** of them to finish before starting. Without `--intermed`, the prep task has no dependency at all and starts in parallel with `recon`. The `stage: post` task waits only for its own prep task when both are requested. Set when first creating the section. Do not toggle later. |
+| `multi_stage` | **Set at design time** | `true` = this task belongs to a staged pipeline. When any `--intermed` tasks are requested, the section's `stage: prep` task waits for **all** of them to finish before starting. Without `--intermed`, the prep task waits for `recon` when `recon` is in the same command, and has no dependency otherwise. The `stage: post` task waits only for its own prep task when both are requested. Set when first creating the section. Do not toggle later. |
 
 ---
 
@@ -169,7 +169,7 @@ qc:
 | Prep/utility | `--prep` | — | `unzip`, `recon` |
 | Intermed | `--intermed volume[,bfc,...]` | `recon` | `volume`, `bfc` |
 | BIDS pipeline | `--bids-prep/post <section>` | `recon` | `rest`, `dwi` |
-| Staged pipeline | `--staged-prep/post <section>` | `recon` (the prep task also waits for all intermed tasks if `--intermed`) | `cards`, `kidvid` |
+| Staged pipeline | `--staged-prep/post <section>` | all intermed tasks (if `--intermed`), else `recon` (prep task only) | `cards`, `kidvid` |
 | QC | `--mriqc` | `recon` | `mriqc_preprocess`, `mriqc_post` |
 
 ---
@@ -202,7 +202,7 @@ rest_preprocess  ← depends only on recon, never on intermed
 - `volume` and `bfc` both wait for `recon`, but not for each other.
 - Every staged prep task (`multi_stage: true`, `stage: prep`) waits for **all** requested intermed tasks.
 - BIDS pipelines (`--bids-prep/post`) are unaffected; they never depend on intermed.
-- If `--intermed` is omitted entirely, staged prep tasks start in parallel with `recon` (no dependency at all).
+- If `--intermed` is omitted entirely, staged prep tasks wait for `recon` when it is in the same command, and have no dependency otherwise.
 
 To add a new intermed task, add an entry under `intermed:` in `config.yaml` and, if the task needs parameters, a matching entry under `tasks:` in your project config. It becomes available as `--intermed <name>` immediately.
 

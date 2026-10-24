@@ -139,6 +139,16 @@ class TestStagedPipelines:
         )
         assert ("staged_prep_cards", "staged_post_cards") in edge_pairs(elements)
 
+    def test_staged_edges_match_the_dag_with_and_without_intermed(self):
+        without = edge_pairs(build_dag_elements(
+            "unzip_recon", [], [], [], ["cards"], ["cards"], "none"))
+        assert without == {("unzip", "recon"), ("recon", "staged_prep_cards"),
+                           ("staged_prep_cards", "staged_post_cards")}
+        with_intermed = edge_pairs(build_dag_elements(
+            "unzip_recon", ["volume"], [], [], ["cards"], ["cards"], "none"))
+        assert ("recon", "staged_prep_cards") not in with_intermed
+        assert ("intermed", "staged_prep_cards") in with_intermed
+
 
 class TestMRIQCNodes:
 

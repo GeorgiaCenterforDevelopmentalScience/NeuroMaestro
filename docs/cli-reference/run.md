@@ -43,7 +43,7 @@ them apart.
 The pipeline uses two categories of multi-step pipelines:
 
 - **BIDS pipelines** (`--bids-prep`/`--bids-post`): containerized tools (fMRIPrep, XCP-D, QSIPrep) that take BIDS input directly. Depend on `recon` when `--prep recon` or `--prep unzip_recon` is also requested.
-- **Staged pipelines** (`--staged-prep`/`--staged-post`): AFNI-based task fMRI. Staged prep tasks wait for every requested `--intermed` task. Without `--intermed` they get no dependency at all and start in parallel with `recon`, so their inputs must already exist.
+- **Staged pipelines** (`--staged-prep`/`--staged-post`): AFNI-based task fMRI. Staged prep tasks wait for every requested `--intermed` task. Without `--intermed` they wait for `recon` when it runs in the same command, and otherwise start right away, so the intermed outputs they read must already exist.
 
 | Option | Values | Description |
 |--------|--------|-------------|

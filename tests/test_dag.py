@@ -6,7 +6,7 @@ DAG rules under test:
   2. recon -> all non-staged downstream tasks (bids, mriqc, intermed)
   3. intermed -> staged prep tasks (multi_stage=true, stage=prep) only
   4. staged post tasks depend only on their matching staged prep (same section)
-  5. Without intermed, staged tasks run in parallel with recon
+  5. Without intermed, staged prep tasks depend on recon instead
   6. Within each config section: post -> prep
   7. Multiple intermed tasks run in parallel; staged prep waits for ALL of them;
      BIDS pipelines remain parallel with intermed tasks
@@ -187,25 +187,36 @@ class TestSectionDependencies:
 
 
 # ===========================================================================
-# Rule 5: without intermed, staged runs parallel with recon
+# Rule 5: without intermed, staged prep waits for recon
 # ===========================================================================
 
-class TestStagedParallelWithoutIntermed:
+class TestStagedWithoutIntermed:
+    """Staged prep used to skip recon even when recon ran in the same command,
+    so it started before the BIDS data it reads existed.
+    """
 
-    def test_staged_prep_has_no_recon_dep_without_intermed(self):
-        executor, _ = build(["recon", "cards_preprocess"])
-        assert "recon" not in deps(executor, "cards_preprocess")
+    def test_staged_prep_waits_for_recon_without_intermed(self):
+        executor, order = build(["recon", "cards_preprocess"])
+        assert deps(executor, "cards_preprocess") == {"recon"}
+        assert order.index("recon") < order.index("cards_preprocess")
 
-    def test_staged_prep_has_no_intermed_dep_when_intermed_not_requested(self):
+    def test_staged_prep_alone_has_no_dependency(self):
+        # BIDS data and intermed outputs exist from an earlier run
         executor, _ = build(["cards_preprocess"])
-        assert "volume" not in deps(executor, "cards_preprocess")
+        assert deps(executor, "cards_preprocess") == set()
 
-    def test_two_staged_preps_parallel_without_intermed(self):
+    def test_two_staged_preps_wait_for_recon_but_not_each_other(self):
         executor, _ = build(["recon", "cards_preprocess", "kidvid_preprocess"])
-        assert "recon" not in deps(executor, "cards_preprocess")
-        assert "recon" not in deps(executor, "kidvid_preprocess")
-        assert "cards_preprocess" not in deps(executor, "kidvid_preprocess")
-        assert "kidvid_preprocess" not in deps(executor, "cards_preprocess")
+        assert deps(executor, "cards_preprocess") == {"recon"}
+        assert deps(executor, "kidvid_preprocess") == {"recon"}
+
+    def test_with_intermed_staged_prep_waits_on_intermed_not_recon(self):
+        executor, _ = build(["recon", "volume", "cards_preprocess"])
+        assert deps(executor, "cards_preprocess") == {"volume"}
+
+    def test_staged_post_is_not_wired_to_recon(self):
+        executor, _ = build(["recon", "cards_preprocess", "cards_postprocess"])
+        assert deps(executor, "cards_postprocess") == {"cards_preprocess"}
 
 
 # ===========================================================================

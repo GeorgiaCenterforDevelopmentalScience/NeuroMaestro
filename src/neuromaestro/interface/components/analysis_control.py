@@ -457,6 +457,8 @@ def build_dag_elements(prep_option, intermed_value, bids_prep, bids_post,
         node(nid, f'Staged Prep\n({p})', 'staged')
         if has_intermed:
             edge('intermed', nid, 'staged')
+        elif has_recon:
+            edge('recon', nid, 'staged')
     for p in (staged_post or []):
         nid_post = f'staged_post_{p}'
         node(nid_post, f'Staged Post\n({p})', 'staged')

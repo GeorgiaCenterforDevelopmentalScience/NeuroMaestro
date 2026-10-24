@@ -29,7 +29,7 @@ In other words: **the CLI selects tasks; the config files configure them.** If a
 | `--intermed volume,bfc,...` | one task per name given | Each task waits for `recon`; multiple intermed tasks run **in parallel** with each other |
 | `--bids-prep rest,dwi` | one prep task per name given | Waits for `recon`; **not affected by `--intermed`**; `rest` and `dwi` prep run in parallel |
 | `--bids-post rest,dwi` | one post task per name given | Each post task waits for its own `-prep` counterpart when both are in the same command. `rest_post` and `dwi_post` run in parallel |
-| `--staged-prep task1,task2,...` | one prep task per name given | Waits for **all** requested intermed tasks, and multiple staged tasks run **in parallel** with each other. Without `--intermed` they have no dependency at all and start in parallel with `recon` |
+| `--staged-prep task1,task2,...` | one prep task per name given | Waits for **all** requested intermed tasks, and multiple staged tasks run **in parallel** with each other. Without `--intermed` they wait for `recon` instead (when it is in the same command) |
 | `--staged-post task1,...` | one post task per name given | Each post task waits for its own `-prep` counterpart when both are in the same command. `task1` and `task2` run in parallel |
 | `--mriqc individual` | `mriqc_preprocess` | Waits for `recon`; array job, one per subject |
 | `--mriqc group` | `mriqc_post` | Waits for `mriqc_preprocess` and `recon`, each only if requested in the same command |
@@ -37,7 +37,7 @@ In other words: **the CLI selects tasks; the config files configure them.** If a
 
 Multiple flags can be combined freely in one command. The pipeline resolves all dependencies automatically. Dependencies only link tasks requested in the same command: a task whose upstream task is not part of the run has no dependency on it and reads its input from `--input` (see [`input_from` → `INPUT_DIR` substitution](../internals/wrapper-slurm.md#input-from-input-dir-substitution)).
 
-Leave `--intermed` out of a `--staged-prep` run only when the BIDS data and the intermed outputs already exist from an earlier run.
+Leave `--intermed` out of a `--staged-prep` run only when the intermed outputs already exist from an earlier run.
 
 ---
 
@@ -130,11 +130,11 @@ The pipeline applies a fixed set of dependency rules to wire tasks together:
 
 **Rule 1 (prep sequence):** `--prep unzip_recon` submits both tasks with `recon` depending on `unzip`. `--prep unzip` and `--prep recon` each submit only one task with no inter-task dependency.
 
-**Rule 2 (recon is the hub):** Every downstream task (except staged ones) depends on `recon`. This means `volume`, `rest_preprocess`, `dwi_preprocess`, and `mriqc_preprocess` all wait for BIDS conversion to complete.
+**Rule 2 (recon is the hub):** Every downstream task depends on `recon`, except staged tasks when intermed tasks are requested (they wait for intermed, see rule 4) and staged post tasks (they wait for their prep task, see rule 5). This means `volume`, `rest_preprocess`, `dwi_preprocess`, and `mriqc_preprocess` all wait for BIDS conversion to complete.
 
 **Rule 3 (intermed tasks run in parallel):** Multiple intermed tasks (e.g. `volume` and `bfc`) both depend on `recon` but not on each other. They are submitted simultaneously and run on the cluster at the same time.
 
-**Rule 4 (staged tasks wait for ALL intermed):** A staged task (marked `multi_stage: true` in `config.yaml`) waits for every intermed task you requested. If you run `--intermed volume,bfc --staged-prep emomatching`, then `emomatching_preprocess` only starts after both `volume` **and** `bfc` have finished (in any state, including failed). If you omit `--intermed`, staged tasks get no dependency at all and start in parallel with `recon`, so omit it only when the BIDS data and the intermed outputs already exist from an earlier run.
+**Rule 4 (staged tasks wait for ALL intermed):** A staged task (marked `multi_stage: true` in `config.yaml`) waits for every intermed task you requested. If you run `--intermed volume,bfc --staged-prep emomatching`, then `emomatching_preprocess` only starts after both `volume` **and** `bfc` have finished (in any state, including failed). If you omit `--intermed`, staged prep tasks wait for `recon` instead when it is in the same command, so omit it only when the intermed outputs already exist from an earlier run.
 
 **Rule 5 (post follows prep within a section):** `rest_post` waits for `rest_preprocess`. `mriqc_post` waits for `mriqc_preprocess`. This is automatic when both are requested in the same command, and you don't need to specify the order. A post task requested on its own has no such dependency.
 
