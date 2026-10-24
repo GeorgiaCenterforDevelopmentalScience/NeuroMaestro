@@ -1172,6 +1172,37 @@ class TestReservedEnvNames:
         for var in ("ATLAS_DIR", "TEMPLATE_DIR", "FREESURFER_DIR", "STIMULUS_DIR"):
             assert f"export {var}=" in sections["global_env_vars"], var
 
+    # ---- names bash cannot export -------------------------------------------
+    # `export MY-PARAM=...` only fails when the env file is sourced on the node.
+
+    @pytest.mark.parametrize("key", ["my-param", "voxel.size", "2nd_level"])
+    def test_task_param_that_is_not_a_shell_name_is_rejected(self, tmp_path, scripts_dir, key):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            with pytest.raises(ValueError) as exc:
+                self._build(tmp_path, scripts_dir,
+                            {"name": "t", "profile": "standard", key: "1"})
+        assert str(exc.value) == (
+            f"Task parameter '{key}' is not a valid shell variable name. "
+            "Use only letters, digits and underscores, not starting with a digit."
+        )
+
+    def test_envir_dir_key_that_is_not_a_shell_name_is_rejected(self, tmp_path, scripts_dir):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            with pytest.raises(ValueError, match=r"^Config key 'atlas-dir' is not a valid shell variable name\."):
+                self._build(tmp_path, scripts_dir,
+                            {"name": "t", "profile": "standard"},
+                            project_config=self._envir_dir_with(**{"atlas-dir": "/atlas"}))
+
+    def test_exported_names_source_cleanly_in_bash(self, tmp_path, scripts_dir):
+        import subprocess
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
+            _wrapper, sections = self._build(
+                tmp_path, scripts_dir,
+                {"name": "t", "profile": "standard", "voxel_size_2": "2.0", "_tmp": "x"})
+        script = sections["task_params"] + '\nprintf "%s|%s" "$VOXEL_SIZE_2" "$_TMP"'
+        result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+        assert (result.returncode, result.stderr, result.stdout) == (0, "", "2.0|x")
+
 
 class TestArrayLimitComesFromTheProfile:
     """Array throttling used to be one global pattern in config.yaml. It now

@@ -165,7 +165,7 @@ At runtime the pipeline inserts those `ml` commands into the wrapper script's en
 
 ### Parameter naming rules
 
-- Config key → environment variable: the key is upper-cased and nothing else changes (`remove_TRs` → `REMOVE_TRS`). Parameter names must therefore be valid shell identifiers: letters, digits and underscores, starting with a letter or underscore. A key containing `-` or `.` produces an invalid `export` line.
+- Config key → environment variable: the key is upper-cased and nothing else changes (`remove_TRs` → `REMOVE_TRS`). Parameter names must therefore be valid shell identifiers: letters, digits and underscores, starting with a letter or underscore. A key containing `-` or `.`, or starting with a digit, stops `run` with an error naming the key when the wrapper is generated, which `--dry-run` also reports.
 - **All values are strings** in the environment. Use `"0.3"` not `0.3` if your script does string comparison.
 - Nested dicts are not supported — keep task parameters flat.
 

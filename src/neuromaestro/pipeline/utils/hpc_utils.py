@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import time
 from abc import ABC, abstractmethod
@@ -44,6 +45,26 @@ def _shell_quote(value) -> str:
 def _export_line(name: str, value) -> str:
     """Render one `export NAME=value` line with the value safely quoted."""
     return f"export {name}={_shell_quote(value)}"
+
+
+_SHELL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _env_name(key, label: str) -> str:
+    """Upper-case a config key into the shell variable it is exported as, or raise."""
+    name = str(key).upper()
+    # bash rejects anything else in `export NAME=...`, and only once the job is running
+    if not _SHELL_NAME.fullmatch(name):
+        raise ValueError(
+            f"{label} '{key}' is not a valid shell variable name. "
+            "Use only letters, digits and underscores, not starting with a digit."
+        )
+    if name in RESERVED_ENV_NAMES | WRAPPER_ENV_NAMES:
+        raise ValueError(
+            f"{label} '{key}' maps to the reserved shell variable ${name}. "
+            "Rename it, or the job environment will be corrupted."
+        )
+    return name
 
 
 def _ensure_hpc_config() -> dict:
@@ -651,13 +672,7 @@ def create_wrapper_script(
     if global_env_vars:
         global_env_lines = []
         for k, v in global_env_vars.items():
-            name = k.upper()
-            if name in RESERVED_ENV_NAMES | WRAPPER_ENV_NAMES:
-                raise ValueError(
-                    f"Config key '{k}' maps to the reserved shell variable ${name}. "
-                    "Rename it, or the job environment will be corrupted."
-                )
-            global_env_lines.append(_export_line(name, v))
+            global_env_lines.append(_export_line(_env_name(k, "Config key"), v))
         global_env_str = "\n".join(global_env_lines)
 
     # Prepare task parameters
@@ -668,12 +683,7 @@ def create_wrapper_script(
         for key, value in task_config.items():
             if key in excluded_keys:
                 continue
-            name = key.upper()
-            if name in RESERVED_ENV_NAMES | WRAPPER_ENV_NAMES:
-                raise ValueError(
-                    f"Task parameter '{key}' maps to the reserved shell variable ${name}. "
-                    "Rename it, or the job environment will be corrupted."
-                )
+            name = _env_name(key, "Task parameter")
             if isinstance(value, (str, int, float)):
                 task_params.append(_export_line(name, value))
             elif isinstance(value, list):
