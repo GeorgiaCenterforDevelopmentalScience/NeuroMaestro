@@ -227,7 +227,8 @@ def run(
         # Parse subjects (from file or string)
         user_subjects = _parse_subjects(subjects)
         id_error = subject_id_error(user_subjects)
-        if not id_error and not skip_bids_validation:
+        # With --prep, --input holds raw archives or DICOM folders, not one entry per subject
+        if not id_error and not skip_bids_validation and not prep:
             id_error = missing_subjects_error(input_dir, user_subjects, prefix)
         if id_error:
             typer.echo(f"Error: {id_error}", err=True)

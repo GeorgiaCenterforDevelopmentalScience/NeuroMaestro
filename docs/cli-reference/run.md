@@ -72,7 +72,7 @@ For full dependency and parallel execution behavior, see [Pipeline Reference →
 | `--dry-run` | Print the DAG execution plan and a summary without submitting. Wrapper scripts are still written to `{--work}/{project}/log/wrapper/` so you can inspect them. |
 | `--resume` | Skip subjects whose outputs already pass checks in `{project}_checks.yaml`. Submits full count with warning if file is missing. |
 | `--skip-preflight` | Skip pre-flight config schema checks. |
-| `--skip-bids-validation` | Skip BIDS format validation (runs automatically when `--bids-prep` or `--mriqc individual/all` is used without `--prep`) and the check that each subject has a directory in `--input`. |
+| `--skip-bids-validation` | Skip BIDS format validation (runs automatically when `--bids-prep` or `--mriqc individual/all` is used without `--prep`) and the check that each subject has a directory in `--input` (which `--prep` runs skip anyway). |
 | `--wait` | Wait for all submitted jobs to complete before exiting |
 | `--polling-interval N` | Seconds between SLURM status polls when `--wait` is active (default: 60) |
 
@@ -108,7 +108,7 @@ The subject prefix (`sub-`) comes from the project config `prefix` field; do not
 
 Subject IDs may contain only letters, digits, `.`, `_` and `-`, and must start with a letter or digit. `run` stops with an error naming any other ID, because IDs end up in generated job scripts and log paths.
 
-`run` also stops, before anything is submitted, when a subject has no `<prefix><id>` entry in `--input`, so a mistyped ID such as `001` for `sub-0001` fails at once instead of in every job. The check reads the input directory once and is skipped when that directory holds no `<prefix>` entries at all, or with `--skip-bids-validation`.
+`run` also stops, before anything is submitted, when a subject has no `<prefix><id>` entry in `--input`, so a mistyped ID such as `001` for `sub-0001` fails at once instead of in every job. The check reads the input directory once and is skipped when that directory holds no `<prefix>` entries at all, when `--prep` is given (its input is raw data, not one folder per subject), or with `--skip-bids-validation`.
 
 :::{tip}
 On HPC systems, pasting a long comma-separated list directly into the terminal can hit the shell's line-length limit and cause an error. If you have more than a few dozen subjects, use a text file instead.

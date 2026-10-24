@@ -278,17 +278,28 @@ class TestFailures:
         assert study.sbatch.calls == []
         assert study.records() == []
 
+    # --mriqc group reads --input as BIDS without triggering BIDS validation
+    NO_PREP = ("--mriqc", "group")
+
     def test_subject_missing_from_input_exits_before_anything_is_recorded_or_submitted(self, study):
-        result = study.invoke("--subjects", "001,002", "--skip-preflight")
+        result = study.invoke("--subjects", "001,002", "--skip-preflight", *self.NO_PREP, prep=None)
         assert result.exit_code == 1
         assert f"Error: subject(s) not found in {study.root / 'input'}: '002'." in result.output
         assert study.sbatch.calls == []
         assert study.records() == []
 
     def test_skip_bids_validation_also_skips_the_subject_check(self, study):
-        result = study.invoke("--subjects", "001,002", *QUICK)
+        result = study.invoke("--subjects", "001,002", *QUICK, *self.NO_PREP, prep=None)
         assert result.exit_code == 0, result.output
         assert study.sbatch.calls != []
+
+    def test_prep_input_is_raw_data_and_skips_the_subject_check(self, study):
+        # zips named after subjects used to read as subject "001.zip", so '001' was "missing"
+        (study.root / "input" / "sub-001").rmdir()
+        (study.root / "input" / "sub-001.zip").write_text("zip")
+        result = study.invoke("--skip-preflight")
+        assert result.exit_code == 0, result.output
+        assert len(study.sbatch.calls) == 2
 
     def test_missing_container_dir_raises(self, study):
         study.edit_project_config(lambda c: c["envir_dir"].pop("container_dir"))

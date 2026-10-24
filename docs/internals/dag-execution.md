@@ -24,7 +24,7 @@ neuromaestro run [flags]
  5. TaskRegistry.expand_tasks() → flat list of concrete task names
  6. [--bids-prep or --mriqc individual|all, no --prep, unless --skip-bids-validation]
       └─ run BIDS validator on input_dir
-    Parse --subjects → exit on an invalid ID, or (unless --skip-bids-validation) on an ID with no {prefix}{id} entry in input_dir
+    Parse --subjects → exit on an invalid ID, or (without --prep, unless --skip-bids-validation) on an ID with no {prefix}{id} entry in input_dir
  7. Resolve db_path (expand $WORK_DIR in project config database.db_path)
  8. Create database directory
  9. log_pipeline_execution() → write pipeline_start event to JSONL → return execution_id

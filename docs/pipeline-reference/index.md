@@ -59,7 +59,7 @@ The validator needs glibc 2.27 or newer, and the machine that runs `neuromaestro
 
 When `--prep` is part of the same command, validation is skipped, because the BIDS dataset does not exist yet.
 
-To skip validation (e.g. if you have already validated or the BIDS checker is slow on your filesystem), pass `--skip-bids-validation`. This flag also skips the check that every subject has a `{prefix}{id}` entry in `--input`:
+To skip validation (e.g. if you have already validated or the BIDS checker is slow on your filesystem), pass `--skip-bids-validation`. This flag also skips the check that every subject has a `{prefix}{id}` entry in `--input`, which runs only without `--prep`:
 
 ```bash
 neuromaestro run ... --skip-bids-validation
