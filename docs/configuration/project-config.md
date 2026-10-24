@@ -15,7 +15,7 @@ A complete annotated example follows.
 # 1. branch_config.yaml — BRANCH study project configuration
 
 prefix: "sub-"               # Subject directory prefix (always "sub-" for BIDS)
-scripts_dir: "scripts/branch"  # Absolute path recommended (a relative path resolves against the launch directory)
+scripts_dir: "scripts/branch"  # Absolute, or relative to the directory that holds --config-dir
 
 database:
   db_path: "$WORK_DIR/database/pipeline_jobs.db"
@@ -148,15 +148,19 @@ tasks:
 Subject directory prefix. Almost always `"sub-"` for BIDS datasets.
 
 ### `scripts_dir`
-Directory where your project's shell scripts live. Use an absolute path, e.g. the `scripts/` folder that `neuromaestro init` creates in your study directory:
+Directory where your project's shell scripts live. A relative path is resolved against the study directory, the parent of your `--config-dir`, so it does not depend on where you start `neuromaestro`. With the layout `neuromaestro init` creates (`my_study/config/` next to `my_study/scripts/`), the template's default finds the copied scripts:
+
+```yaml
+scripts_dir: "scripts"   # → /scratch/my_study/scripts with --config-dir /scratch/my_study/config
+```
+
+An absolute path is used as given, e.g. for scripts on a shared lab directory:
 
 ```yaml
 scripts_dir: "/scratch/cglab/projects/my_study/scripts"
 ```
 
-A relative path such as `"scripts/branch"` is resolved against the directory you launch `neuromaestro` from, not against the config directory or the package, so it only works if you always start from the same place.
-
-If a script is not found, the error message shows the `scripts_dir` path as configured and, when that directory exists, the files it contains.
+If a script is not found, the error message shows the resolved `scripts_dir` path and, when that directory exists, the files it contains.
 
 ### `database`
 `db_path` sets where the job database is written, and is required. The pipeline replaces the literal `$WORK_DIR` with the `run --work` directory without the project name, so the default `"$WORK_DIR/database/pipeline_jobs.db"` becomes e.g. `/data/work/database/pipeline_jobs.db`, with JSONL job logs in `/data/work/database/json/`. No other variable is expanded. Inside the job, `$WORK_DIR` is `--work` plus the project name (e.g. `/data/work/my_study`), whose `log/` folder holds the job logs and wrappers.

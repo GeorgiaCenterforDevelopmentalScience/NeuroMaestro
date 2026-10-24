@@ -10,7 +10,7 @@ def generate_project_config(project_name: str, output_dir: str = None,
     config_template = {
         "prefix": "sub-",
 
-        "scripts_dir": f"scripts/{project_name}",
+        "scripts_dir": "scripts",
 
         "database": {
             "db_path": "$WORK_DIR/database/pipeline_jobs.db",

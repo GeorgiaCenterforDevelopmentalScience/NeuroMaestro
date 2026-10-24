@@ -19,6 +19,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - `run` stops before submission when a subject has no `<prefix><id>` entry in `--input`. A mistyped ID used to be submitted and fail in every job. The check is skipped with `--prep`, whose input is raw data rather than one folder per subject, and with `--skip-bids-validation`.
 - BIDS validation now runs the official validator, `bids-validator-deno`, in place of pybids, which only checked `dataset_description.json` and passed datasets with misnamed or empty files. It still only warns. It needs glibc 2.27 or newer and no `ulimit -v` below about 33 GB, and says so when it cannot start. pybids is no longer a dependency.
 - `matplotlib` is no longer a dependency. Nothing in the package imported it.
+- A relative `scripts_dir` is resolved against the parent of the config directory (the study directory that `neuromaestro init` creates) instead of the directory `run` was started from, so the same config finds its scripts from anywhere. Absolute paths are unchanged. `template_config.yaml` and `generate-config` now default to `scripts`, the folder `init` fills, so a new study finds its scripts without editing the path.
 - `cancel_cmd` is no longer part of `hpc_config.yaml`. Nothing read it, so it never cancelled anything, and an existing key is ignored.
 
 ### Fixed

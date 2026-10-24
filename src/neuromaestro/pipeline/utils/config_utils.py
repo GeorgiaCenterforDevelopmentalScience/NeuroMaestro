@@ -20,6 +20,15 @@ def get_config() -> dict:
     return config
 
 
+def resolve_scripts_dir(project_config: Optional[dict]) -> Path:
+    """The project's scripts_dir, a relative one taken from the study directory that holds the config dir."""
+    scripts_dir = Path((project_config or {}).get('scripts_dir', 'scripts/template'))
+    if scripts_dir.is_absolute() or _config_dir is None:
+        return scripts_dir
+    # `init` lays out study/config next to study/scripts, as the package does for its bundles
+    return _config_dir.resolve().parent / scripts_dir
+
+
 def set_config_dir(path) -> None:
     global _config_dir, config
     _config_dir = Path(path)

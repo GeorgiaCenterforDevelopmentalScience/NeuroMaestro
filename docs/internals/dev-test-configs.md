@@ -14,7 +14,7 @@ The pipeline ships with five named config/script/check bundles used at different
 | `ds027` | `project_config/ds027_config.yaml` | `scripts/ds027/` | `results_check/ds027_checks.yaml` |
 | `template` | `project_config/template_config.yaml` | `scripts/template/` | `results_check/template_checks.yaml` |
 
-In `dagtest`, `test` and `branch`, the `scripts_dir` field is the relative path `scripts/<bundle>`, which is resolved against the directory `neuromaestro run` is started from. `ds027` keeps the absolute scripts path of the cluster it ran on, and `template` has the placeholder `path/to/scripts/`. Results checks are loaded by `--resume` and `check-outputs` to validate outputs. See [Logging System & Resume](logging-resume.md#resume-output-checking-flow) for how checks are consumed.
+In `dagtest`, `test` and `branch`, the `scripts_dir` field is the relative path `scripts/<bundle>`. Relative paths resolve against the parent of the config directory, so with `--config-dir` pointing at the package's own `config/` they find the bundled `scripts/<bundle>/` folders. `ds027` keeps the absolute scripts path of the cluster it ran on, and `template` uses `scripts`, the folder `neuromaestro init` fills with the template scripts. Results checks are loaded by `--resume` and `check-outputs` to validate outputs. See [Logging System & Resume](logging-resume.md#resume-output-checking-flow) for how checks are consumed.
 
 ---
 

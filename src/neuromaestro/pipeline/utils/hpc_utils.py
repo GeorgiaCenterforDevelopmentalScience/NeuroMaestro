@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import typer
 import yaml
 
-from .config_utils import get_config_dir
+from .config_utils import get_config_dir, resolve_scripts_dir
 from .detect_subjects import subject_id_error
 
 hpc_config: Optional[dict] = None
@@ -497,7 +497,7 @@ def submit_slurm_job(
     """Submit a SLURM job for the given script and subjects"""
 
     # Locate and validate script
-    scripts_dir = project_config.get('scripts_dir', 'scripts/template') if project_config else 'scripts/template'
+    scripts_dir = str(resolve_scripts_dir(project_config))
     script_path = get_script_with_validation(script_name, scripts_dir)
     
     if not script_path:

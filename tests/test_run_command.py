@@ -120,6 +120,15 @@ class TestRealSubmission:
         assert start["dry_run"] is False
         assert (end["status"], end["total_jobs"], end["error_msg"]) == ("COMPLETED", 2, None)
 
+    def test_relative_scripts_dir_is_found_from_any_working_directory(self, study, monkeypatch):
+        study.edit_project_config(lambda c: c.update(scripts_dir="scripts"))
+        monkeypatch.chdir(study.root / "input")
+        result = study.invoke(*QUICK)
+        assert result.exit_code == 0, result.output
+        wrapper = Path(study.sbatch.calls[0][-1]).read_text(encoding="utf-8")
+        script = (study.root / "study" / "scripts" / "unzip_rename.sh").resolve()
+        assert f'execute_wrapper "{script}"' in wrapper
+
     def test_dry_run_submits_nothing_and_skips_the_job_listing(self, study):
         lines = study.invoke(*QUICK, "--dry-run").output.splitlines()
         assert study.sbatch.calls == []

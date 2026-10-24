@@ -264,7 +264,8 @@ class DAGExecutor:
     def _validate_all_scripts(self, project_config: Optional[Dict]) -> None:
         from pathlib import Path
         from .utils.hpc_utils import get_script_with_validation
-        scripts_dir = (project_config or {}).get('scripts_dir', 'scripts/template')
+        from .utils.config_utils import resolve_scripts_dir
+        scripts_dir = str(resolve_scripts_dir(project_config))
 
         if not Path(scripts_dir).exists():
             return

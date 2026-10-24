@@ -195,7 +195,7 @@ neuromaestro run ... --staged-prep cards,kidvid
 
 The steps below use AFNI as an example, but the same pattern applies to any tool.
 
-1. Write a shell script: `scripts/{project}/my_task_preprocess.sh`
+1. Write a shell script in your project's `scripts_dir`: `my_task_preprocess.sh`
    - The script receives the subject ID as `$1` for array jobs
    - All config parameters are available as `$UPPERCASE` environment variables
 

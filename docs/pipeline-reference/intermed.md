@@ -60,7 +60,7 @@ tasks:
 
 Any task defined under the `intermed:` section of `config.yaml` can be requested via `--intermed`. To add one:
 
-1. Add a script in `scripts/{project}/`.
+1. Add a script in your project's `scripts_dir`.
 2. Register in `config.yaml` under `intermed:`:
    ```yaml
    intermed:

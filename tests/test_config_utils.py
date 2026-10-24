@@ -273,3 +273,47 @@ class TestCLITaskPrepFlow:
 
             assert "cards_preprocess" in parsed
             assert "kidvid_preprocess" in parsed
+
+
+# ===========================================================================
+# resolve_scripts_dir
+# ===========================================================================
+
+class TestResolveScriptsDir:
+    """A relative scripts_dir used to resolve against the directory run was
+    started from, so the same config found its scripts or not depending on cwd.
+    """
+
+    CONFIG_DIR_PATH = "neuromaestro.pipeline.utils.config_utils._config_dir"
+
+    def _resolve(self, scripts_dir, config_dir):
+        from neuromaestro.pipeline.utils.config_utils import resolve_scripts_dir
+        with patch(self.CONFIG_DIR_PATH, config_dir):
+            return resolve_scripts_dir({"scripts_dir": scripts_dir})
+
+    def test_relative_path_is_taken_from_the_study_dir_not_cwd(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        study = tmp_path / "elsewhere" / "study"
+        assert self._resolve("scripts", study / "config") == study / "scripts"
+
+    def test_init_layout_finds_the_copied_scripts(self, tmp_path, monkeypatch):
+        from neuromaestro.pipeline.utils.init_utils import init_project_templates
+        init_project_templates(tmp_path / "study" / "config")
+        monkeypatch.chdir(tmp_path)
+        resolved = self._resolve("scripts", tmp_path / "study" / "config")
+        assert (resolved / "unzip_rename.sh").is_file()
+
+    def test_relative_config_dir_still_gives_an_absolute_path(self, tmp_path, monkeypatch):
+        from pathlib import Path
+        monkeypatch.chdir(tmp_path)
+        assert self._resolve("scripts", Path("study/config")) == tmp_path / "study" / "scripts"
+
+    def test_absolute_path_is_used_as_given(self, tmp_path):
+        assert self._resolve(str(tmp_path / "lab_scripts"), tmp_path / "study" / "config") \
+            == tmp_path / "lab_scripts"
+
+    def test_bundled_relative_paths_resolve_inside_the_package(self):
+        import neuromaestro
+        from pathlib import Path
+        pkg = Path(neuromaestro.__file__).parent
+        assert (self._resolve("scripts/branch", pkg / "config") / "fmriprep_rs.sh").is_file()
