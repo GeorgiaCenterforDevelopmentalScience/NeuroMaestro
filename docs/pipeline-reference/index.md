@@ -81,6 +81,7 @@ The following are checked:
 | `schema` | Each task name under `tasks:` exists in global `config.yaml` |
 | `schema` | Each task's resource `profile`, in global `config.yaml` and wherever the project config overrides it, exists in `hpc_config.yaml` |
 | `schema` | Each `environ` module listed under a task, as a list or a single name, is defined in `modules:` in the project config |
+| `schema` | No task under `tasks:` overrides `stage` or `multi_stage`, which decide which flag selects the task and stay as set in `config.yaml` |
 
 Issues are reported as **ERROR** (blocks submission) or **warning** (informational). If any errors are found, the run exits before submitting any jobs.
 

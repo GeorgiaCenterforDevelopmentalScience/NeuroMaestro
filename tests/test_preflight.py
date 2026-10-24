@@ -216,6 +216,18 @@ class TestSchemaChecks:
         errors = [i.message for i in checker._issues if i.severity == "ERROR"]
         assert errors == ["tasks.unzip: sets no resource profile"]
 
+    # --- Structural fields ---------------------------------------------------
+
+    @pytest.mark.parametrize("key, value", [("stage", "prep"), ("multi_stage", True)])
+    def test_override_of_a_selection_field_is_an_error(self, key, value, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {key: value}}}
+        checker = make_checker(project_config=pc, tmp_path=tmp_path)
+        checker.check_schema()
+        errors = [i.message for i in checker._issues if i.severity == "ERROR"]
+        assert errors == [
+            f"tasks.unzip: '{key}' cannot be overridden in the project config. Set it in config.yaml."
+        ]
+
 
 # ===========================================================================
 # run_all integration

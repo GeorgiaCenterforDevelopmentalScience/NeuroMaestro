@@ -127,7 +127,6 @@ class DAGExecutor:
                 continue
             names = [t['name'] for t in section_tasks
                      if isinstance(t, dict) and t.get('name') in requested_set and t['name'] in self.nodes]
-            # stage from the node's merged config, so a project override of it counts
             prep_tasks = [n for n in names if self.nodes[n].task_config.get('stage') == 'prep']
             post_tasks = [n for n in names if self.nodes[n].task_config.get('stage') == 'post']
             for post in post_tasks:

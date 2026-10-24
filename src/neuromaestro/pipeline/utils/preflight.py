@@ -155,6 +155,14 @@ class PreflightChecker:
                             f"tasks.{name}: resource profile '{profile}' is not defined in resource_profiles",
                         )
 
+                # task selection groups tasks by these values in config.yaml, before any merge
+                for key in ("stage", "multi_stage"):
+                    if key in entry:
+                        self._err(
+                            "schema",
+                            f"tasks.{name}: '{key}' cannot be overridden in the project config. Set it in config.yaml.",
+                        )
+
                 # environ references must be defined in project config modules
                 environ = entry.get("environ") or []
                 if isinstance(environ, str):

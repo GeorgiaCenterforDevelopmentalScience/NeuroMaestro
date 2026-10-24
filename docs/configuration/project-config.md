@@ -185,7 +185,7 @@ Shell commands run on the compute node before every task, used to activate the P
 Named groups of `module load` commands. Reference them by name in `tasks.<name>.environ`. This way you define module versions once and reuse them across tasks.
 
 ### `tasks`
-Task-specific parameters keyed by task name. The key must exactly match a task `name` defined in `config.yaml`.
+Task-specific parameters keyed by task name. The key must exactly match a task `name` defined in `config.yaml`. An entry can also override any field of that task in `config.yaml` except `stage` and `multi_stage`, which pre-flight rejects.
 
 Common per-task fields:
 
