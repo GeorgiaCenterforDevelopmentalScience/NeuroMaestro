@@ -144,6 +144,14 @@ class PreflightChecker:
                         f"tasks entry '{name}' is not defined in global config.yaml",
                     )
 
+                # an override replaces the global profile, which the loop above already checked
+                profile = entry.get("profile")
+                if profile is not None and profile not in global_profiles:
+                    self._err(
+                        "schema",
+                        f"tasks.{name}: resource profile '{profile}' is not defined in resource_profiles",
+                    )
+
                 # environ references must be defined in project config modules
                 for mod in entry.get("environ") or []:
                     if mod not in defined_modules:

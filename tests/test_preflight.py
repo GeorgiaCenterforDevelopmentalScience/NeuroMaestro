@@ -180,6 +180,20 @@ class TestSchemaChecks:
             i.severity == "ERROR" and broken in i.message for i in checker._issues
         )
 
+    def test_profile_overridden_in_project_config_is_checked(self, tmp_path):
+        # used to pass preflight and fail only when that task was submitted
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"profile": "ghost"}}}
+        checker = make_checker(project_config=pc, tmp_path=tmp_path)
+        checker.check_schema()
+        errors = [i.message for i in checker._issues if i.severity == "ERROR"]
+        assert errors == ["tasks.unzip: resource profile 'ghost' is not defined in resource_profiles"]
+
+    def test_valid_profile_override_passes(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"profile": "heavy_long"}}}
+        checker = make_checker(project_config=pc, tmp_path=tmp_path)
+        checker.check_schema()
+        assert [i for i in checker._issues if i.severity == "ERROR"] == []
+
 
 # ===========================================================================
 # run_all integration
