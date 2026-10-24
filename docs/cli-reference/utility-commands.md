@@ -70,7 +70,7 @@ Pass `--config-dir /scratch/my_study/config` in all subsequent `neuromaestro` co
 
 ## `neuromaestro list-tasks`
 
-Lists all task names, scripts, and dependencies from `config.yaml`.
+Lists every task in `config.yaml` with its scripts and its `input_from` task (where its `$INPUT_DIR` comes from when both run together). Job dependencies are not listed: they follow the DAG rules in [Pipeline Tasks Reference](../pipeline-reference/index.md#cli-flags-overview).
 
 ```bash
 neuromaestro list-tasks --config-dir /data/config

@@ -382,11 +382,12 @@ def list_tasks(
                 continue
             name = task.get('name', 'Unknown')
             scripts = task.get('scripts', [])
-            deps = task.get('input_from', 'None')
+            # input_from routes $INPUT_DIR only; job ordering comes from the DAG rules
+            input_from = task.get('input_from', 'None')
 
             typer.echo(f"  - {name}")
             typer.echo(f"    Scripts: {', '.join(scripts)}")
-            typer.echo(f"    Dependencies: {deps}")
+            typer.echo(f"    Input from: {input_from}")
 
 @app.command()
 def detect_subjects(

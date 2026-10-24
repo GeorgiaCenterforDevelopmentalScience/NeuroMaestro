@@ -764,3 +764,23 @@ class TestGeneratorsDoNotOverwrite:
                 "--force",
             ])
         assert result.exit_code == 0
+
+
+class TestListTasks:
+
+    def test_input_from_is_labelled_as_input_not_as_a_dependency(self):
+        # printed as "Dependencies:" before, although input_from adds no job dependency
+        import neuromaestro
+        from neuromaestro.pipeline.utils import config_utils, hpc_utils
+        runner, app = _runner()
+        saved = (config_utils._config_dir, config_utils.config, hpc_utils.hpc_config)
+        try:
+            result = runner.invoke(app, ["list-tasks", "--config-dir",
+                                         str(Path(neuromaestro.__file__).parent / "config")])
+        finally:
+            config_utils._config_dir, config_utils.config, hpc_utils.hpc_config = saved
+        assert result.exit_code == 0, result.output
+        lines = result.output.splitlines()
+        i = lines.index("  - recon")
+        assert lines[i + 1:i + 3] == ["    Scripts: dcm2bids_convert_BIDS.sh", "    Input from: unzip"]
+        assert "Dependencies" not in result.output
