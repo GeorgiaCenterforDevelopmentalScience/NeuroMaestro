@@ -1,7 +1,7 @@
 # Dev Log - [NeuroMaestro]
 
 ---
-## [1.0.0] – Unreleased
+## [1.0.0] – 2026-10-24
 
 First stable release. The public API, the CLI, and the YAML configuration schema are stable from this point on. Breaking changes to any of them raise the major version.
 
