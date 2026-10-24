@@ -170,7 +170,7 @@ class TestGenerateTemplate:
         generate_project_config("testproj", str(out_dir))
         content, err = _load_file(str(out_dir / "testproj_config.yaml"))
         assert err is None
-        assert "testproj" in content
+        assert content == (out_dir / "testproj_config.yaml").read_text(encoding="utf-8")
 
     def test_callback_generates_and_shows_success(self, tmp_path):
         from neuromaestro.interface.callbacks.config_callbacks import generate_new_config_callback
@@ -313,7 +313,8 @@ class TestSaveConfigCallback:
         with patch(f"{_CB_MOD}._CONFIG_DIR", config_root):
             editor_content = load_config_callback(1, "roundtrip")
 
-        assert "roundtrip" in editor_content
+        generated = config_root / "project_config" / "roundtrip_config.yaml"
+        assert editor_content == generated.read_text(encoding="utf-8")
         assert not editor_content.startswith("# ")
 
         mock_ctx = _make_triggered("save-config-btn")
