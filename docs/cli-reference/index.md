@@ -18,6 +18,7 @@ title: CLI Reference
 | `neuromaestro merge-logs` | Manually merge JSONL logs into the SQLite database |
 | `neuromaestro force-rebuild` | Rebuild a fresh database from all JSONL logs, including archived |
 | `neuromaestro generate-report` | Generate a standalone HTML report from the job database |
+| `python -m neuromaestro.pipeline.utils.job_db query_jobs` | Print recent job records from the database (the command `run` prints at the end) |
 | `neuromaestro-gui` | Launch the web-based GUI |
 
 ---
@@ -29,10 +30,10 @@ All flags for submitting pipeline jobs — subjects, stages, dry-run, resume, wa
 :::
 :::{card} Database Commands
 :link: database-commands
-`check-outputs`, `merge-logs`, `force-rebuild`, `generate-report`, and the database schema.
+`check-outputs`, `merge-logs`, `force-rebuild`, `query_jobs`, `generate-report`, and the database schema.
 :::
 :::{card} Utility Commands
 :link: utility-commands
-`detect-subjects`, `list-tasks`, `neuromaestro-gui`, `generate-config`, `generate-checks`.
+`detect-subjects`, `init`, `list-tasks`, `neuromaestro-gui`, `generate-config`, `generate-checks`.
 :::
 ::::

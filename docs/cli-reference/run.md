@@ -43,12 +43,12 @@ them apart.
 The pipeline uses two categories of multi-step pipelines:
 
 - **BIDS pipelines** (`--bids-prep`/`--bids-post`): containerized tools (fMRIPrep, XCP-D, QSIPrep) that take BIDS input directly. Depend on `recon` when `--prep recon` or `--prep unzip_recon` is also requested.
-- **Staged pipelines** (`--staged-prep`/`--staged-post`): AFNI-based task fMRI that optionally depend on the structural step.
+- **Staged pipelines** (`--staged-prep`/`--staged-post`): AFNI-based task fMRI. Staged prep tasks wait for every requested `--intermed` task. Without `--intermed` they get no dependency at all and start in parallel with `recon`, so their inputs must already exist.
 
 | Option | Values | Description |
 |--------|--------|-------------|
 | `--prep` | `unzip` \| `recon` \| `unzip_recon` | Data preparation |
-| `--intermed` | `volume` \| `volume,bfc` \| ... | Intermed tasks (comma-separated); required before `--staged-prep` |
+| `--intermed` | `volume` \| `volume,bfc` \| ... | Intermed tasks (comma-separated). Staged prep tasks wait for these when given. Omit it only when the intermed outputs already exist from an earlier run |
 | `--bids-prep` | `rest` \| `dwi` \| `rest,dwi` | BIDS pipeline preprocessing |
 | `--bids-post` | `rest` \| `dwi` \| `rest,dwi` | BIDS pipeline postprocessing |
 | `--staged-prep` | `emomatching` \| `stopsignal` \| `emomatching,stopsignal,workingmemory` | Staged pipeline preprocessing |
@@ -69,10 +69,10 @@ For full dependency and parallel execution behavior, see [Pipeline Reference →
 
 | Option | Description |
 |--------|-------------|
-| `--dry-run` | Print SLURM commands without submitting. Wrapper scripts are still written to `log/wrapper/` so you can inspect them. |
+| `--dry-run` | Print the DAG execution plan and a summary without submitting. Wrapper scripts are still written to `{--work}/{project}/log/wrapper/` so you can inspect them. |
 | `--resume` | Skip subjects whose outputs already pass checks in `{project}_checks.yaml`. Submits full count with warning if file is missing. |
 | `--skip-preflight` | Skip pre-flight config schema checks. |
-| `--skip-bids-validation` | Skip BIDS format validation (runs automatically when `--bids-prep` or `--mriqc individual/all` is used) and the check that each subject has a directory in `--input`. |
+| `--skip-bids-validation` | Skip BIDS format validation (runs automatically when `--bids-prep` or `--mriqc individual/all` is used without `--prep`) and the check that each subject has a directory in `--input`. |
 | `--wait` | Wait for all submitted jobs to complete before exiting |
 | `--polling-interval N` | Seconds between SLURM status polls when `--wait` is active (default: 60) |
 
@@ -85,11 +85,13 @@ For full dependency and parallel execution behavior, see [Pipeline Reference →
 --subjects 001,002,003
 ```
 
-**Repeated flags (both forms are equivalent):**
+**Repeated pipeline flags (both forms are equivalent):**
 ```bash
 --staged-prep emomatching,stopsignal
 --staged-prep emomatching --staged-prep stopsignal
 ```
+
+This applies to the pipeline flags only. `--subjects` takes a single value: given twice, only the last one is used.
 
 **From a text file (one ID per line, or comma-separated):**
 ```bash
@@ -116,15 +118,17 @@ On HPC systems, pasting a long comma-separated list directly into the terminal c
 
 ## `--dry-run`
 
-Generates all wrapper scripts and prints the exact `sbatch` commands, but does not queue anything. Use it to:
+Prints the DAG execution plan (each task with the tasks it waits for) and a summary, and writes every wrapper script, but does not queue anything. It does not print `sbatch` commands. Each wrapper in `{--work}/{project}/log/wrapper/` records its full submission command in a `# Submission Command:` comment near the top. Use it to:
 - Verify module names and paths before a large run
-- Preview SLURM array sizes
-- Inspect generated env-vars in `{work}/log/wrapper/`
+- Preview SLURM array sizes (the `--array=` value in the recorded submission command)
+- Inspect generated env-vars in `{--work}/{project}/log/wrapper/`
 
 ---
 
 ## `--resume`
 
-Before submitting each task's array job, the pipeline calls `OutputChecker` to find which subjects already have valid outputs. Only pending subjects are included in the array. If a task has no pending subjects at all, it is skipped entirely and downstream tasks lose their `afterok` dependency on it.
+Before submitting each task's array job, the pipeline calls `OutputChecker` to find which subjects already have valid outputs. Only pending subjects are included in the array. If a task has no pending subjects at all, it is skipped entirely and downstream tasks are submitted without a dependency on it.
 
-If `{project}_checks.yaml` is missing, `--resume` is silently ignored (with a warning) and all subjects are submitted.
+If `{project}_checks.yaml` is missing, `--resume` prints a warning and has no effect: all subjects are submitted.
+
+`--resume` does not filter subjects during `--dry-run`. The dry-run plan and wrappers always include every subject passed to `--subjects`.

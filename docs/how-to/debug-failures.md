@@ -20,9 +20,14 @@ Run [Post-Run Verification](post-run-verification.md) first. Use `check-outputs`
 
 ## Step 2: Read the SLURM Logs
 
-SLURM output and error files are in `{work_dir}/log/{task_name}/`:
+SLURM output and error files are in `{work_dir}/log/{task_name}/`, where `{work_dir}` is the `run` `--work` with the project name appended (e.g. `/data/work/my_study`):
 
 ```
+# Array jobs
+{work_dir}/log/{task_name}/{task_name}_{job_id}-{array_task_id}.out
+{work_dir}/log/{task_name}/{task_name}_{job_id}-{array_task_id}.err
+
+# Non-array jobs
 {work_dir}/log/{task_name}/{task_name}_{job_id}.out
 {work_dir}/log/{task_name}/{task_name}_{job_id}.err
 ```
@@ -71,29 +76,30 @@ afni_proc.py --help     # should print help if loaded correctly
 Windows line endings cause `$'\r': command not found` errors:
 
 ```bash
-file src/neuromaestro/pipeline/scripts/branch/afni_cards_preprocessing.sh
+# Run inside the scripts_dir set in your project config
+file afni_cards_preprocessing.sh
 # Should say "POSIX shell script" or "Bourne-Again shell script", NOT "CRLF"
 
 # Fix if needed:
-dos2unix src/neuromaestro/pipeline/scripts/branch/*.sh
+dos2unix *.sh
 ```
 
 ---
 
 ## Database Shows Incomplete Records?
 
-If the database is missing jobs (e.g., after a cluster crash), merge the raw JSONL logs manually:
+If the database is missing jobs (e.g., after a cluster crash), merge the raw JSONL logs manually. Pass the `run` `--work` directory, without the project name:
 
 ```bash
-neuromaestro merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work
 ```
 
-JSONL event logs in `{work_dir}/database/json/` accumulate independently of the SQLite database. Merging re-processes any unarchived files and fills in gaps.
+JSONL event logs in the `json/` directory next to the database (`/data/work/database/json/` by default) accumulate independently of the SQLite database. Merging re-processes any unarchived files and fills in gaps.
 
 If the JSONL files were already archived by a previous merge and the database is still incomplete (e.g., after restoring from backup), use `force-rebuild` to create a fresh database from all logs including archived ones:
 
 ```bash
-neuromaestro force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work
 # → writes pipeline_jobs_rebuild_{timestamp}.db next to the original
 ```
 
@@ -107,7 +113,7 @@ neuromaestro force-rebuild /data/work/my_study
 - [ ] Does the container `.sif` file exist in `container_dir`?
 - [ ] Does the `license.txt` exist in `freesurfer_dir`?
 - [ ] Are shell scripts using Unix line endings?
-- [ ] Does the Python venv contain `typer`, `pandas`?
+- [ ] Does the Python venv on the compute nodes contain `typer`?
 
 ---
 
@@ -120,10 +126,10 @@ neuromaestro force-rebuild /data/work/my_study
 - Verify `--input` points to the correct directory
 - Run `neuromaestro detect-subjects /data/BIDS` to preview what the pipeline sees
 
-**"Project configuration not found"**
+**"Config not found: .../{project}_config.yaml"**
 - The config file must be named exactly `{project}_config.yaml`
-- It must be in `config/project_config/`
-- Check: `ls config/project_config/`
+- It must be in `<config-dir>/project_config/`
+- Check: `ls <config-dir>/project_config/`
 
 **"Task not found" / task name mismatch**
 - Task names are case-sensitive — `cards_preprocess` ≠ `Cards_Preprocess`
@@ -147,8 +153,8 @@ neuromaestro force-rebuild /data/work/my_study
     - . /home/$USER/venv/bin/activate
   ```
 
-**`SLURM Job ID: N/A` in database**
-- Job was not submitted properly
+**`SLURM Job ID: N/A` in the per-subject log**
+- The wrapper ran without a SLURM job ID, so it was not started as a SLURM job (for example it was run directly with `bash`)
 - Check: `which sbatch` (must be available)
 - Check account: `sacctmgr show user $USER`
 
@@ -167,13 +173,13 @@ This is probabilistic, not deterministic. It is far more likely with:
 - High concurrency (many array tasks starting in the same window)
 - Peak cluster hours (Monday morning, weekday daytime) and shared (non-dedicated) nodes
 
-The processing scripts avoid this by staging the image to node-local disk before running:
+The bundled `ds027` example scripts avoid this by staging the image to node-local disk before running. The template scripts that `neuromaestro init` copies do not include this block, so add it to your own container scripts if you see the timeout. The block works as follows:
 - The image is copied once to `/tmp/${USER}_sif/` on the compute node, and the container runs from that local copy. A local squashfuse mount completes in well under a second, so the 10s timeout never triggers.
 - A per-node `flock` guarantees only one job on a node copies the image; other jobs wait and then reuse the same copy, so a burst of same-node jobs does not each copy in parallel.
 - If staging fails (see disk-full below), the script prints a warning and falls back to the network image, so the job still runs.
 - `APPTAINER_TMPDIR` / `SINGULARITY_TMPDIR` are also pointed at node-local disk for session scratch.
 
-This is the block near the top of each processing script (before `singularity run`). Copy it into any new container script, then run `singularity run ... ${local_container} ...` instead of `${CONTAINER_DIR}/${CONTAINER}`:
+This is the block near the top of each `ds027` container script (before `singularity run`). Copy it into any container script, then run `singularity run ... ${local_container} ...` instead of `${CONTAINER_DIR}/${CONTAINER}`:
 
 ```bash
 # Point Apptainer session/cache to node-local disk to avoid squashfuse mount timeout
@@ -212,7 +218,7 @@ If mount timeouts still appear (staging fell back to the network image), also:
 
 **`cp: ... No space left on device` when staging the image**
 
-Node-local `/tmp` filled up. On shared nodes `/tmp` is shared with other users' jobs, so it can be nearly full before your copy starts. The scripts handle this gracefully (fall back to the network image), so the job does not hard-fail, but that job loses the staging benefit.
+Node-local `/tmp` filled up. On shared nodes `/tmp` is shared with other users' jobs, so it can be nearly full before your copy starts. Scripts with the staging block handle this gracefully (fall back to the network image), so the job does not hard-fail, but that job loses the staging benefit.
 - Inspect a compute node: `srun --pty bash -c 'df -h -T /tmp; du -sh /tmp/${USER}_sif'`
 - Clear your own leftovers on a node: `srun -w <node> bash -c 'rm -rf /tmp/${USER}_sif'`
 - Most clusters reap `/tmp` automatically (epilog or tmpwatch); only your own files (`/tmp/${USER}_sif`, `/tmp/apptainer_*`) are yours to remove
@@ -221,7 +227,7 @@ Node-local `/tmp` filled up. On shared nodes `/tmp` is shared with other users' 
 
 **`ModuleNotFoundError: No module named 'typer'`**
 - The Python environment on the compute node is missing required packages
-- Ensure your venv/conda env includes: `typer`, `pandas`, `sqlite3`
+- Ensure your venv/conda env includes `typer`, which the wrapper's job logger imports. Everything else it uses is in the Python standard library
 - Test on a compute node:
   ```bash
   srun --pty bash -c "source /path/to/venv/bin/activate && python -c 'import typer'"
@@ -230,10 +236,12 @@ Node-local `/tmp` filled up. On shared nodes `/tmp` is shared with other users' 
 ### Resume & Output Checks
 
 **`--resume` does not skip any subjects**
-- Check that `{project}_checks.yaml` exists in `config/results_check/`
+- Check that `{project}_checks.yaml` exists in `<config-dir>/results_check/`
 - Tasks with no entry in the checks file are always submitted in full (warning is printed)
+- `--resume` does not filter subjects during `--dry-run`, so a dry-run always lists every subject
+- `--resume` resolves `{work_dir}` in the checks file to `--output` with the project name appended. Run `check-outputs` with that path as `--work` to see what `--resume` sees
 
 **`check-outputs` reports unexpected failures**
-- Open the CSV at `{work_dir}/check_results_{timestamp}.csv` — the `pattern` and `actual` columns show exactly what was globbed and how many files were found
+- Open the CSV at `{--work}/check_results_{timestamp}.csv`. The `pattern` column shows the check's pattern as written in the checks file (relative to `output_path`, placeholders not filled in), and `actual` shows how many files matched
 - Verify `output_path` resolves correctly for your subjects by checking the path manually on the HPC
 - Check `expected_count` and `tolerance` match your actual data

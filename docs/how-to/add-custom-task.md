@@ -11,9 +11,9 @@ This walkthrough adds a new task called `flanker_preprocess` to the task fMRI pi
 
 1. Add a top-level section (e.g. `mid:`) with one or two task entries.
 2. Choose the correct type:
-   - BIDS-native (depends on `recon`): use `input_from: recon` and run with `--bids-prep/post mid`
-   - Staged (depends on intermed): add `multi_stage: true` and run with `--staged-prep/post mid`
-3. If the section has both a prep and post step, set `stage: prep` / `stage: post` and chain them with `input_from`.
+   - BIDS-native (depends on `recon`): leave out `multi_stage`. The task waits for `recon` whenever `recon` runs in the same submission. Run with `--bids-prep/post mid`
+   - Staged (depends on intermed): add `multi_stage: true`. The prep task waits for every requested intermed task. Without `--intermed` it gets no dependency and starts in parallel with `recon`. Run with `--staged-prep/post mid`
+3. If the section has both a prep and post step, set `stage: prep` / `stage: post`. The post task then waits for the prep task automatically. Set `input_from` on the post task to the prep task's name so its `$INPUT_DIR` points at the prep output when both run together.
 4. Pick a `name` you won't need to change — it becomes the permanent identifier in the database and checks file.
 5. Add a matching entry under `tasks:` in your project's `{project}_config.yaml`.
 6. Add an entry in `{project}_checks.yaml` to enable `--resume` for the new task.
@@ -21,11 +21,11 @@ This walkthrough adds a new task called `flanker_preprocess` to the task fMRI pi
 
 ## Overview
 
-Adding a task involves three files:
+Adding a task involves four files, the last one optional:
 
 | File | What you do |
 |------|-------------|
-| `{scripts_dir}/your_script.sh` (or `.py`, `.r`, ...) | Write the analysis logic |
+| `{scripts_dir}/your_script.sh` (or `.py`) | Write the analysis logic |
 | `<config-dir>/config.yaml` | Register the task in the pipeline task graph |
 | `<config-dir>/project_config/{project}_config.yaml` | Set task parameters for your project |
 | `<config-dir>/results_check/{project}_checks.yaml` | (Optional) Define output checks for `--resume` |
@@ -42,7 +42,7 @@ Create the script in the directory set by `scripts_dir` in your project config:
 {scripts_dir}/afni_flanker_preprocess.sh
 ```
 
-Scripts can be written in any language. The pipeline dispatches based on file extension: `.py` files are run with `python`, everything else is run with `bash`. The script receives **one argument: the subject ID** (e.g., `001`). Everything else is available as **environment variables** that the pipeline exports automatically.
+The pipeline dispatches based on file extension: `.py` files are run with `python`, and every other file is run with `bash`. To use another language such as R, call it from a short bash script. The script receives **one argument: the subject ID** (e.g., `001`). Everything else is available as **environment variables** that the pipeline exports automatically.
 
 ```bash
 #!/bin/bash
@@ -55,8 +55,9 @@ subject="$1"
 #   $PREFIX          subject prefix, e.g. "sub-"
 #   $PROJECT         project name, e.g. "my_study"
 #   $SESSION         session label, e.g. "01"
-#   $INPUT_DIR       raw BIDS input directory
-#   $OUTPUT_DIR      pipeline output root
+#   $INPUT_DIR       --input, or the input_from task's output directory when
+#                    that task runs in the same submission
+#   $OUTPUT_DIR      this task's output directory (output_pattern resolved)
 #   $WORK_DIR        working / log directory
 #   $TEMPLATE_DIR    path to MNI templates  (from envir_dir.template_dir)
 #   $CONTAINER_DIR   path to .sif containers (from envir_dir.container_dir)
@@ -89,7 +90,7 @@ afni_proc.py \
 
 ### How parameters become environment variables
 
-Your project config (step 3) lists task parameters like `remove_TRs: 4`. The pipeline converts each key to `UPPER_SNAKE_CASE` and exports it before calling your script:
+Your project config (step 3) lists task parameters like `remove_TRs: 4`. The pipeline upper-cases each key and exports it before calling your script:
 
 | Config key | Environment variable |
 |------------|----------------------|
@@ -121,7 +122,7 @@ flanker:
     array: true                # true = one array job per subject
     multi_stage: true          # staged pipeline: depends on intermed if requested
     scripts: [afni_flanker_preprocess.sh]
-    input_from: recon     # wait for recon (--dependency=afterany)
+    input_from: recon          # $INPUT_DIR = recon's output when recon runs in the same submission
     output_pattern: "{base_output}/AFNI_derivatives"
 ```
 
@@ -129,11 +130,11 @@ flanker:
 
 | Field | Description |
 |-------|-------------|
-| `profile` | **Required.** Resource profile from the `resource_profiles` section in `hpc_config.yaml`, such as `standard`, `heavy_long`, or `light_short`. There is no default: a task without it fails at submission, listing the available profile names. |
+| `profile` | **Required.** Resource profile from the `resource_profiles` section in `hpc_config.yaml`, such as `standard`, `heavy_long`, or `light_short`. There is no default: a task without it stops `run` at the pre-flight check, before anything is submitted. |
 | `array` | `true` = SLURM array job (one task per subject). `false` = single job for all subjects. |
 | `scripts` | List of shell scripts to run, relative to `scripts_dir`. |
-| `input_from` | Name of an upstream task. The pipeline adds `--dependency=afterany:{upstream_job_id}` automatically. |
-| `output_pattern` | Used for display / bookkeeping. |
+| `input_from` | Name of an upstream task. When that task runs in the same submission, `$INPUT_DIR` is set to its resolved `output_pattern` instead of `--input`. It adds no dependency: job ordering comes from the DAG rules (`recon` for non-staged tasks, intermed for staged prep tasks, prep before post within a section). See [Pipeline Reference](../pipeline-reference/index.md#cli-flags-overview). |
+| `output_pattern` | This task's output directory. `{base_output}` is replaced by `--output` with the project name appended, the directory is created before submission, and the result is exported as `$OUTPUT_DIR`. |
 
 For the full list of resource profiles and their CPU/memory/time limits, see [HPC Configuration](../configuration/hpc-config.md).
 
@@ -164,7 +165,7 @@ At runtime the pipeline inserts those `ml` commands into the wrapper script's en
 
 ### Parameter naming rules
 
-- Config key → environment variable: `remove_TRs` → `REMOVE_TRS` (dots and hyphens also become underscores)
+- Config key → environment variable: the key is upper-cased and nothing else changes (`remove_TRs` → `REMOVE_TRS`). Parameter names must therefore be valid shell identifiers: letters, digits and underscores, starting with a letter or underscore. A key containing `-` or `.` produces an invalid `export` line.
 - **All values are strings** in the environment. Use `"0.3"` not `0.3` if your script does string comparison.
 - Nested dicts are not supported — keep task parameters flat.
 
@@ -187,12 +188,12 @@ neuromaestro run \
   --dry-run
 ```
 
-The dry-run prints the exact `sbatch` command and the generated wrapper script path without submitting anything. Check:
+The dry-run prints the DAG execution plan and a summary without submitting anything. It does not print `sbatch` commands. Instead, the generated wrapper in `{--work}/{project}/log/wrapper/` records its full submission command in a `# Submission Command:` comment near the top. Check there:
 
-- `--job-name` matches your task name
+- `--job-name` matches your script file name (`afni_flanker_preprocess`)
 - `--array=1-1%15` (1 subject, limit 15 concurrent)
-- `--dependency=afterany:...` if you set `input_from`
-- The wrapper script in `{work_dir}/log/wrapper/` exports the right `$REMOVE_TRS`, `$TEMPLATE`, etc.
+- No `--dependency=` flag in this example: run on its own, `flanker_preprocess` waits for nothing. With `--intermed volume` in the same run it gets `--dependency=afterany:...` on the `volume` job
+- The wrapper exports the right `$REMOVE_TRS`, `$TEMPLATE`, etc.
 
 ```bash
 # Inspect the generated wrapper

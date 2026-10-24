@@ -20,7 +20,7 @@ After your SLURM jobs finish, three commands help you verify results and documen
 | 2 | `neuromaestro merge-logs` | Sync JSONL logs into the database (needed before querying jobs or generating a report) |
 | 3 | `neuromaestro generate-report` | Generate a standalone HTML report |
 
-Steps 1 and 3 are the most common. Step 2 is only needed if the database looks incomplete.
+Step 2 is always needed before querying jobs or generating a report. Nothing merges the logs automatically, and the database file does not exist until the first `merge-logs`. Run it again whenever newer jobs have finished.
 
 ---
 
@@ -32,8 +32,8 @@ After a run it is tempting to just query `job_status` and look for `FAILED` reco
 |------------------------|---------------|----------------|
 | `SUCCESS` | The analysis script exited with code 0 | Output files may still be empty, truncated, or missing. The analysis scripts do not use `set -e`, so a script's exit code is only the exit code of its **last** command: a tool that fails midway still yields exit 0 if a later line succeeds |
 | `FAILED` | The script exited with a non-zero code | Nothing missed here — this is a real crash |
-| `CANCELLED` | SLURM killed the job via SIGTERM/SIGINT/SIGHUP (timeout, node failure, user cancel) | The script may have been mid-run; outputs are likely incomplete |
-| *(no record)* | The job was SLURM-cancelled before the wrapper even started (upstream dependency failed), or the wrapper itself crashed before writing its first log line | No information at all |
+| `CANCELLED` | The wrapper caught SIGTERM/SIGINT/SIGHUP (timeout, user cancel) and logged the interruption | The script may have been mid-run, so outputs are likely incomplete |
+| *(no record)* | The job never started, it was killed with SIGKILL (for example an out-of-memory kill) or its node crashed before the wrapper could write an end event, or the wrapper itself crashed before writing its first log line | No information at all |
 
 **The critical gap is silent failure.** An analysis tool can exit 0 while producing corrupt, empty, or partial outputs — fMRIPrep is a common example where certain failure modes produce an HTML report but no NIfTI files. The database records `SUCCESS` because the exit code was 0. Only `check-outputs` catches this by checking whether the expected files actually exist and meet minimum size requirements.
 
@@ -43,7 +43,7 @@ After a run it is tempting to just query `job_status` and look for `FAILED` reco
 - `check-outputs` tells you *whether the science succeeded* — use it to confirm outputs are present and plausible.
 - A subject needs to pass both: no `FAILED`/`CANCELLED` in the database **and** all check-outputs checks passing.
 
-You do not have to cross-reference the two by hand. When you pass `--check-results` to `generate-report`, the report includes a **Reported SUCCESS but Output Check Failed** section that lists exactly the jobs where the two layers disagree.
+You do not have to cross-reference the two by hand. `generate-report` takes the check-outputs CSV through its required `--check-results` option, and the report includes a **Reported SUCCESS but Output Check Failed** section that lists exactly the jobs where the two layers disagree.
 
 ---
 
@@ -61,7 +61,7 @@ neuromaestro check-outputs \
 ```
 
 :::{important}
-`--work` here is the **output data root**: the folder that directly contains `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` (your `run` `--output` directory with the project name appended). It is **not** the `run` `--work` directory that holds logs and the database. If the level is wrong, every check reports `FAIL – file not found` even though the outputs exist. Verify with `ls <your --work path>`; it should list `BIDS`, `AFNI_derivatives`, etc.
+`--work` here is the **output data root**: the folder that directly contains `BIDS/`, `AFNI_derivatives/`, `BIDS_derivatives/`, `quality_control/` (your `run` `--output` directory with the project name appended). It is **not** the `run` `--work` directory that holds logs and the database. If the level is wrong, every check reports `FAIL: file not found` even though the outputs exist. Verify with `ls <your --work path>`: it should list `BIDS`, `AFNI_derivatives`, etc.
 :::
 
 To check multiple sessions at once, pass them comma-separated:
@@ -69,7 +69,7 @@ To check multiple sessions at once, pass them comma-separated:
 ```bash
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects 001,002,003,004,005 \
   --session 01,02
@@ -80,7 +80,7 @@ If your subject list is in a file:
 ```bash
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects subjects.txt \
   --session 01
@@ -91,7 +91,7 @@ To check only specific tasks rather than all configured tasks:
 ```bash
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects subjects.txt \
   --session 01 \
@@ -111,26 +111,26 @@ The terminal shows only subjects with at least one failing check, grouped by tas
 
 This means subjects 002 and 004 are missing `rest_preprocess` outputs, and subject 004 is also missing `volume` outputs. Subjects not listed passed all checks.
 
-A full CSV is saved automatically to `{work_dir}/check_results_{timestamp}.csv`. The CSV has one row per check item and tells you exactly which file was missing or too small — open it when the terminal summary is not enough to diagnose the problem.
+A full CSV is saved automatically to `{--work}/check_results_{timestamp}.csv`, here `/data/processed/my_study/check_results_{timestamp}.csv`. The CSV has one row per check item and tells you exactly which file was missing or too small. Open it when the terminal summary is not enough to diagnose the problem.
 
 ### What to do with the results
 
-- Subjects that **passed all checks** → done, move to Step 3
+- Subjects that **passed all checks** → done, move to Step 2
 - Subjects that **failed** → check the SLURM logs, fix the issue, then rerun those subjects (see [Rerun Specific Subjects](rerun-subjects.md))
 
 The `check_results_*.csv` file will also be used in Step 3 to overlay output validation status onto the HTML report.
 
 ---
 
-## Step 2: Sync the Database (if needed)
+## Step 2: Sync the Database
 
-The pipeline writes JSONL logs during each job and you merge them manually afterwards with:
+The pipeline writes JSONL logs during each job and you merge them manually afterwards. Pass the `run` `--work` directory, without the project name:
 
 ```bash
-neuromaestro merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work
 ```
 
-This scans `{work_dir}/database/json/` for unprocessed JSONL files, inserts them into `pipeline_jobs.db`, and moves processed files to `archived/` subdirectories.
+This scans the `json/` directory next to the database (`/data/work/database/json/` with the default config) for unprocessed JSONL files, inserts them into `pipeline_jobs.db`, and moves processed files to `archived/` subdirectories.
 
 Each file is processed independently (committed to the database and then moved to `archived/`), so `merge-logs` is safe to interrupt and re-run: it resumes with whatever is still in `json/` and never re-inserts an archived file.
 
@@ -139,30 +139,30 @@ The GUI **Sync Database from JSONL Logs** button runs this same command but is c
 :::
 
 :::{note}
-`merge-logs` only processes JSONL files that contain **both** a start and an end event. A file with only a start event is silently skipped and retried on the next run. This happens in two situations:
+`merge-logs` only processes JSONL files that contain **both** a start and an end event. A file with only a start event is skipped, counted in a `Skipped N incomplete log(s) with no end event` message at the end, and retried on the next run. This happens in two situations:
 
 - **Job still running** — expected; the file will be picked up after the job finishes.
 - **Hard kill or node failure** — SLURM timeouts and `scancel` normally send SIGTERM first, which triggers the wrapper's signal handler and writes a `CANCELLED` end event. If SLURM escalates to SIGKILL (e.g., after the SIGTERM grace period expires) or the compute node crashes, the signal handler never runs and no end event is written. That subject will have no record in the database at all, not even a `CANCELLED` entry.
 :::
 
-If the database path is not in the default location:
+If your project config sets a `database.db_path` other than the default `$WORK_DIR/database/pipeline_jobs.db`, pass it explicitly:
 
 ```bash
-neuromaestro merge-logs /data/work/my_study \
-  --db-path /data/work/my_study/database/pipeline_jobs.db
+neuromaestro merge-logs /data/work \
+  --db-path /path/to/pipeline_jobs.db
 ```
 
 After merging, check that the database looks right before generating the report:
 
 ```bash
-sqlite3 /data/work/my_study/database/pipeline_jobs.db \
+sqlite3 /data/work/database/pipeline_jobs.db \
   "SELECT task_name, status, COUNT(*) FROM job_status GROUP BY task_name, status;"
 ```
 
 To see all jobs from a specific pipeline run (using `execution_id` to link tables):
 
 ```bash
-sqlite3 /data/work/my_study/database/pipeline_jobs.db \
+sqlite3 /data/work/database/pipeline_jobs.db \
   "SELECT j.subject, j.task_name, j.status, j.duration_hours
    FROM job_status j
    JOIN pipeline_executions p ON j.execution_id = p.execution_id
@@ -174,14 +174,14 @@ sqlite3 /data/work/my_study/database/pipeline_jobs.db \
 
 ### If the database is missing records after a run
 
-If jobs appear to have run but are not showing up in the database, the JSONL files are still in `{work_dir}/database/json/`. Run `merge-logs` to bring them in.
+If jobs appear to have run but are not showing up in the database, the JSONL files are still in the `json/` directory next to the database (`/data/work/database/json/` by default). Run `merge-logs` to bring them in.
 
 ### Rebuilding the database from scratch
 
 If the database file is corrupted or you want a clean copy that includes all historical runs (including previously archived JSONL files), use `force-rebuild`:
 
 ```bash
-neuromaestro force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work
 ```
 
 This creates a new `pipeline_jobs_rebuild_{timestamp}.db` next to the original. The original database is never modified. The rebuild scans both active and archived JSONL files, so it recovers the full history.
@@ -194,10 +194,10 @@ Generate a standalone HTML report from the job database. `--check-results` is re
 
 ```bash
 neuromaestro generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
+  --db-path /data/work/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
-  --check-results /data/work/my_study/check_results_20260401_120000.csv
+  --check-results /data/processed/my_study/check_results_20260401_120000.csv
 ```
 
 The report is saved as `pipeline_report_{project}_{timestamp}.html` next to the database. `-o` accepts either a full file path or a **directory**. Pass a directory and the same `pipeline_report_{project}_{timestamp}.html` name is generated inside it, so you never have to hand-write a timestamp:
@@ -205,18 +205,18 @@ The report is saved as `pipeline_report_{project}_{timestamp}.html` next to the 
 ```bash
 # Full file path, saved exactly there
 neuromaestro generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
+  --db-path /data/work/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
-  --check-results /data/work/my_study/check_results_20260401_120000.csv \
+  --check-results /data/processed/my_study/check_results_20260401_120000.csv \
   -o /data/reports/my_study_wave01.html
 
 # Directory: auto-named pipeline_report_my_study_<timestamp>.html inside it
 neuromaestro generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
+  --db-path /data/work/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
-  --check-results /data/work/my_study/check_results_20260401_120000.csv \
+  --check-results /data/processed/my_study/check_results_20260401_120000.csv \
   -o /data/reports/
 ```
 
@@ -224,7 +224,7 @@ neuromaestro generate-report \
 
 ![generate_report](../images/generate_report.png)
 
-The `--check-results` path must point to a `check_results_*.csv` produced by `check-outputs`. Pass the file saved in Step 1 directly:
+The `--check-results` path must point to a `check_results_*.csv` produced by `check-outputs`. Pass the file saved in Step 1 directly, as in the examples above.
 
 ### What the report contains
 
@@ -253,24 +253,26 @@ Above: the **Subject × Task Status** matrix, the collapsed **Failed Jobs** list
 A typical post-run workflow for a completed session:
 
 ```bash
-WORK=/data/work/my_study
+WORK=/data/work                    # run --work (database and JSONL logs)
+OUT=/data/processed/my_study       # run --output with the project name appended
 DB=$WORK/database/pipeline_jobs.db
 SUBJECTS=subjects.txt
 SESSION=01
 PROJECT=my_study
 
-# 1. Verify outputs — saves check_results_<timestamp>.csv to $WORK
+# 1. Verify outputs: saves check_results_<timestamp>.csv to $OUT
+#    (add --config-dir unless $NEUROMAESTRO_CONFIG_DIR is set)
 neuromaestro check-outputs \
   --project $PROJECT \
-  --work $WORK \
+  --work $OUT \
   --subjects $SUBJECTS \
   --session $SESSION
 
-# 2. Sync the database (if needed)
+# 2. Sync the database
 neuromaestro merge-logs $WORK
 
-# 3. Generate the report — pass the CSV from Step 1 explicitly
-CHECK_CSV=$(ls -t $WORK/check_results_*.csv | head -1)
+# 3. Generate the report: pass the CSV from Step 1 explicitly
+CHECK_CSV=$(ls -t $OUT/check_results_*.csv | head -1)
 neuromaestro generate-report \
   --db-path $DB \
   --project $PROJECT \
@@ -285,18 +287,18 @@ neuromaestro generate-report \
 
 After a successful run and merge, the database contains records like these.
 
-**`pipeline_executions`** — one row per `neuromaestro run` call:
+**`pipeline_executions`**: one row per `neuromaestro run` call:
 
 ```
 id | execution_id      | execution_time      | project   | session | status    | total_jobs
 ---|-------------------|---------------------|-----------|---------|-----------|----------
-1  | 1746023412831     | 2026-04-30 09:03:32 | my_study  | 01      | COMPLETED | 150
-2  | 1746109832145     | 2026-05-01 09:30:32 | my_study  | 01      | COMPLETED | 45
+1  | 1746023412831     | 2026-04-30 09:03:32 | my_study  | 01      | COMPLETED | 5
+2  | 1746109832145     | 2026-05-01 09:30:32 | my_study  | 01      | COMPLETED | 2
 ```
 
-`execution_id` is a timestamp-based integer written into every JSONL file at submission time. It links this row to all jobs and wrappers from that run.
+`execution_id` is a timestamp-based integer written into every JSONL file at submission time. It links this row to all jobs and wrappers from that run. `total_jobs` counts SLURM submissions: one per task script, with an array job counting once however many subjects it covers.
 
-**`job_status`** — one row per subject per task:
+**`job_status`**: one row per subject per task per attempt (a rerun adds new rows):
 
 ```
 execution_id   | subject | task_name        | status  | duration_hours | exit_code | node_name
@@ -307,7 +309,7 @@ execution_id   | subject | task_name        | status  | duration_hours | exit_co
 1746023412831  | 001     | volume           | SUCCESS | 1.102          | 0         | node042
 ```
 
-**`wrapper_scripts`** — one row per `sbatch` call (one per task per run, not per subject):
+**`wrapper_scripts`**: one row per `sbatch` call (one per task per run, not per subject):
 
 ```
 execution_id   | task_name       | job_id   | submission_time
@@ -316,14 +318,14 @@ execution_id   | task_name       | job_id   | submission_time
 1746023412831  | volume          | 41693202 | 2026-04-30 09:03:36
 ```
 
-**`command_outputs`** — one row per subject per task, holds captured stdout/stderr (last 50 lines):
+**`command_outputs`**: one row per subject per task per attempt (none for `unzip`), holds captured stdout/stderr (last 50 lines):
 
 ```
 subject | task_name       | exit_code | job_id      | script_name
 --------|-----------------|-----------|-------------|------------------------------
-001     | rest_preprocess | 0         | 41693201_1  | afni_rest_preprocess.sh
-002     | rest_preprocess | 0         | 41693201_2  | afni_rest_preprocess.sh
-003     | rest_preprocess | 1         | 41693201_3  | afni_rest_preprocess.sh
+001     | rest_preprocess | 0         | 41693201_1  | fmriprep_rs.sh
+002     | rest_preprocess | 0         | 41693201_2  | fmriprep_rs.sh
+003     | rest_preprocess | 1         | 41693201_3  | fmriprep_rs.sh
 ```
 
 ---
@@ -337,7 +339,7 @@ subject | task_name       | exit_code | job_id      | script_name
 ```bash
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects subjects.txt \
   --session 01
@@ -348,7 +350,7 @@ To narrow down to specific tasks:
 ```bash
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects subjects.txt \
   --session 01 \
@@ -361,7 +363,7 @@ neuromaestro check-outputs \
 Query the database directly for jobs that crashed (non-zero exit code):
 
 ```bash
-sqlite3 /data/work/my_study/database/pipeline_jobs.db \
+sqlite3 /data/work/database/pipeline_jobs.db \
   "SELECT subject, task_name, status, error_msg
    FROM job_status
    WHERE status = 'FAILED'
@@ -371,7 +373,7 @@ sqlite3 /data/work/my_study/database/pipeline_jobs.db \
 To see all non-successful jobs at once:
 
 ```bash
-sqlite3 /data/work/my_study/database/pipeline_jobs.db \
+sqlite3 /data/work/database/pipeline_jobs.db \
   "SELECT subject, task_name, status, error_msg
    FROM job_status
    WHERE status != 'SUCCESS'
@@ -382,8 +384,8 @@ sqlite3 /data/work/my_study/database/pipeline_jobs.db \
 `status = 'FAILED'` means the analysis script exited with a non-zero exit code. It does **not** catch silent failures; a script can exit 0 and still produce incomplete or missing output. Use `check-outputs` to verify actual output files on disk.
 
 Other statuses to be aware of:
-- `CANCELLED` — job was killed by SLURM (timeout, node failure, upstream dependency failed)
-- No record at all — job was SLURM-cancelled before the wrapper started, or the wrapper itself crashed before logging began
+- `CANCELLED`: the wrapper caught SIGTERM/SIGINT/SIGHUP (timeout or `scancel`) and logged the interruption
+- No record at all: the job never started, was killed with SIGKILL (for example out of memory) or lost its node before an end event was written, or the wrapper itself crashed before logging began. Run `merge-logs` first, since unmerged jobs are also absent
 :::
 
 ### "I want to share the report with someone"
@@ -392,10 +394,10 @@ Use `-o` to save to a path outside the work directory:
 
 ```bash
 neuromaestro generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
+  --db-path /data/work/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
-  --check-results /data/work/my_study/check_results_20260401_120000.csv \
+  --check-results /data/processed/my_study/check_results_20260401_120000.csv \
   -o ~/Desktop/my_study_report.html
 ```
 
@@ -405,8 +407,8 @@ The HTML file is fully standalone — pure HTML and inline CSS, no external depe
 
 ```bash
 # Merge any unprocessed JSONL logs
-neuromaestro merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work
 
 # Or rebuild from scratch (including archived logs) into a new file
-neuromaestro force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work
 ```

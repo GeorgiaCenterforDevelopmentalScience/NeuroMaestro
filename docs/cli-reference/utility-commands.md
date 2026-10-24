@@ -52,7 +52,8 @@ Creates the following layout under the given directory:
 ├── config/
 │   ├── config.yaml
 │   ├── hpc_config.yaml
-│   └── project_config/
+│   ├── project_config/
+│   └── results_check/
 └── scripts/
     └── (template .sh scripts)
 ```
@@ -92,7 +93,18 @@ neuromaestro-gui                 # default port 8050
 neuromaestro-gui --port 8051     # if 8050 is in use
 ```
 
-On startup it prints a link with a token made for that launch, such as `http://127.0.0.1:8050/?token=...`. Open that link: the GUI rejects requests without the token, so other users on a shared login node cannot use it. The server listens on `127.0.0.1` only, unless `--host 0.0.0.0` is given. The GUI has three tabs:
+On startup it prints a link with a token made for that launch, such as `http://127.0.0.1:8050/?token=...`. Open that link: the GUI rejects requests without the token, so other users on a shared login node cannot use it. The server listens on `127.0.0.1` only, unless `--host 0.0.0.0` is given.
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--host` | Address to bind to (default: `127.0.0.1`). Use `0.0.0.0` to accept remote connections |
+| `--port` | Port to bind to (default: `8050`) |
+| `--config-dir` | Config directory to prefill in the GUI. Defaults to `$NEUROMAESTRO_CONFIG_DIR`. If neither is set, enter it under **Analysis Control** |
+| `--debug` | Enable Dash debug mode |
+
+The GUI has three tabs:
 
 | Tab | Purpose |
 |-----|---------|
@@ -123,11 +135,9 @@ neuromaestro generate-config branch --config-dir /data/config \
 | `--output-dir` / `-o` | Output directory (default: `<config-dir>/project_config/`) |
 | `--force` | Overwrite an existing config file |
 
-The command refuses to overwrite an existing `{project}_config.yaml` and exits with
-code 1, so regenerating a template cannot silently discard settings you have already
-filled in. Pass `--force` when you really do want to start over.
+The command refuses to overwrite an existing `{project}_config.yaml` and exits with code 1, so regenerating a template cannot silently discard settings you have already filled in. Pass `--force` when you really do want to start over.
 
-The generated file is a fully-commented YAML template. Open it in the GUI editor or any text editor and fill in paths, modules, and task parameters.
+The generated file is a plain YAML skeleton without comments: every key is present with an empty or example value. Open it in the GUI editor or any text editor and fill in paths, modules, and task parameters. See [Project Configuration](../configuration/project-config.md) for what each key means.
 
 ---
 
@@ -155,4 +165,4 @@ neuromaestro generate-checks branch --config-dir /data/config \
 As with `generate-config`, an existing `{project}_checks.yaml` is never overwritten
 unless `--force` is given.
 
-The generated file contains commented examples for both `required_files` and `count_check` block types. See [Output Checks Configuration](../configuration/output-checks.md) for the full reference.
+The generated file contains two example entries, one per block type: `rest_preprocess` with a `required_files` check and `recon` with a `count_check`. They are active YAML, not comments, so `check-outputs` and `--resume` use them as soon as the file exists. Edit or delete them to match your outputs. See [Output Checks Configuration](../configuration/output-checks.md) for the full reference.

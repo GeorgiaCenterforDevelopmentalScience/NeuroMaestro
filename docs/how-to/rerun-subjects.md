@@ -27,20 +27,20 @@ neuromaestro run \
 
 ### Finding which subjects failed
 
-Query the job database:
+Query the job database (run `neuromaestro merge-logs /data/work` first so the latest results are in it):
 
 ```bash
-sqlite3 /data/work/my_study/database/pipeline_jobs.db \
+sqlite3 /data/work/database/pipeline_jobs.db \
   "SELECT DISTINCT subject FROM job_status
    WHERE task_name = 'rest_preprocess' AND status = 'FAILED';"
 ```
 
-Or use `check-outputs` to find subjects with missing files:
+Or use `check-outputs` to find subjects with missing files. Its `--work` is the output data root (`--output` with the project name appended):
 
 ```bash
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --subjects $(cat all_subjects.txt | tr '\n' ',') \
   --session 01 \
@@ -60,11 +60,11 @@ neuromaestro run --subjects subjects_failed.txt ...
 
 ## Option 2: `--resume` Flag
 
-If you want the pipeline to automatically skip subjects that already have valid outputs:
+If you want the pipeline to automatically skip subjects that already have valid outputs, pass all subjects:
 
 ```bash
 neuromaestro run \
-  --subjects 001,002,003,007,012 \   # pass all subjects
+  --subjects 001,002,003,007,012 \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
@@ -75,7 +75,7 @@ neuromaestro run \
   --resume
 ```
 
-The pipeline checks `{project}_checks.yaml` for each task and silently excludes subjects that already passed. Subjects with missing or incomplete outputs are submitted as normal.
+The pipeline checks `{project}_checks.yaml` for each task and excludes subjects that already passed, printing a `[resume] {task}: skipping N completed subject(s): ...` line for each task where it skipped any. Subjects with missing or incomplete outputs are submitted as normal.
 
 :::{note}
 `--resume` requires `{project}_checks.yaml` to exist inside `<config-dir>/results_check/`. See [Output Checks Configuration](../configuration/output-checks.md) for how to define check rules.
@@ -91,4 +91,4 @@ neuromaestro run --subjects subjects_failed.txt \
   --intermed volume --dry-run
 ```
 
-This shows exactly which SLURM array jobs would be submitted without actually queuing anything.
+This prints the DAG execution plan and a summary, and writes the wrapper scripts to `{--work}/{project}/log/wrapper/` without queuing anything. Each wrapper records its full submission command, including the `--array=` range, in a `# Submission Command:` comment. `--resume` does not filter subjects during a dry-run, so the plan always covers every subject you pass.
