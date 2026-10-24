@@ -52,13 +52,13 @@ This scans a directory for subject folders and writes bare IDs (prefix stripped)
 
 If your data has no prefix (folders named `001`, `002`, ...), use `--prefix ""` here and set `prefix: ""` in your project config.
 
-See [CLI Reference](../cli-reference/index.md#neuromaestro-detect-subjects).
+See [CLI Reference](../cli-reference/utility-commands.md#neuromaestro-detect-subjects).
 
 ---
 
 ## 3. Dry-run
 
-Before submitting to the cluster, run with `--dry-run` to validate your config, generate wrapper scripts, and print the full SLURM submission plan, without queuing anything.
+Before submitting to the cluster, run with `--dry-run` to validate your config, generate wrapper scripts, and print the task dependency plan, without queuing anything.
 
 ```bash
 neuromaestro run \
@@ -76,13 +76,13 @@ neuromaestro run \
 
 The `--session` flag sets the session/wave label; it is passed as `$SESSION` to every wrapper script and used as a path component when locating inputs and outputs. For longitudinal studies, re-run with `--session 02`, `--session 03`, etc.
 
-Check the printed **DAG execution plan** to verify task order and dependencies before anything hits the cluster ([Pipeline Reference](../pipeline-reference/index.md#how-the-dag-works)). The **wrapper scripts** written to `{work_dir}/log/wrapper/` show the exact module loads, exported environment variables, and script call for each job. **Preflight errors** (misconfigured modules, missing profile names, unknown task references) are caught here and block submission.
+Check the printed **DAG execution plan** to verify task order and dependencies before anything hits the cluster ([Pipeline Reference](../pipeline-reference/index.md#how-the-dag-works)). The **wrapper scripts** written to `/data/work/my_study/log/wrapper/` show the exact module loads, exported environment variables, script call, and submission command for each job. **Preflight errors** (misconfigured modules, missing profile names, unknown task references) are caught here and block submission.
 
 ---
 
 ## 4. Submit
 
-Remove `--dry-run`. Preflight and BIDS validation run again automatically.
+Remove `--dry-run`. Preflight runs again automatically. BIDS validation runs only when `--prep` is not given, since the BIDS data does not exist yet when the run starts with conversion.
 
 ```bash
 neuromaestro run \
@@ -97,7 +97,7 @@ neuromaestro run \
   --mriqc all
 ```
 
-Each task is submitted as a SLURM array job (one element per subject). Downstream jobs are held with `--dependency=afterany` until all upstream jobs finish. Individual subject failures don't cancel other subjects' downstream work.
+Per-subject tasks (`array: true` in `config.yaml`) are submitted as SLURM array jobs with one element per subject. Group-level tasks submit a single job. Downstream jobs are held with `--dependency=afterany` until all upstream jobs finish. Individual subject failures don't cancel other subjects' downstream work.
 
 **Submitting in stages.** You don't need to submit everything at once. For initial validation, go stage by stage: submit `--prep unzip_recon`, verify the BIDS output, then submit `--intermed`/`--bids-prep`, and so on. Once the pipeline is stable for your dataset, you can submit all stages in a single command.
 
@@ -113,10 +113,10 @@ See [Pipeline Reference](../pipeline-reference/index.md) for per-task details (i
 
 ## 5. Merge logs
 
-Compute nodes write JSONL event logs in real time. Once jobs finish, merge them into the SQLite database:
+Compute nodes write JSONL event logs in real time. Once jobs finish, merge them into the SQLite database. The argument is your `--work` value, the directory that contains `database/` (see the note in step 1):
 
 ```bash
-neuromaestro merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work
 ```
 
 This is required before `generate-report` can show job durations and status. The database is backed up automatically before each merge. `check-outputs` checks the filesystem directly and does not need the database.
@@ -124,7 +124,7 @@ This is required before `generate-report` can show job durations and status. The
 If the database is missing records after a cluster crash, use `force-rebuild` to reconstruct it from all JSONL logs including archived ones:
 
 ```bash
-neuromaestro force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work
 ```
 
 See [Logging System](../internals/logging-resume.md#merge-logs-implementation) for how merging works.
@@ -133,21 +133,22 @@ See [Logging System](../internals/logging-resume.md#merge-logs-implementation) f
 
 ## 6. Verify outputs
 
-Check that all expected output files exist for every subject:
+Check that all expected output files exist for every subject. Here `--work` is the output data root, your `--output` value with the project name appended:
 
 ```bash
 neuromaestro check-outputs \
-  --project my_study --work /data/processed \
+  --project my_study --work /data/processed/my_study \
   --config-dir /scratch/my_study/config \
   --subjects subjects.txt --session 01
 ```
 
-Prints a terminal summary and saves a full CSV to `{work_dir}/check_results_{timestamp}.csv`. Then generate an HTML report combining job status and output check results:
+Prints a terminal summary and saves a full CSV to `/data/processed/my_study/check_results_{timestamp}.csv`. Then generate an HTML report combining job status and output check results, passing that CSV:
 
 ```bash
 neuromaestro generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
-  --project my_study --session 01
+  --db-path /data/work/database/pipeline_jobs.db \
+  --project my_study --session 01 \
+  --check-results /data/processed/my_study/check_results_{timestamp}.csv
 ```
 
 See [Post-run Verification](../how-to/post-run-verification.md) and [Output Checks Config](../configuration/output-checks.md).
@@ -156,16 +157,16 @@ See [Post-run Verification](../how-to/post-run-verification.md) and [Output Chec
 
 ## 7. Re-run failed subjects
 
-Use `--resume` to skip subjects whose outputs already pass the output checks and resubmit only the rest:
+Use `--resume` to skip subjects whose outputs already pass the output checks and resubmit only the rest. Because `recon` is not part of this run, `--input` points at the BIDS data it produced:
 
 ```bash
 neuromaestro run \
   --subjects subjects.txt \
-  --input /data/processed --output /data/processed --work /data/work \
+  --input /data/processed/my_study/BIDS --output /data/processed --work /data/work \
   --config-dir /scratch/my_study/config \
   --project my_study --session 01 \
   --intermed volume \
   --resume
 ```
 
-The pipeline prints which subjects are being skipped and which are being resubmitted. See [Rerunning Subjects](../how-to/rerun-subjects.md).
+For each task, the pipeline prints the subjects it skips and submits the rest. See [Rerunning Subjects](../how-to/rerun-subjects.md).

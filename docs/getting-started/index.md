@@ -15,22 +15,21 @@ This page will get you from zero to a running pipeline job in about 5 minutes.
 
 ## Installation
 
-**1. Clone the repository onto your HPC system:**
+**1. Install the package on your HPC system:**
 
 ```bash
-git clone <repository-url>
+pip install neuromaestro
+```
+
+To work from source instead, clone the repository and install it in development mode:
+
+```bash
+git clone https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro.git
 cd NeuroMaestro
+pip install -e '.[dev]'
 ```
 
-**2. Install the package:**
-
-```bash
-pip install -e .
-# For development extras:
-# pip install -e .[dev]
-```
-
-**3. Verify the installation:**
+**2. Verify the installation:**
 
 ```bash
 neuromaestro --help
@@ -39,7 +38,7 @@ neuromaestro-gui --help
 
 ## Minimal Quickstart (5 minutes)
 
-The fastest way to verify everything works is a **dry-run**: this generates and prints all SLURM commands without submitting any jobs.
+The fastest way to verify everything works is a **dry-run**: it runs the pre-flight checks, prints the task dependency plan, and writes the job wrapper scripts without submitting any jobs.
 
 ### Step 1: Initialise your config directory
 
@@ -92,8 +91,8 @@ After that, all `neuromaestro` commands will pick it up automatically and you ca
 
 | File | Location inside `--config-dir` | What you do |
 |------|--------------------------------|-------------|
-| `hpc_config.yaml` | root | Scheduler type (SLURM/PBS), cluster-wide resource profiles, and job submission flag templates. Review when setting up on a new cluster. |
-| `config.yaml` | root | Global task definitions and resource profiles shared across all projects. Ships with defaults for the standard task set. **Only edit this when adding a new task type.** |
+| `hpc_config.yaml` | root | Scheduler settings, cluster-wide resource profiles, and job submission flag templates. Review when setting up on a new cluster. |
+| `config.yaml` | root | Global task definitions shared across all projects: each task's script, upstream task, output folder, and the name of the resource profile it uses. Ships with defaults for the standard task set. **Only edit this when adding a new task type.** |
 
 :::{tip}
 **Day-to-day you only edit `{project}_config.yaml`.** The shared configs are a one-time cluster setup — once they're right for your HPC environment, you won't need to touch them again.
@@ -134,7 +133,7 @@ Returns subject IDs with the prefix stripped; pass these bare IDs to `--subjects
 ```bash
 neuromaestro run \
   --subjects 001 \
-  --input /data/BIDS \
+  --input /data/raw \
   --output /data/processed \
   --work /data/work \
   --config-dir /scratch/my_study/config \
@@ -144,7 +143,7 @@ neuromaestro run \
   --dry-run
 ```
 
-Full pipeline — all stages, multiple subjects:
+Full pipeline (all stages, multiple subjects):
 
 ```bash
 neuromaestro run \
@@ -163,19 +162,21 @@ neuromaestro run \
   --dry-run
 ```
 
-`--dry-run` prints the exact `sbatch` commands that would be submitted; no jobs are actually queued. You should see something like:
+With `--dry-run`, no jobs are queued. The output includes the DAG execution plan, which lists each task with the tasks it waits for. For the single-subject command above it reads:
 
 ```
-[DRY RUN] Would submit: sbatch --job-name=volume --array=1-1%15 ...
+DAG execution plan:
+  unzip <- (no dependencies)
+  recon <- unzip
 ```
 
-If that looks right, remove `--dry-run` to submit for real. See [run command reference](../cli-reference/run.md) for all available flags.
+The wrapper script for each task is written to `/data/work/my_study/log/wrapper/` and shows the module loads, exported variables, and submission command. If the plan looks right, remove `--dry-run` to submit for real. See [run command reference](../cli-reference/run.md) for all available flags.
 
 ### Step 4: Monitor your jobs
 
 ```bash
-squeue -u $USER                          # SLURM queue
-neuromaestro-gui                            # GUI: Job Monitor tab → http://localhost:8050
+squeue -u $USER      # SLURM queue
+neuromaestro-gui     # Job Monitor tab, after Sync Database; open the printed token link
 ```
 
 ## Next Steps

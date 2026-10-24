@@ -19,7 +19,7 @@ The tools listed below are the **default templates** shipped with this pipeline.
 | Pipeline | Default Tools | Description |
 |----------|--------------|-------------|
 | **Preparation** | p7zip, dcm2bids | Unzip raw data, convert DICOM to BIDS |
-| **Intermediate MRI** | AFNI | Volume-based structural analysis |
+| **Intermediate MRI** | AFNI, SDCFlows | Skull stripping and template registration of the T1w image, fieldmap estimation |
 | **Resting-State fMRI** | fMRIPrep, XCP-D | Preprocessing and functional connectivity |
 | **Task fMRI** | AFNI | Task-based preprocessing and postprocessing |
 | **DWI** | QSIPrep, QSIRecon | Diffusion MRI preprocessing and reconstruction |
@@ -41,7 +41,7 @@ If you already have analysis scripts and want a structured way to run them at sc
 
 Once a lab maintainer has set up the project config, anyone can run the full pipeline through the GUI without needing to understand SLURM, bash scripting, or the underlying tools:
 
-- Open the GUI, select subjects, tick the stages you want, click **Execute Pipeline**
+- Open the GUI, select subjects, tick the stages you want, click **Generate Command**, then **Execute Pipeline**
 - Monitor job progress from the same interface
 - Check output completeness with one click
 
@@ -58,7 +58,7 @@ The goal is that an undergraduate with no HPC or fMRI processing experience can 
 - **Bring your own scripts** — the pipeline ships with default analysis scripts for each supported modality. These work out of the box if your HPC environment has the required modules or Singularity containers; they are also the starting point you modify when you need different parameters, tools, or workflows.
 - **Lightweight** — a thin coordination layer. It does not reimplement any analysis; it organizes how your existing tools and scripts are called.
 - **Flexible** — tasks, dependencies, resource profiles, processing scripts, and scheduler settings are all configurable.
-- **Fail-safe** — JSONL logs are written with `fsync` on compute nodes independently of the database. If the cluster crashes mid-run, no records are lost. The database can always be rebuilt from raw logs.
+- **Fail-safe** — JSONL logs are written with `fsync` on compute nodes independently of the database. Records already written survive a cluster crash, and the database can always be rebuilt from raw logs.
 
 ---
 

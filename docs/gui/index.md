@@ -45,11 +45,11 @@ This tab is the GUI equivalent of `neuromaestro run`. Configure everything here 
 
 The config directory must be set before task options (Intermed, BIDS, Staged) can populate. Enter the path to your `config/` folder, then choose one of two actions:
 
-- **Init** — first-time setup for a new study. Copies the package template files (`config.yaml`, `hpc_config.yaml`, script templates) into the given directory, creating it if needed. Equivalent to `neuromaestro init`. After Init completes, click **Apply** to load the config.
+- **Init** — first-time setup for a new study. Copies the package template files (`config.yaml`, `hpc_config.yaml`, `project_config/`, `results_check/`, script templates) into the given directory, creating it if needed. Equivalent to `neuromaestro init`. After Init completes, click **Apply** to load the config.
 - **Apply** — load an existing config directory. Reads `config.yaml` and populates the task checklists (Intermed, BIDS pipelines, Staged pipelines) with the tasks defined in your config.
 
 :::{tip}
-Setting `$NEUROMAESTRO_CONFIG_DIR` in your shell profile means you never need to fill in this field — it is pre-populated automatically on GUI launch.
+Setting `$NEUROMAESTRO_CONFIG_DIR` in your shell profile means you never need to fill in this field, since it is pre-populated on GUI launch. `neuromaestro-gui --config-dir <path>` does the same for a single launch.
 :::
 
 ### Subject Selection
@@ -161,22 +161,22 @@ The editor hints show both supported check types (`required_files` with optional
 ![Config3](../images/config_global.png)
 
 :::{warning}
-Changes here affect **all projects**. This controls task definitions, SLURM resource profiles, and pipeline sections in `config.yaml`.
+Changes here affect **all projects**. This controls task definitions and pipeline sections in `config.yaml`.
 :::
 
-Load, edit, validate, and save `config/config.yaml` directly. Use this when adding a new task section or adjusting resource limits.
+Load, edit, validate, and save `config/config.yaml` directly. Use this when adding a new task section or changing which resource profile a task uses. The profiles themselves (memory, time, CPUs) are defined in `hpc_config.yaml`.
 
 ### HPC Config sub-tab
 
 ![Config4](../images/config_hpc.png)
 
-Edit `config/hpc_config.yaml` — scheduler selection, resource profiles, and SLURM/PBS flag templates. See [HPC Config](../configuration/hpc-config.md).
+Edit `config/hpc_config.yaml` — scheduler selection, resource profiles, and scheduler flag templates. See [HPC Config](../configuration/hpc-config.md).
 
 ---
 
 ## Job Monitor
 
-The work directory and database path are set once at the top and shared across all three tabs.
+The work directory and database path are set once at the top and shared across all three tabs. The work directory is your `--work` value without the project name (e.g. `/data/work`), the directory that contains `database/`.
 
 ### Database tab
 
@@ -187,7 +187,7 @@ Two database maintenance actions:
 - **Sync Database from JSONL Logs** — runs `neuromaestro merge-logs` to populate the database from raw JSONL event files. Use this after jobs complete or if the database looks incomplete.
 - **Force Rebuild Database** — runs `neuromaestro force-rebuild`, which scans all JSONL logs including archived ones and creates a fresh `pipeline_jobs_rebuild_{timestamp}.db` next to the original. The original is never modified.
 
-See [Merge Logs Implementation](../internals/pipeline-backend.md#merge-logs-implementation) for when to use each.
+See [Merge Logs Implementation](../internals/logging-resume.md#merge-logs-implementation) for when to use each.
 
 ### Query tab
 
@@ -212,8 +212,8 @@ Results appear as a visualization panel (charts based on query type) and a pagin
 
 ![Database4](../images/job_monitor_QAreport.png)
 
-**Output File Check** — runs `check-outputs` from the GUI. Enter project name, subject list, optional task filter, session, and prefix, then click **Run Output Check**. Results appear inline. **Export Check CSV** saves the full per-subject results, equivalent to the CSV saved by `neuromaestro check-outputs`.
+**Output File Check** — runs `check-outputs` from the GUI. Enter the output data directory (your `--output` with the project name appended, e.g. `/data/processed/my_study`), project name, subject list, optional task filter, session, and prefix, then click **Run Output Check**. Results appear inline. **Export Check CSV** saves the full per-subject results, equivalent to the CSV saved by `neuromaestro check-outputs`.
 
-**Generate Report** — generates a standalone HTML report from the job database. Enter the project name and optionally a session and check results CSV path (auto-detected if left blank). The output path defaults to next to the database file; you can also give a full file path, or a folder (an auto-named `pipeline_report_{project}_{timestamp}.html` is written inside it). See [Post-Run Verification](../how-to/post-run-verification.md#what-the-report-contains) for a description of report sections.
+**Generate Report** — generates a standalone HTML report from the job database. Enter the project name, the path to a check results CSV saved by **Output File Check** or `check-outputs` (required), and optionally a session. The output path defaults to next to the database file; you can also give a full file path, or a folder (an auto-named `pipeline_report_{project}_{timestamp}.html` is written inside it). See [Post-Run Verification](../how-to/post-run-verification.md#what-the-report-contains) for a description of report sections.
 
 ![generate_report](../images/generate_report.png)

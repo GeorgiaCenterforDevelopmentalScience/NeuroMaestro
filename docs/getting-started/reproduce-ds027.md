@@ -160,7 +160,7 @@ neuromaestro run \
   --dry-run
 ```
 
-The printed DAG plan should list 13 tasks. Preflight catches missing modules, unknown profile names, and unresolvable container paths here, before anything is queued.
+The printed DAG plan should list 13 tasks. Preflight catches config errors here, before anything is queued: missing required keys, module names a task uses but the config does not define, and unknown profile names. It does not check that the modules or containers exist on the cluster.
 
 ---
 
