@@ -17,7 +17,7 @@ The pipeline is organized into four stages. The software used at each stage is c
 | Stage | Description | Example software |
 |-------|-------------|-----------------|
 | **Data preparation** | Unzip raw data, convert DICOM to BIDS | dcm2bids |
-| **Intermediate steps** | Any intermediate step required before modality pipelines (staged pipelines only) | AFNI `@SSwarper` |
+| **Intermediate steps** | Any intermediate step required before modality pipelines (staged pipelines only) | AFNI `sswarper2` |
 | **BIDS pipelines** | Modality preprocessing that runs directly on BIDS data | fMRIPrep, XCP-D, QSIPrep, QSIRecon |
 | **Quality control** | Image quality metrics | MRIQC |
 
@@ -29,19 +29,22 @@ The key distinction between pipeline types:
 
 ## Installation
 
-**Prerequisites:** Python 3.10+, HPC cluster with SLURM or PBS, neuroimaging software installed on the cluster.
+**Prerequisites:** Python 3.10+, HPC cluster with SLURM, neuroimaging software installed on the cluster.
 
 ```bash
-git clone https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro.git
-cd NeuroMaestro
-pip install -e .
-
-# Or developmental mode
-# pip install -e .[dev]
+pip install neuromaestro
 
 # Verify
 neuromaestro --help
 neuromaestro-gui --help
+```
+
+To install from source in development mode:
+
+```bash
+git clone https://github.com/GeorgiaCenterforDevelopmentalScience/NeuroMaestro.git
+cd NeuroMaestro
+pip install -e '.[dev]'
 ```
 
 ---
@@ -75,8 +78,10 @@ This copies `config.yaml`, `hpc_config.yaml`, `project_config/`, `results_check/
 
 ```bash
 # Launch the GUI
-neuromaestro-gui   # open http://localhost:8050 in your browser
+neuromaestro-gui
 ```
+
+Open the link it prints at startup (`http://127.0.0.1:8050/?token=...`). Requests without the token are rejected, and a new token is made at each launch.
 
 Or use the CLI. Start with a dry-run on one subject to verify the plan:
 
@@ -93,7 +98,7 @@ neuromaestro run \
   --dry-run
 ```
 
-Full pipeline — all stages, multiple subjects:
+Full pipeline (all stages, multiple subjects):
 
 ```bash
 neuromaestro run \
@@ -124,7 +129,7 @@ Dependencies are enforced automatically by the scheduler.
 | Option | Description |
 |--------|-------------|
 | `--subjects` | Comma-separated subject IDs or path to a `.txt` file |
-| `--input` | Input BIDS directory |
+| `--input` | Input directory (raw data with `--prep`, BIDS data otherwise) |
 | `--output` | Output directory |
 | `--work` | Work directory (logs, database, intermediate files) |
 | `--config-dir` | Path to config directory (contains `config.yaml`, `hpc_config.yaml`, `project_config/`). Optional if `$NEUROMAESTRO_CONFIG_DIR` is exported. |
@@ -171,7 +176,7 @@ neuromaestro run \
   --resume
 ```
 
-`--resume` checks each subject's expected output files (defined in `config/results_check/{project}_checks.yaml`) before submitting. Subjects that already have valid outputs are skipped silently.
+`--resume` checks each subject's expected output files (defined in `config/results_check/{project}_checks.yaml`) before submitting. Subjects that already have valid outputs are skipped, and the skipped IDs are printed per task.
 
 ---
 
@@ -201,15 +206,16 @@ output_directory/
     ├── BIDS_derivatives/
     │   ├── fmriprep/
     │   ├── xcpd/
-    │   ├── qsirecon/    
-    │   └── qsiprep/
+    │   ├── qsiprep/
+    │   └── qsirecon/
+    ├── postprocessing/
     └── quality_control/
         └── mriqc/
 
 work_directory/
+├── database/        # default db_path, shared by projects with the same --work
 └── project_name/
-    ├── log/
-    └── database/
+    └── log/
 ```
 
 ---

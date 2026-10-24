@@ -16,14 +16,17 @@ def main():
                         help="Host to bind to (use 0.0.0.0 to accept remote connections)")
     parser.add_argument("--port", type=int, default=8050, help="Port to bind to")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument("--config-dir", default="./config", help="Configuration directory")
-    
+    parser.add_argument("--config-dir", default=None,
+                        help="Configuration directory. Defaults to $NEUROMAESTRO_CONFIG_DIR.")
+
     args = parser.parse_args()
-    
-    # Create config directory
-    config_dir = Path(args.config_dir)
-    config_dir.mkdir(parents=True, exist_ok=True)
-    os.environ['CONFIG_DIR'] = str(config_dir)
+
+    # Prefills the GUI's config directory field. Left unset, the user enters one in the GUI.
+    config_dir = args.config_dir or os.environ.get("NEUROMAESTRO_CONFIG_DIR")
+    if config_dir:
+        os.environ['CONFIG_DIR'] = str(Path(config_dir))
+    else:
+        os.environ.pop('CONFIG_DIR', None)
     
     # The debug reloader re-runs main() in a child process, which must keep the printed token.
     token = os.environ.setdefault("_NEUROMAESTRO_GUI_TOKEN", secrets.token_urlsafe(32))

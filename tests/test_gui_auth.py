@@ -84,3 +84,34 @@ def test_launcher_binds_loopback_with_token_and_no_debugger(monkeypatch, tmp_pat
     assert installed["token"] and installed["cookie"] == "neuromaestro_token_8050"
     assert runs == [{"debug": True, "host": "127.0.0.1", "port": 8050,
                      "use_reloader": True, "use_debugger": False}]
+
+
+@pytest.mark.parametrize("argv_dir, env_dir, expected", [
+    ("cli", "env", "cli"),
+    (None, "env", "env"),
+    (None, None, None),
+])
+def test_launcher_config_dir_falls_back_to_env_and_creates_nothing(
+        monkeypatch, tmp_path, argv_dir, env_dir, expected):
+    import os
+    import neuromaestro.interface.auth as auth_mod
+    from neuromaestro.interface import run_gui
+    from neuromaestro.interface.app import app
+
+    dirs = {"cli": tmp_path / "cli_config", "env": tmp_path / "env_config"}
+    monkeypatch.delenv("_NEUROMAESTRO_GUI_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CONFIG_DIR", "stale-value-from-shell")
+    if env_dir:
+        monkeypatch.setenv("NEUROMAESTRO_CONFIG_DIR", str(dirs[env_dir]))
+    else:
+        monkeypatch.delenv("NEUROMAESTRO_CONFIG_DIR", raising=False)
+    argv = ["neuromaestro-gui"] + (["--config-dir", str(dirs[argv_dir])] if argv_dir else [])
+    monkeypatch.setattr("sys.argv", argv)
+    monkeypatch.setattr(auth_mod, "install_token_auth", lambda *a: None)
+    monkeypatch.setattr(app, "run", lambda **kw: None)
+
+    run_gui.main()
+
+    assert os.environ.get("CONFIG_DIR") == (str(dirs[expected]) if expected else None)
+    assert list(tmp_path.iterdir()) == []
