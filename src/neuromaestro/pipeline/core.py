@@ -674,7 +674,7 @@ def generate_checks_cmd(
         help="Path to config directory (sets default output location). Defaults to $NEUROMAESTRO_CONFIG_DIR."),
     force: bool = typer.Option(False, "--force", help="Overwrite an existing checks file"),
 ):
-    """Generate a blank results-check config template.
+    """Generate a starter results-check config with two example checks to replace.
 
     Refuses to overwrite an existing file unless --force is given.
 
