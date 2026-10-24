@@ -15,7 +15,7 @@ The pipeline uses a **dual logging** approach: raw JSONL event files are written
 ### Directory structure
 
 ```
-{work_dir}/
+{--work}/
 └── database/
     ├── pipeline_jobs.db               # SQLite (queryable)
     ├── backup/
@@ -29,19 +29,18 @@ The pipeline uses a **dual logging** approach: raw JSONL event files are written
             ├── {job_id}_{timestamp}.jsonl # per-subject events (start + end + output)
             └── archived/                  # moved here after merge
 
-{work_dir}/log/
+{--work}/{project}/log/
     ├── wrapper/
     │   └── {script}_{timestamp}_wrapper.sh
-    ├── subjects/
-    │   └── sub-{subject}/
-    │       └── {task}_{job_id}_{array_task_id}_{timestamp}.log  # per-subject log (array jobs)
     └── {task_name}/
-        ├── {task}_%A-%a.out       # SLURM stdout
-        ├── {task}_%A-%a.err       # SLURM stderr
-        └── {task}_{job_id}_{timestamp}.log  # per-subject log (non-array jobs)
+        ├── {task}_%A-%a.out       # SLURM stdout (%A.out for non-array tasks)
+        ├── {task}_%A-%a.err       # SLURM stderr (%A.err for non-array tasks)
+        ├── sub-{subject}/
+        │   └── {task}_{job_id}_{array_task_id}_{timestamp}.log  # per-subject log (array jobs)
+        └── {task}_{job_id}_{timestamp}.log  # job log (non-array jobs)
 ```
 
-`{work_dir}` here is the project-level directory (`--work / --project`, e.g. `/data/work/my_study`). The `database/` path is taken from `database.db_path` in the project config — `json/` and `backup/` sit next to the `.db` file.
+The `database/` path is taken from `database.db_path` in the project config, and `json/` and `backup/` sit next to the `.db` file. With the default `$WORK_DIR/database/pipeline_jobs.db`, `$WORK_DIR` is the `--work` value **without** the project name, so the database is `/data/work/database/pipeline_jobs.db` and the JSONL logs are under `/data/work/database/json/`. Projects that share a `--work` therefore share one database. Wrappers and job logs are under `--work` plus the project name (e.g. `/data/work/my_study/log/`), which is also the value of `$WORK_DIR` inside the job environment.
 
 ### Events logged
 
@@ -54,7 +53,7 @@ Every significant event is written as a JSON line (JSONL) with `fsync()` to surv
 | `wrapper_script` | Python (submit host) | Immediately after `sbatch` | task_name, job_id, full wrapper content split by section |
 | `start` | Bash → Python CLI (compute node) | Subject begins executing | subject, task, job_id, node |
 | `end` | Bash → Python CLI (compute node) | Subject finishes | subject, task, status, exit_code, duration_hours, error_msg |
-| `command_output` | Bash → Python CLI (compute node) | Script completes | stdout and stderr (each truncated to last 50 lines, stored separately) |
+| `command_output` | Bash → Python CLI (compute node) | Script completes (not written for `unzip`) | last 50 lines of the job log, which holds the script's combined stdout and stderr, stored as `stdout` (`stderr` stays empty) |
 
 Status values in `end` events: `SUCCESS`, `FAILED`, `CANCELLED` (SIGTERM/SIGINT caught via trap).
 
@@ -145,7 +144,7 @@ CREATE TABLE wrapper_scripts (
 
 ### Signal handling
 
-The wrapper registers signal traps for `SIGTERM`, `SIGINT`, and `SIGHUP`. If SLURM kills a job (timeout, `scancel`, node failure), the trap fires and logs a `CANCELLED` status before exit:
+The wrapper registers signal traps for `SIGTERM`, `SIGINT`, and `SIGHUP`. If SLURM stops a job with a catchable signal (time limit, `scancel`), the trap fires and logs a `CANCELLED` status before exit. A job killed outright (SIGKILL, out-of-memory kill, node failure) cannot run the trap: its log keeps only the `start` event, and `merge-logs` skips it and reports it as incomplete.
 
 ```bash
 # In wrapper_functions.sh
@@ -170,7 +169,7 @@ trap 'cleanup_on_signal SIGHUP 129'  SIGHUP
 Handles `_pipeline/execution_*.jsonl` files. Each file may contain two events: a `pipeline_start` record and a `pipeline_update` record appended later. The function reads all lines, keys them by `event` name, then inserts one row into `pipeline_executions` combining fields from both. Files are moved to `_pipeline/archived/` after processing.
 
 **`_merge_jobs(task_dir, conn)`**
-Handles per-subject JSONL files in task directories. A file is only processed when **both** a `start` event and an `end` event are present — files with only a `start` (job still running or crashed mid-execution) are left in place and retried on the next merge. When complete, it inserts a row into `job_status` and, if a `command_output` event is present, a row into `command_outputs`. Files are moved to `{task}/archived/` after processing.
+Handles per-subject JSONL files in task directories. A file is only processed when **both** a `start` event and an `end` event are present. Files with only a `start` (job still running, or killed before it could log its end) are left in place, retried on the next merge, and counted in a "Skipped N incomplete log(s)" message. When complete, it inserts a row into `job_status` and, if a `command_output` event is present, a row into `command_outputs`. Files are moved to `{task}/archived/` after processing.
 
 **`_merge_wrappers(task_dir, conn)`**
 Handles `_pipeline/wrapper_*.jsonl` files. Each file contains a single `wrapper_script` event. Inserts one row into `wrapper_scripts`. Files are moved to `_pipeline/archived/` after processing.
@@ -186,12 +185,14 @@ Handles `_pipeline/wrapper_*.jsonl` files. Each file contains a single `wrapper_
 
 Use `force-rebuild` when the database is corrupted, accidentally deleted, or missing records after a cluster failure. It scans every JSONL file ever written (including already-archived ones) and produces a fresh database.
 
+Both commands take the directory that contains `database/`, which with the default `db_path` is the `--work` value without the project name:
+
 ```bash
 # Normal post-run merge
-neuromaestro merge-logs /data/work/my_study
+neuromaestro merge-logs /data/work
 
 # Full rebuild from all historical JSONL (original db untouched)
-neuromaestro force-rebuild /data/work/my_study
+neuromaestro force-rebuild /data/work
 ```
 
 ---
@@ -216,7 +217,7 @@ cp {db_dir}/backup/pipeline_jobs.backup_{ts}.db {db_dir}/pipeline_jobs.db
 
 ## Resume: Output Checking Flow
 
-When `--resume` is passed, the pipeline loads `config/project_config/{project}_checks.yaml` and instantiates an `OutputChecker`. Before submitting each task's array job, the checker evaluates every subject:
+When `--resume` is passed, the pipeline loads `{config-dir}/results_check/{project}_checks.yaml` and instantiates an `OutputChecker`, with `{work_dir}` in the checks set to `--output` plus the project name. Before submitting each task's array job, the checker evaluates every subject:
 
 ```
 For each subject in the full subject list:
@@ -229,10 +230,12 @@ For each subject in the full subject list:
 
 The submitted `--array` range covers only pending subjects. Completed subjects are never resubmitted.
 
-If no checks file entry exists for a task, a warning is printed and all subjects are submitted:
+If the checks file has no entry for a task, a Python warning is printed and all subjects of that task are submitted:
 
 ```
-Warning: No checks defined for task 'flanker_preprocess' — submitting all subjects
+UserWarning: [OutputChecker] No output check configured for task 'cards_preprocess'. This task will be skipped during resume checks.
 ```
+
+If the checks file itself is missing, the run prints `Warning: --resume requested but no checks config found. Proceeding without skipping.` and submits every subject.
 
 For the checks config syntax and standalone `check-outputs` command, see [Resume: Skip Completed Subjects](../pipeline-reference/index.md#resume-skip-completed-subjects).

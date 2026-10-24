@@ -14,17 +14,17 @@ The pipeline ships with five named config/script/check bundles used at different
 | `ds027` | `project_config/ds027_config.yaml` | `scripts/ds027/` | `results_check/ds027_checks.yaml` |
 | `template` | `project_config/template_config.yaml` | `scripts/template/` | `results_check/template_checks.yaml` |
 
-The `scripts_dir` field in each project config points to the corresponding scripts subdirectory. Results checks are loaded by `--resume` to validate outputs; see [DAG Execution & Preflight](dag-execution.md) for how checks are consumed.
+In `dagtest`, `test` and `branch`, the `scripts_dir` field is the relative path `scripts/<bundle>`, which is resolved against the directory `neuromaestro run` is started from. `ds027` keeps the absolute scripts path of the cluster it ran on, and `template` has the placeholder `path/to/scripts/`. Results checks are loaded by `--resume` and `check-outputs` to validate outputs. See [Logging System & Resume](logging-resume.md#resume-output-checking-flow) for how checks are consumed.
 
 ---
 
 ## Bundle Purposes
 
 ### `dagtest`
-Tests only the job scheduling and pre/post logic — DAG wiring, SLURM dependency chains, database state transitions. The shell scripts are stubs or near-stubs that exit quickly without running real neuroimaging tools. Use this when changing the execution engine or logging layer and you need fast feedback without waiting for actual compute.
+Tests the job scheduling and pre/post logic: DAG wiring, SLURM dependency chains, database state transitions. Most scripts are cut down to finish quickly. `unzip_rename.sh` only prints its environment, `dcm2bids_convert_BIDS.sh` runs `dcm2bids_helper`, the T1w warp script only checks that its inputs exist, `afni_proc.py` writes its proc script without `-execute`, the group-level AFNI scripts stop after setup, MRIQC and SDCFlows run with `--dry-run`, and QSIPrep and QSIRecon run with `--sloppy --boilerplate`. Two scripts are exceptions: `fmriprep_rs.sh` and `xcpd_rs.sh` run fMRIPrep (with `--fs-no-reconall`) and XCP-D in full. The bundle also carries `one_sample_ttest.sh`, which no task in `config.yaml` references. Use this when changing the execution engine or logging layer and you need fast feedback without waiting for most of the compute.
 
 ### `test`
-A closer-to-real integration test: scripts run the actual tools but skip or shorten expensive preprocessing steps (e.g. reduced TR counts, skipped resampling passes). Intended for end-to-end validation on a small dataset where full runtime would be impractical. Use this before merging pipeline logic changes.
+A closer-to-real integration test: scripts run the actual tools but skip or shorten expensive preprocessing steps (e.g. `--sloppy` for QSIPrep, QSIRecon and SDCFlows, fMRIPrep with `--fs-no-reconall` and no CIFTI output, MRIQC on T1w only, and a two-condition `afni_proc.py` model for Cards). Intended for end-to-end validation on a small dataset where full runtime would be impractical. Use this before merging pipeline logic changes.
 
 ### `branch`
 The production config for the real BRANCH dataset. Scripts are the full-fidelity versions used in live runs. This is the reference for all task parameters (TR counts, container versions, motion thresholds, etc.).
@@ -33,7 +33,7 @@ The production config for the real BRANCH dataset. Scripts are the full-fidelity
 The published demonstration run on AOMIC-PIOP2 (OpenNeuro `ds002790`), covering 13 tasks over 30 participants. Shipped exactly as it ran, so its paths and module names are specific to the original cluster and must be substituted before use. This is the bundle a reader reproduces in [Reproduce the Published Example](../getting-started/reproduce-ds027.md). Do not retrofit changes into it that were not part of the reported run, since the config is the reference for what that run did.
 
 ### `template`
-A blank-slate copy of `branch` with all site-specific paths replaced by `/path/to/...` placeholders. Intended as a starting point for new deployments. Not used in any automated run.
+The starting point for new deployments, with all site-specific paths replaced by `/path/to/...` placeholders. It follows `branch` and adds the `bfc`, `ica_task` and `ica_rest` tasks with their scripts (`sdcflows.sh`, `ica_*.sh`). `neuromaestro init` copies its scripts into a new study, and the end-to-end dry-run test (`tests/test_e2e_dry_run.py`) runs against those copies.
 
 ---
 

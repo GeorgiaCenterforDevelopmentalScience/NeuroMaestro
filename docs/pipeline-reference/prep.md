@@ -8,23 +8,23 @@ CLI flag: `--prep [unzip | recon | unzip_recon]`
 
 ## unzip
 
-**What it does:** Extracts all compressed archives (`.zip`, `.7z`, `.tar.gz`) from the input directory using parallel decompression. After extraction it checks for `{prefix}{subject_id}` directories and prepares them for downstream processing.
+**What it does:** Extracts every `.zip` archive found under the input directory with 7-Zip, five archives at a time. It then reads one DICOM header from each extracted `e*` folder with AFNI's `dicom_hdr`, takes the first group of digits in the Patient ID as the subject ID, and renames the folder to `{prefix}{id}`. A CSV summary of the folder-to-ID mapping and a rename log are written next to the extracted data.
 
-**Tool:** p7zip + GNU parallel  
+**Tool:** p7zip + GNU parallel + AFNI (`dicom_hdr`)  
 **SLURM profile:** `standard` (32 GB, 20 h) — non-array job (all subjects in one job)  
 **Script:** `unzip_rename.sh`  
-**Input:** Any directory containing compressed data files  
-**Output:** `{output}/raw/`
+**Input:** `--input`, a directory containing the `.zip` archives  
+**Output:** `{output}/raw/ses-{session}/{prefix}{id}/`
 
 **Config entry** (in `{project}_config.yaml`):
 ```yaml
 tasks:
   unzip:
-    environ: ["data_manage_1"]    # loads p7zip and parallel modules
+    environ: ["data_manage_1", "afni_24.3.06"]    # p7zip and parallel, plus AFNI for dicom_hdr
 ```
 
 :::{note}
-`unzip` runs as a **single** SLURM job (not an array), processing all subjects sequentially. This avoids I/O contention when unpacking many large archives simultaneously.
+`unzip` runs as a **single** SLURM job (not an array). It does not use the subject list: it extracts every `.zip` under `--input`, running five extractions in parallel within that one job.
 :::
 
 ## recon
@@ -34,8 +34,8 @@ tasks:
 **Tool:** dcm2bids (Singularity)  
 **SLURM profile:** `light_short` (16 GB, 4 h) — array job  
 **Script:** `dcm2bids_convert_BIDS.sh`  
-**Depends on:** `unzip`  
-**Input:** `{output}/raw/{subject}/`  
+**Depends on:** `unzip` (when requested in the same command)  
+**Input:** `{output}/raw/ses-{session}/{prefix}{subject}/` when `unzip` runs in the same command, otherwise `--input/ses-{session}/{prefix}{subject}/`  
 **Output:** `{output}/BIDS/sub-{subject}/ses-{session}/`
 
 **Config entry** (in `{project}_config.yaml`):
@@ -64,6 +64,6 @@ neuromaestro run \
 # Unzip only
 neuromaestro run ... --prep unzip
 
-# Convert already-unzipped data
+# Convert already-unzipped data (--input must hold ses-{session}/{prefix}{id}/ DICOM folders)
 neuromaestro run ... --prep recon
 ```

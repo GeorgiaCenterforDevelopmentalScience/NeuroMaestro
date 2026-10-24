@@ -31,7 +31,7 @@ tasks:
 **Tool:** MRIQC (Singularity)  
 **SLURM profile:** `light_short` (16 GB, 4 h) — single job  
 **Script:** `mriqc_group.sh`  
-**Depends on:** `mriqc_preprocess`  
+**Depends on:** `mriqc_preprocess` and `recon`, each only when requested in the same command  
 **Output:** `{output}/quality_control/mriqc/`
 
 **Config entry:**

@@ -46,7 +46,7 @@ neuromaestro run \
   --prep unzip
 ```
 
-**Reconstruct to BIDS (assumes raw data already extracted):**
+**Reconstruct to BIDS (assumes raw data already extracted, with `--input` holding `ses-{session}/{prefix}{id}/` DICOM folders as `unzip` produces them):**
 
 ```bash
 neuromaestro run \
@@ -223,7 +223,7 @@ neuromaestro run \
   --dry-run
 ```
 
-Wrapper scripts are written to `{work_dir}/log/wrapper/` so you can inspect the exact `sbatch` commands and exported variables before committing.
+`--dry-run` prints the DAG execution plan and a summary, and writes the wrapper scripts to `{--work}/{project}/log/wrapper/` (here `/data/work/my_study/log/wrapper/`) without submitting them. It does not print `sbatch` commands: open a wrapper to see its submission command (in the header comment) and exported variables before committing.
 
 ---
 

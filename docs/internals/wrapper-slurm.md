@@ -40,10 +40,10 @@ elif scheduler == "lsf":
 For each task submission the pipeline generates a self-contained bash script written to:
 
 ```
-{work_dir}/log/wrapper/{script_name}_{timestamp}_wrapper.sh
+{--work}/{project}/log/wrapper/{script_name}_{timestamp}_wrapper.sh
 ```
 
-The wrapper is executable (`chmod 755`) and embeds all configuration as shell variables so the compute node needs no access to Python or the pipeline source; it only needs bash and the analysis tools.
+`{timestamp}` is in Unix epoch seconds, and `{work_dir}` elsewhere on this page stands for the same `{--work}/{project}` directory. The wrapper is executable (`chmod 755`) and embeds all configuration as shell variables. It is not fully standalone: it sources `wrapper_functions.sh` from the installed package (`$SCRIPT_DIR`), which calls `job_db.py` with Python for logging. The compute node therefore needs access to the package directory and a Python environment (set up by `global_python`), besides bash and the analysis tools.
 
 ### What the wrapper contains
 
@@ -53,12 +53,14 @@ The wrapper is executable (`chmod 755`) and embeds all configuration as shell va
 # ── Paths ────────────────────────────────────────────────────────────────────
 export SUBJECTS='001 002 003'
 export INPUT_DIR='/data/BIDS'
-export OUTPUT_DIR='/data/processed/my_study'
+export OUTPUT_DIR='/data/processed/my_study/AFNI_derivatives'
 export WORK_DIR='/data/work/my_study'
+export CONTAINER_DIR='/data/containers'
 export LOG_DIR='/data/work/my_study/log'
-export DB_PATH='/data/work/my_study/database/pipeline_jobs.db'
-export TASK_NAME='flanker_preprocess'
+export DB_PATH='/data/work/database/pipeline_jobs.db'
+export TASK_NAME='cards_preprocess'
 export SCRIPT_DIR='/home/user/NeuroMaestro/src/neuromaestro/pipeline'
+export EXECUTION_ID='1735732800000'
 
 # ── Global Python environment (from global_python in project config) ──────────
 export GLOBAL_PYTHON_COMMANDS=$(cat << "PYTHON_EOF"
@@ -70,24 +72,29 @@ PYTHON_EOF
 
 # ── Module load commands (from modules section, resolved via environ) ─────────
 export ENV_COMMANDS=$(cat << "ENV_EOF"
-ml AFNI/25.1.01-foss-2023a
+ml Flask/2.3.3-GCCcore-12.3.0
+ml netpbm/10.73.43-GCC-12.3.0
+ml AFNI/24.3.06-foss-2023a
 ENV_EOF
 )
 
-# ── Global variables (prefix, project, envir_dir.*) ──────────────────────────
+# ── Global variables (envir_dir.*, session, prefix, project) ──────────────────
 export GLOBAL_ENV_VARS=$(cat << "GENV_EOF"
+export CONTAINER_DIR='/data/containers'
+export TEMPLATE_DIR='/data/templates'
+export FREESURFER_DIR='/data/freesurfer'
+export STIMULUS_DIR='/data/stimulus'
+export SESSION='01'
 export PREFIX='sub-'
 export PROJECT='my_study'
-export SESSION='01'
-export TEMPLATE_DIR='/work/cglab/projects/my_study/templates'
-export CONTAINER_DIR='/work/cglab/containers'
-export FREESURFER_DIR='/work/cglab/freesurfer'
 GENV_EOF
 )
 
-# ── Task-specific parameters (from tasks.flanker_preprocess) ──────────────────
+# ── Task-specific parameters (from the merged cards_preprocess config) ────────
 export TASK_PARAMS=$(cat << "TASK_EOF"
-export REMOVE_TRS='4'
+export STAGE='prep'
+export MULTI_STAGE='True'
+export REMOVE_TRS='2'
 export TEMPLATE='HaskinsPeds_NL_template1.0_SSW.nii'
 export BLUR_SIZE='4.0'
 export CENSOR_MOTION='0.3'
@@ -97,7 +104,7 @@ TASK_EOF
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 source "$SCRIPT_DIR/utils/wrapper_functions.sh"
-execute_wrapper "/abs/path/to/scripts/branch/afni_flanker_preprocess.sh"
+execute_wrapper "/abs/path/to/scripts/afni_cards_preprocessing.sh"
 ```
 
 ### Parameter → environment variable mapping
@@ -111,7 +118,7 @@ The pipeline converts each task parameter key to `UPPER_SNAKE_CASE`:
 | `censor_motion` | `$CENSOR_MOTION` |
 | `template` | `$TEMPLATE` |
 
-Keys consumed by the pipeline itself and **not** exported: `name`, `environ`, `scripts`, `input_from`, `profile`, `array`, `output_pattern`.
+Keys consumed by the pipeline itself and **not** exported: `name`, `environ`, `scripts`, `input_from`, `profile`, `array`, `output_pattern`. Every other key of the merged task config is exported, including `stage` and `multi_stage` from `config.yaml` (as `$STAGE` and `$MULTI_STAGE`).
 
 ### `input_from` → `INPUT_DIR` substitution
 
@@ -139,7 +146,7 @@ if task_config and 'input_from' in task_config:
 | `--bids-prep rest --bids-post rest` | `[rest_preprocess, rest_post]` | Yes | `{output_dir}/BIDS_derivatives/fmriprep` ✓ |
 | `--bids-post rest` alone | `[rest_post]` | No | `--input` value (e.g. `/data/BIDS`) ✗ |
 
-In the second scenario, `rest_post` silently receives the raw BIDS directory as its input instead of the fMRIPrep output. The scripts will fail or process the wrong data. **Always include `--bids-prep` and `--bids-post` in the same `neuromaestro run` call.** The same applies to `dwi_post`/`dwi_preprocess` and any other post task.
+In the second scenario, `rest_post` silently receives the raw BIDS directory as its input instead of the fMRIPrep output. The scripts will fail or process the wrong data. **Either include `--bids-prep` and `--bids-post` in the same `neuromaestro run` call, or point `--input` at the upstream output** (e.g. `/data/processed/my_study/BIDS_derivatives/fmriprep`). The same applies to `dwi_post`/`dwi_preprocess` and any other post task. The substitution adds no dependency edge of its own: a post task waits for its prep task only when both are in the same call.
 
 This is a known limitation of the current implementation: the substitution is scoped to a single invocation rather than resolved globally from `config.yaml` regardless of what was requested.
 
@@ -151,10 +158,10 @@ This is a known limitation of the current implementation: the substitution is sc
 
 ## Compute Node Environment Setup
 
-When the wrapper runs on a compute node, `wrapper_functions.sh` builds a **temporary environment file** in `/tmp` and sources it:
+When the wrapper runs on a compute node, `wrapper_functions.sh` builds a **temporary environment file** with `mktemp` (under `umask 077`) in `$TMPDIR`, or `/tmp` when `$TMPDIR` is unset, sources it, and deletes it right away:
 
 ```
-/tmp/env_{TASK_NAME}_{SLURM_JOB_ID}_{SLURM_ARRAY_TASK_ID}_{subject}_{RANDOM}.sh
+${TMPDIR:-/tmp}/neuromaestro_env.XXXXXXXXXX
 ```
 
 The environment is assembled in this order:
@@ -164,25 +171,28 @@ The environment is assembled in this order:
    ml Python/3.11.3-GCCcore-12.3.0
    . /home/user/venv/bin/activate
 
-2. ml AFNI/25.1.01-foss-2023a         ← from $ENV_COMMANDS (modules.environ)
+2. ml AFNI/24.3.06-foss-2023a         ← from $ENV_COMMANDS (modules named in the task's environ)
 
-3. export PREFIX='sub-'               ← from $GLOBAL_ENV_VARS
-   export TEMPLATE_DIR='...'
+3. export PYTHONNOUSERSITE=1          ← Python isolation, re-applied after the environment setup
+   unset PYTHONPATH
+
+4. export SUBJECT_ID='001'            ← computed at runtime from the array index
+   export INPUT_DIR=... OUTPUT_DIR=... WORK_DIR=... DB_PATH=... SESSION=...
+   export LOG_PATH="{work_dir}/log/{task}/sub-{subject}/{task}_{job_id}_{array_task_id}_{timestamp}.log"
+
+5. export CONTAINER_DIR='...'         ← from $GLOBAL_ENV_VARS
+   export PREFIX='sub-'
    ...
 
-4. export REMOVE_TRS='4'              ← from $TASK_PARAMS
+6. export REMOVE_TRS='2'              ← from $TASK_PARAMS
    export BLUR_SIZE='4.0'
    ...
-
-5. export SUBJECT_ID='001'            ← computed at runtime from array index
-   export SLURM_ARRAY_TASK_ID=...
-   export LOG_PATH="{work_dir}/log/{task}/sub-{subject}/{task}_{job_id}_{array_task_id}_{timestamp}.log"
 ```
 
-After sourcing the env file, `wrapper_functions.sh` calls the analysis script:
+After sourcing the env file, `wrapper_functions.sh` calls the analysis script, appending its output to `$LOG_PATH` (a `.py` script is run with `python` instead of `bash`):
 
 ```bash
-bash "/abs/path/to/scripts/branch/afni_flanker_preprocess.sh" "$SUBJECT_ID"
+bash "/abs/path/to/scripts/afni_cards_preprocessing.sh" "$SUBJECT_ID"
 ```
 
 The script receives the subject ID as `$1`; everything else comes through the environment.
@@ -192,12 +202,12 @@ The script receives the subject ID as `$1`; everything else comes through the en
 The logging functions (`log_start`, `log_end`, `log_command_output`) are **not imported as a Python library** on compute nodes. `wrapper_functions.sh` calls them as CLI commands:
 
 ```bash
-python -m neuromaestro.pipeline.utils.job_db log_start \
-    "$SUBJECT_ID" "$TASK_NAME" --session "$SESSION" \
-    --job-id "$SLURM_JOB_ID" --db-path "$DB_PATH"
+python3 "$SCRIPT_DIR/utils/job_db.py" log_start \
+    "$subject" "$task_name" --log-file-path "$LOG_PATH" \
+    --job-id "$full_job_id" --session "$SESSION" --db-path "$DB_PATH"
 ```
 
-This means the compute node must have Python and the `neuromaestro` package available — which is why `$GLOBAL_PYTHON_COMMANDS` (the `module load` + `activate` block) is sourced first. The `$DB_PATH` variable carries the SQLite path, but `log_start` and `log_end` **only write JSONL files** at that location — they never open or write to the SQLite database directly.
+`$full_job_id` is `{array_job_id}_{array_task_id}` for an array task and the plain job ID otherwise. This means the compute node must reach the installed package directory and run a Python that can import the package's dependencies (such as `typer`), which is why `$GLOBAL_PYTHON_COMMANDS` (the `module load` + `activate` block) is sourced first. The `$DB_PATH` variable carries the SQLite path, but `log_start` and `log_end` **only write JSONL files** next to it (under `json/`). They never open or write to the SQLite database directly.
 
 ---
 
@@ -211,14 +221,14 @@ sbatch \
   --nodes=1 \
   --ntasks=1 \
   --cpus-per-task=16 \
-  --mem=64G \
-  --time=48:00:00 \
-  --job-name=afni_flanker_preprocess \
-  --output={work_dir}/log/flanker_preprocess/flanker_preprocess_%A-%a.out \
-  --error={work_dir}/log/flanker_preprocess/flanker_preprocess_%A-%a.err \
+  --time=20:00:00 \
+  --job-name=afni_cards_preprocessing \
+  --output={work_dir}/log/cards_preprocess/cards_preprocess_%A-%a.out \
+  --error={work_dir}/log/cards_preprocess/cards_preprocess_%A-%a.err \
+  --mem=32gb \
   --array=1-50%15 \
   --dependency=afterany:12345 \
-  {work_dir}/log/wrapper/afni_flanker_preprocess_20250101_120000_wrapper.sh
+  {work_dir}/log/wrapper/afni_cards_preprocessing_1735732800_wrapper.sh
 ```
 
 Key details:
@@ -230,7 +240,7 @@ Key details:
 
 ### Non-array jobs
 
-Tasks with `array: false` (e.g. `mriqc_post`, `recon`) submit a **single job** for all subjects. The log filenames use `%A.out` (no `%a`). The wrapper iterates over subjects internally.
+Tasks without `array: true` (e.g. `unzip`, `mriqc_post`, and the staged post tasks) submit a **single job** for all subjects. The log filenames use `%A.out` (no `%a`). The wrapper does not loop over subjects: it runs the script once, with the first subject as `$1` and the full list in `$SUBJECTS`, so a non-array script handles all subjects itself.
 
 ### Dependency chaining
 

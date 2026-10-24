@@ -11,7 +11,7 @@ CLI flags: `--bids-prep [rest|dwi]`, `--bids-post [rest|dwi]`
 A BIDS pipeline is any two-step, containerized workflow that operates directly on BIDS-formatted data. The two steps map cleanly onto a preprocessing → postprocessing structure:
 
 - **`--bids-prep`** runs the primary preprocessing container (e.g. fMRIPrep, QSIPrep). This step is computationally heavy and produces minimally preprocessed outputs.
-- **`--bids-post`** runs a downstream analysis container on those outputs (e.g. XCP-D for functional connectivity, QSIRecon for tractography). It automatically waits for `--bids-prep` to finish.
+- **`--bids-post`** runs a downstream analysis container on those outputs (e.g. XCP-D for functional connectivity, QSIRecon for tractography). When `--bids-prep` is in the same command, it automatically waits for it to finish and reads its outputs.
 
 The two built-in examples follow this pattern:
 
@@ -29,7 +29,7 @@ Both steps run as SLURM array jobs (one job per subject) and are independent of 
      +-- [dwi_preprocess]   →  [dwi_post]
 ```
 
-You can run prep and post together or separately, and combine multiple modalities in one command:
+You can run prep and post together or separately, and combine multiple modalities in one command. A post step run without its prep step in the same command has no dependency and reads `--input`, so `--input` must then point at the prep step's output (see the usage examples below):
 
 ```bash
 neuromaestro run ... --bids-prep rest,dwi --bids-post rest,dwi
@@ -69,7 +69,7 @@ tasks:
 **Tool:** XCP-D (Singularity)  
 **SLURM profile:** `standard_short` (32 GB, 8 h) — array job  
 **Script:** `xcpd_rs.sh`  
-**Depends on:** `rest_preprocess`  
+**Depends on:** `rest_preprocess` (when requested in the same command)  
 **Input:** `{output}/BIDS_derivatives/fmriprep/`  
 **Output:** `{output}/BIDS_derivatives/xcpd/`
 
@@ -102,8 +102,8 @@ neuromaestro run \
   --bids-prep rest \
   --bids-post rest
 
-# XCP-D only (fMRIPrep already complete)
-neuromaestro run ... --bids-post rest
+# XCP-D only (fMRIPrep already complete): --input must point at the fMRIPrep output
+neuromaestro run ... --input /data/processed/my_study/BIDS_derivatives/fmriprep --bids-post rest
 ```
 
 ---
@@ -122,7 +122,15 @@ neuromaestro run ... --bids-post rest
 **Output:** `{output}/BIDS_derivatives/qsiprep/`
 
 **Config entry:**
-
+```yaml
+tasks:
+  dwi_preprocess:
+    template: "MNI152NLin2009cAsym"
+    container: "qsiprep-1.0.0.sif"
+    license: "license.txt"
+    output_resolution: 2.0
+    unringing_method: "mrdegibbs"
+```
 
 ### dwi_post
 
@@ -131,13 +139,18 @@ neuromaestro run ... --bids-post rest
 **Tool:** QSIRecon (Singularity)  
 **SLURM profile:** `standard` (32 GB, 20 h) — array job  
 **Script:** `qsirecon.sh`  
-**Depends on:** `dwi_preprocess`  
+**Depends on:** `dwi_preprocess` (when requested in the same command)  
 **Input:** `{output}/BIDS_derivatives/qsiprep/`  
 **Output:** `{output}/BIDS_derivatives/qsirecon/`
 
 **Config entry:**
 ```yaml
-
+tasks:
+  dwi_post:
+    container: "qsirecon-1.2.0.sif"
+    mode: "dsi_studio_autotrack"
+    license: "license.txt"
+    atlases: "Gordon333Ext"
 ```
 
 ### Usage
@@ -157,8 +170,8 @@ neuromaestro run \
 # Preprocessing only
 neuromaestro run ... --bids-prep dwi
 
-# QSIRecon only (QSIPrep already complete)
-neuromaestro run ... --bids-post dwi
+# QSIRecon only (QSIPrep already complete): --input must point at the QSIPrep output
+neuromaestro run ... --input /data/processed/my_study/BIDS_derivatives/qsiprep --bids-post dwi
 ```
 
 ---

@@ -19,14 +19,14 @@ Intermed tasks perform intermediate MRI processing steps (e.g. structural normal
 
 ## volume
 
-**What it does:** Skull stripping and nonlinear registration to template using AFNI's `@SSwarper`. Produces anatomical warp files used by downstream AFNI task fMRI pipelines.
+**What it does:** Skull stripping and nonlinear registration to template using AFNI's `sswarper2`. Produces anatomical warp files used by downstream AFNI task fMRI pipelines.
 
-**Tool:** AFNI (`@SSwarper`, `3dQwarp`)  
+**Tool:** AFNI (`sswarper2`)  
 **SLURM profile:** `standard_short` (32 GB, 8 h) — array job  
 **Script:** `sswarp_scratch.sh`  
 **Depends on:** `recon`  
 **Input:** `{output}/BIDS/sub-{subject}/ses-{session}/anat/`  
-**Output:** `{output}/AFNI_derivatives/sub-{subject}/`
+**Output:** `{output}/AFNI_derivatives/{prefix}{subject}/ses-{session}/sswarp2/T1_results/`
 
 **Config entry:**
 ```yaml
@@ -64,20 +64,20 @@ Any task defined under the `intermed:` section of `config.yaml` can be requested
 2. Register in `config.yaml` under `intermed:`:
    ```yaml
    intermed:
-     - name: bfc
+     - name: my_intermed
        profile: standard_short
        array: true
        input_from: recon
-       scripts: [bias_field_correction.sh]
+       scripts: [my_intermed.sh]
        output_pattern: "{base_output}/AFNI_derivatives"
    ```
 3. Add task parameters in your project config:
    ```yaml
    tasks:
-     bfc:
+     my_intermed:
        environ: ["afni_24.3.06"]
    ```
-4. Run: `neuromaestro run ... --intermed volume,bfc`
+4. Run: `neuromaestro run ... --intermed volume,my_intermed`
 
 ## Usage
 
@@ -100,5 +100,5 @@ neuromaestro run ... --intermed volume,bfc --staged-prep cards,kidvid
 ```
 
 :::{note}
-When multiple intermed tasks are requested, staged pipelines (`--staged-prep`) wait for **all** of them before submitting. The SLURM dependency becomes `--dependency=afterany:{volume_job}:{bfc_job}`.
+When multiple intermed tasks are requested, staged pipelines (`--staged-prep`) wait for **all** of them before starting. The SLURM dependency becomes `--dependency=afterany:{volume_job}:{bfc_job}`.
 :::

@@ -17,18 +17,20 @@ neuromaestro run [flags]
       │
       ▼
  1. Parse flags; validate --input directory exists
- 2. Adjust paths: work_dir → work_dir/project, output_dir → output_dir/project
+ 2. Adjust paths: work_dir → work_dir/project, output_dir → output_dir/project, and create both
  3. Load project config  (config/project_config/{project}_config.yaml)
  4. [--skip-preflight?] PreflightChecker.run_all() → validate schema + task/module references
-      └─ any ERROR → exit (no files written yet)
+      └─ any ERROR → exit (only the step 2 directories exist so far)
  5. TaskRegistry.expand_tasks() → flat list of concrete task names
- 6. [--bids-prep or --mriqc individual|all, unless --skip-bids-validation]
+ 6. [--bids-prep or --mriqc individual|all, no --prep, unless --skip-bids-validation]
       └─ run BIDS validator on input_dir
+    Parse --subjects → exit on an invalid ID, or (unless --skip-bids-validation) on an ID with no {prefix}{id} entry in input_dir
  7. Resolve db_path (expand $WORK_DIR in project config database.db_path)
  8. Create database directory
  9. log_pipeline_execution() → write pipeline_start event to JSONL → return execution_id
 10. [--resume] load per-project checks config → initialise OutputChecker
 11. DAGExecutor.build_dag() → apply four dependency rules → topological sort → execution_order
+      ├─ [not --dry-run] check that every task script exists in scripts_dir
       └─ print execution plan to terminal
 12. For each task in execution_order:
       a. Collect upstream job IDs for --dependency chaining
@@ -42,7 +44,7 @@ neuromaestro run [flags]
 
 Key points:
 
-- Steps 4–6 all run **before** any database or JSONL files are touched. A preflight failure exits cleanly with no side effects.
+- Steps 4–6 all run **before** any database or JSONL files are touched. A preflight failure exits without side effects beyond the work and output directories created in step 2.
 - `pipeline_start` (step 9) is written to **JSONL only — not directly to SQLite**. SQLite gets it later via `neuromaestro merge-logs`. See [Logging System & Resume](logging-resume.md#jsonl-vs-sqlite).
 - The execution plan (step 11) is built and printed **before** the first job is submitted, so you can verify dependencies before anything hits the cluster.
 
@@ -59,7 +61,7 @@ merged_config = global_task_config.copy()
 merged_config.update(project_task_overrides)   # project values win
 ```
 
-Any field in the global config can be overridden per project. For example:
+Any field in the global config can be overridden per project, with the two exceptions noted below. For example:
 
 ```yaml
 # config/config.yaml
@@ -77,7 +79,9 @@ tasks:
 
 The merged result used at submission time: `{name: "volume", profile: "heavy_long", blur_size: 6.0}`.
 
-Fields absent from the project override are inherited unchanged from the global config. The DAG builder calls this merge once per task when registering nodes, so the same merged config drives both dependency resolution and wrapper generation.
+Fields absent from the project override are inherited unchanged from the global config. The DAG builder calls this merge once per task when registering nodes, and the merged config is what the node carries into dependency resolution and wrapper generation.
+
+Two lookups still read `config.yaml` directly. `_apply_section_dependencies` takes each task's `stage` from the global config, and the `input_from` substitution in `submit_slurm_job()` takes the upstream task's `output_pattern` from the global config. A project override of `stage`, or of an upstream task's `output_pattern`, therefore does not change the post-to-prep wiring or the downstream `$INPUT_DIR`, while the upstream task itself writes to the overridden path. Preflight also checks only the `profile` values in `config.yaml`, so an overridden `profile` that does not exist fails at submission.
 
 ---
 
@@ -112,7 +116,7 @@ Four private methods are called in sequence to populate each node's `dependencie
 | `_apply_intermed_dependencies` | All requested intermed tasks become dependencies of staged prep tasks (`multi_stage: true` + `stage: prep`) |
 | `_apply_section_dependencies` | Within each `config.yaml` section, `stage: post` tasks depend on all `stage: prep` tasks in the same section |
 
-`multi_stage: true` is the flag that distinguishes staged pipelines from BIDS pipelines. `_apply_recon_dependencies` explicitly skips `multi_stage` tasks so they are not wired directly to `recon` — they wait for intermed instead (rule 3). If no intermed was requested, `_apply_intermed_dependencies` returns early (the intermed set is empty), so staged tasks have no upstream dependency and run in parallel with recon.
+`multi_stage: true` is the flag that distinguishes staged pipelines from BIDS pipelines. `_apply_recon_dependencies` explicitly skips `multi_stage` tasks so they are not wired directly to `recon`: they wait for intermed instead (rule 3). If no intermed was requested, `_apply_intermed_dependencies` returns early (the intermed set is empty), so staged tasks have no upstream dependency and run in parallel with recon. Users should omit `--intermed` only when the BIDS data and the intermed outputs already exist from an earlier run.
 
 ### Step 4: Topological sort (Kahn's algorithm)
 
