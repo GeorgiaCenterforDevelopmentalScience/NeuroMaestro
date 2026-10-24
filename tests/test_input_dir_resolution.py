@@ -17,7 +17,7 @@ HPC_CONFIG_PATH      = "neuromaestro.pipeline.utils.hpc_utils.hpc_config"
 
 
 def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
-                input_dir=None, output_dir=None):
+                input_dir=None, output_dir=None, project_tasks=None):
     # Use tmp_path-based defaults so mkdir never touches a system path
     if input_dir is None:
         input_dir = str(tmp_path / "raw")
@@ -25,6 +25,8 @@ def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
         output_dir = str(tmp_path / "output")
 
     project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
+    if project_tasks:
+        project_config["tasks"] = {**MOCK_PROJECT_CONFIG["tasks"], **project_tasks}
     with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), \
          patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
         from neuromaestro.pipeline.utils.hpc_utils import submit_slurm_job
@@ -128,3 +130,15 @@ class TestActualInputDirResolution:
             output_dir=output_dir,
         )
         assert f"export INPUT_DIR='{input_dir}'" in content
+
+    def test_upstream_output_pattern_overridden_in_project_config_is_followed(self, tmp_path, scripts_dir):
+        """recon writes to the overridden folder, so rest_preprocess must read from there too"""
+        output_dir = str(tmp_path / "output")
+        content, _ = _run_submit(
+            tmp_path, scripts_dir,
+            task_config=self.REST_TASK,
+            requested_tasks=["recon", "rest_preprocess"],
+            output_dir=output_dir,
+            project_tasks={"recon": {"output_pattern": "{base_output}/rawdata"}},
+        )
+        assert f"export INPUT_DIR='{output_dir}/rawdata'" in content

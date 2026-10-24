@@ -516,8 +516,9 @@ def submit_slurm_job(
     if task_config and 'input_from' in task_config:
         input_from = task_config['input_from']
         if requested_tasks and input_from in requested_tasks:
-            from .config_utils import find_task_config_by_name
-            upstream_config = find_task_config_by_name(input_from)
+            from .config_utils import find_task_config_by_name_with_project
+            # merged, so an output_pattern overridden in the project config is where upstream actually writes
+            upstream_config = find_task_config_by_name_with_project(input_from, project_config)
             if upstream_config and 'output_pattern' in upstream_config:
                 actual_input_dir = upstream_config['output_pattern'].format(base_output=output_dir)
 

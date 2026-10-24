@@ -61,7 +61,7 @@ merged_config = global_task_config.copy()
 merged_config.update(project_task_overrides)   # project values win
 ```
 
-Any field in the global config can be overridden per project, with the two exceptions noted below. For example:
+Any field in the global config can be overridden per project. For example:
 
 ```yaml
 # config/config.yaml
@@ -81,7 +81,7 @@ The merged result used at submission time: `{name: "volume", profile: "heavy_lon
 
 Fields absent from the project override are inherited unchanged from the global config. The DAG builder calls this merge once per task when registering nodes, and the merged config is what the node carries into dependency resolution and wrapper generation.
 
-Two lookups still read `config.yaml` directly. `_apply_section_dependencies` takes each task's `stage` from the global config, and the `input_from` substitution in `submit_slurm_job()` takes the upstream task's `output_pattern` from the global config. A project override of `stage`, or of an upstream task's `output_pattern`, therefore does not change the post-to-prep wiring or the downstream `$INPUT_DIR`, while the upstream task itself writes to the overridden path. Preflight also checks only the `profile` values in `config.yaml`, so an overridden `profile` that does not exist fails at submission.
+The same merge applies where one task's config affects another: `_apply_section_dependencies` reads `stage` from each node's merged config, and the `input_from` substitution in `submit_slurm_job()` reads the upstream task's merged `output_pattern`. Overriding either in the project config therefore moves the post-to-prep wiring or the downstream `$INPUT_DIR` along with it. Preflight also checks only the `profile` values in `config.yaml`, so an overridden `profile` that does not exist fails at submission.
 
 ---
 

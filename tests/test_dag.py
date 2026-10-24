@@ -185,6 +185,16 @@ class TestSectionDependencies:
         executor, _ = build(["mriqc_post"])
         assert "mriqc_preprocess" not in deps(executor, "mriqc_post")
 
+    def test_stage_overridden_in_project_config_drives_the_wiring(self):
+        # the section rule used to read stage from config.yaml only
+        project = {**MOCK_PROJECT_CONFIG, "tasks": {**MOCK_PROJECT_CONFIG["tasks"],
+                                                    "rest_post": {"stage": "prep"}}}
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            executor = make_executor()
+            executor.project_config = project
+            executor.build_dag(["rest_preprocess", "rest_post"])
+        assert deps(executor, "rest_post") == set()
+
 
 # ===========================================================================
 # Rule 5: without intermed, staged prep waits for recon
