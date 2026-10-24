@@ -451,6 +451,8 @@ def build_dag_elements(prep_option, intermed_value, bids_prep, bids_post,
         nid_prep = f'bids_prep_{p}'
         if p in (bids_prep or []):
             edge(nid_prep, nid_post, 'bids')
+        elif has_recon:
+            edge('recon', nid_post, 'bids')
 
     for p in (staged_prep or []):
         nid = f'staged_prep_{p}'

@@ -109,6 +109,13 @@ class TestBIDSPipelines:
         )
         assert ("bids_prep_rest", "bids_post_rest") not in edge_pairs(elements)
 
+    def test_bids_post_waits_for_recon_when_prep_not_selected(self):
+        # the CLI DAG wires recon to every non-staged task, prep selected or not
+        elements = build_dag_elements(
+            "recon", [], [], ["rest"], [], [], "none"
+        )
+        assert edge_pairs(elements) == {("recon", "bids_post_rest")}
+
 
 class TestStagedPipelines:
 
