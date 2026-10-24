@@ -333,6 +333,7 @@ class TestReportHtml:
             sessions_data=[sess_data],
             project_name=project_name,
             session=session,
+            project_config=overrides.pop("project_config", None),
         )
 
     def test_renders_without_data(self):
@@ -379,6 +380,28 @@ class TestReportHtml:
                 all_tasks=["mriqc_post"],
             )
         assert self._cells(html) == ["fail", "fail"]
+
+    def test_project_override_to_one_job_fills_every_subject_cell(self):
+        job_status = [{"subject": "001", "task_name": "recon", "status": "FAILED"}]
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            html = self._minimal_html(
+                job_status=job_status,
+                all_subjects=["001", "002"],
+                all_tasks=["recon"],
+                project_config={"tasks": {"recon": {"array": False}}},
+            )
+        assert self._cells(html) == ["fail", "fail"]
+
+    def test_unregistered_task_is_not_spread_across_subjects(self):
+        # as in the task summary, only a task declared in config.yaml counts as a group task
+        job_status = [{"subject": "001", "task_name": "custom", "status": "FAILED"}]
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            html = self._minimal_html(
+                job_status=job_status,
+                all_subjects=["001", "002"],
+                all_tasks=["custom"],
+            )
+        assert self._cells(html) == ["fail", "notrun"]
 
     def test_history_section_hidden_for_single_run(self):
         single_run = [{"label": "2026-01-01", "tasks": "recon", "jobs": []}]

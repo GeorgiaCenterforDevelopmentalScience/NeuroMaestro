@@ -9,7 +9,7 @@ from typing import Optional
 import pandas as pd
 
 from .report_html import render_html
-from .config_utils import get_all_task_names, find_task_config_by_name
+from .config_utils import get_all_task_names, is_group_task, load_project_config
 
 
 def _rows(conn: sqlite3.Connection, sql: str, params=()):
@@ -156,7 +156,7 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
     }
 
 
-def compute_task_summary(job_status: list, all_subjects: list) -> list:
+def compute_task_summary(job_status: list, all_subjects: list, project_config: Optional[dict] = None) -> list:
     df = (pd.DataFrame(job_status)
           if job_status
           else pd.DataFrame(columns=['subject', 'task_name', 'status', 'duration_hours', 'start_time']))
@@ -176,15 +176,11 @@ def compute_task_summary(job_status: list, all_subjects: list) -> list:
         n_ok   = int((tdf['status'] == 'SUCCESS').sum())
         n_fail = int((tdf['status'] == 'FAILED').sum())
 
-        # Group/aggregate tasks (no `array` flag in config) run as a single job,
-        # so their denominator is the job count, not the subject count. Group
-        # scope must be declared: an unregistered task falls back to per-subject,
-        # otherwise its not_run count would silently collapse to zero.
-        cfg = find_task_config_by_name(task)
-        if cfg is None or cfg.get('array'):
-            total = n_subjects
-        else:
+        # A group task runs as one job, so its denominator is the job count, not the subject count.
+        if is_group_task(task, project_config):
             total = len(tdf) if len(tdf) else 1
+        else:
+            total = n_subjects
         n_none = total - len(tdf)
 
         durs = tdf[tdf['status'] == 'SUCCESS']['duration_hours'].dropna()
@@ -285,6 +281,7 @@ def _build_sessions_data(
     all_runs: list,
     check_df=None,
     wrapper_scripts: Optional[list] = None,
+    project_config: Optional[dict] = None,
 ) -> list:
     raw_sessions = sorted(set(j['session'] for j in job_status if j.get('session')))
     if not raw_sessions:
@@ -318,7 +315,7 @@ def _build_sessions_data(
             set(j['subject'] for j in sess_jobs if j.get('subject')),
             key=lambda x: x.lower(),
         )
-        task_summary = compute_task_summary(sess_jobs, subj_in_sess)
+        task_summary = compute_task_summary(sess_jobs, subj_in_sess, project_config)
         sessions_data.append({
             'session':        sess,
             'task_summary':   task_summary,
@@ -367,9 +364,16 @@ def generate_report(
     )
     print(f"  Loaded check-results: {len(check_df)} rows")
 
+    try:
+        project_config = load_project_config(project_name)
+    except (FileNotFoundError, RuntimeError):
+        # the database may hold a project whose config is not in this config dir
+        project_config = None
+
     sessions_data = _build_sessions_data(
         data['job_status'], data['failed_jobs'], data['all_runs'],
         check_df=check_df, wrapper_scripts=data['wrapper_scripts'],
+        project_config=project_config,
     )
 
     html_content = render_html(
@@ -377,6 +381,7 @@ def generate_report(
         sessions_data=sessions_data,
         project_name=project_name,
         session=session,
+        project_config=project_config,
     )
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')

@@ -543,6 +543,62 @@ class TestGenerateReport:
         assert Path(out).name.startswith("pipeline_report_proj_")
         assert Path(out).exists()
 
+    def test_passes_the_project_config_to_the_report(self, tmp_path):
+        db_path = _make_db(tmp_path)
+        csv_path = self._make_check_csv(tmp_path)
+        project_config = {"tasks": {"volume": {"array": False}}}
+        with patch(TASK_ORDER_PATH, _mock_task_order), \
+             patch("neuromaestro.pipeline.utils.config_utils.config", MOCK_CONFIG), \
+             patch("neuromaestro.pipeline.utils.report_generator.load_project_config",
+                   return_value=project_config) as load, \
+             patch("neuromaestro.pipeline.utils.report_generator.render_html",
+                   return_value="<html>mock</html>") as render:
+            generate_report(db_path=db_path, project_name="proj",
+                            check_results_path=csv_path, session="01")
+        load.assert_called_once_with("proj")
+        assert render.call_args.kwargs["project_config"] is project_config
+        summary = render.call_args.kwargs["sessions_data"][0]["task_summary"]
+        volume = next(r for r in summary if r["task"] == "volume")
+        # one job for three subjects, as submitted, not two subjects "not run"
+        assert (volume["total"], volume["not_run"]) == (1, 0)
+
+    def test_missing_project_config_falls_back_to_config_yaml(self, tmp_path):
+        db_path = _make_db(tmp_path)
+        csv_path = self._make_check_csv(tmp_path)
+        with patch(TASK_ORDER_PATH, _mock_task_order), \
+             patch("neuromaestro.pipeline.utils.report_generator.load_project_config",
+                   side_effect=FileNotFoundError("Config not found")), \
+             patch("neuromaestro.pipeline.utils.report_generator.render_html",
+                   return_value="<html>mock</html>") as render:
+            generate_report(db_path=db_path, project_name="proj",
+                            check_results_path=csv_path, session="01")
+        assert render.call_args.kwargs["project_config"] is None
+
+
+# ---------------------------------------------------------------------------
+# Group tasks: one job, counted per job rather than per subject
+# ---------------------------------------------------------------------------
+
+class TestGroupTaskAccounting:
+
+    CONFIG_PATH = "neuromaestro.pipeline.utils.config_utils.config"
+    SUBJECTS = ["001", "002", "003"]
+    JOB_STATUS = [{"subject": "001", "task_name": "recon", "status": "SUCCESS",
+                   "duration_hours": 1.0, "start_time": "2024-01-01"}]
+
+    def _recon(self, project_config=None):
+        with patch(self.CONFIG_PATH, MOCK_CONFIG):
+            summary = compute_task_summary(self.JOB_STATUS, self.SUBJECTS, project_config)
+        recon = next(r for r in summary if r["task"] == "recon")
+        return recon["total"], recon["not_run"]
+
+    def test_array_task_is_counted_per_subject(self):
+        assert self._recon() == (3, 2)
+
+    def test_project_override_to_one_job_is_counted_per_job(self):
+        # submission honours the override, so the report must too
+        assert self._recon({"tasks": {"recon": {"array": False}}}) == (1, 0)
+
 
 # ---------------------------------------------------------------------------
 # Regression: task order was resolved at import time

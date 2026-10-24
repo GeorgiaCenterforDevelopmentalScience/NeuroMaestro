@@ -146,6 +146,13 @@ def find_task_config_by_name_with_project(task_name: str, project_config: dict =
     return global_task_config
 
 
+def is_group_task(task_name: str, project_config: dict = None) -> bool:
+    """True for a task registered in config.yaml that is submitted as one job rather than an array."""
+    if find_task_config_by_name(task_name) is None:
+        return False
+    return not find_task_config_by_name_with_project(task_name, project_config).get('array')
+
+
 def get_intermed_task_names() -> List[str]:
     """Return task names from the intermed section of config.yaml."""
     return [t['name'] for t in config.get('intermed', []) if isinstance(t, dict) and 'name' in t]

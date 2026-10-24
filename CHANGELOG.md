@@ -26,6 +26,7 @@ First stable release. The public API, the CLI, and the YAML configuration schema
 - PBS and Torque array jobs ran the first subject in every subtask, since only SLURM's array variables were read.
 - A run whose execution record could not be written lost every job from the database: the wrapper passed an empty `--execution-id`, which `job_db.py` rejected.
 - The report listed failures already fixed by a rerun, next to another attempt's output.
+- The report took whether a task runs per subject or as one job from `config.yaml` alone, so a task the project config switched to a single job (`array: false`) showed every subject but one as not run. It now reads the project config of the reported project when the config directory holds it. The status table also no longer spreads the result of a task missing from `config.yaml` across all subjects, matching the task summary.
 - Each job left its environment file in the node's `/tmp`.
 - Each job's environment file had a guessable name in the shared `/tmp`, so another user on the node could plant a file the job then sourced. It is now made by `mktemp` with mode 0600 under `$TMPDIR` when set, and the job stops if it cannot be written.
 - Values written to the environment file, such as the subject ID and the input and output paths, were expanded a second time when it was sourced, so `$`, backticks and quotes in them were interpreted. They are now passed verbatim.

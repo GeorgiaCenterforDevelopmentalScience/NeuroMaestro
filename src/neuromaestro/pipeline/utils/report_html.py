@@ -8,7 +8,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .config_utils import find_task_config_by_name
+from .config_utils import is_group_task
 
 
 def _e(text) -> str:
@@ -186,7 +186,8 @@ def _section_task_summary(summary: list) -> str:
     )
 
 
-def _section_status_matrix(job_status: list, all_subjects: list, all_tasks: list) -> str:
+def _section_status_matrix(job_status: list, all_subjects: list, all_tasks: list,
+                           project_config: Optional[dict] = None) -> str:
     if not all_subjects or not all_tasks:
         return '<p class="empty">No data.</p>'
 
@@ -198,7 +199,7 @@ def _section_status_matrix(job_status: list, all_subjects: list, all_tasks: list
     group_status = {}
     for j in job_status:
         task = j['task_name']
-        if (find_task_config_by_name(task) or {}).get('array'):
+        if not is_group_task(task, project_config):
             continue
         st = j.get('status', '')
         if group_status.get(task) != 'FAILED':
@@ -489,6 +490,7 @@ def render_html(
     sessions_data: list,
     project_name: str,
     session: Optional[str],
+    project_config: Optional[dict] = None,
 ) -> str:
     generated = datetime.now().strftime('%Y-%m-%d %H:%M')
     last_exec = str(metadata.get('execution_time', '') or '')[:16]
@@ -554,7 +556,7 @@ def render_html(
     <h3>Task Completion</h3>
     {_section_task_summary(sd["task_summary"])}
     <h3>Subject × Task Status</h3>
-    {_section_status_matrix(sd["job_status"], sd["all_subjects"], sd["all_tasks"])}
+    {_section_status_matrix(sd["job_status"], sd["all_subjects"], sd["all_tasks"], project_config)}
     {history_html}
     <h3>Failed Jobs</h3>
     {_section_failed_jobs(sd["failed_jobs"])}
