@@ -16,6 +16,10 @@ Most users only need this file when adding a new pipeline section (e.g. a new ta
 
 Tasks are organized into top-level sections. Each section name is the **pipeline identifier** used in CLI flags.
 
+`{base_output}` in `output_pattern` is the `run --output` directory with the project name appended (e.g. `/data/processed/my_study`). It is the only placeholder `output_pattern` accepts.
+
+The excerpt below shows the main sections. The bundled `config.yaml` also defines further staged sections (`ica_task`, `ica_rest`, `emomatching`, `stopsignal`, `workingmemory`) laid out like `cards`.
+
 ```yaml
 # Preparation (--prep)
 prep:
@@ -33,7 +37,7 @@ prep:
 
 # Intermed step (--intermed volume / --intermed volume,bfc)
 # All listed tasks run in parallel after recon.
-# Every staged pipeline waits for ALL intermed tasks to finish.
+# Every staged prep task waits for ALL requested intermed tasks to finish.
 intermed:
   - name: volume
     profile: standard_short
@@ -46,8 +50,8 @@ intermed:
     profile: standard_short
     array: true
     input_from: recon
-    scripts: [bfc_scratch.sh]
-    output_pattern: "{base_output}/AFNI_derivatives"
+    scripts: [sdcflows.sh]
+    output_pattern: "{base_output}/BIDS_derivatives/sdcflows"
 
 # BIDS-native pipelines (--bids-prep rest / --bids-post rest)
 rest:
@@ -86,7 +90,7 @@ dwi:
     output_pattern: "{base_output}/BIDS_derivatives/qsirecon"
 
 # Staged pipelines (--staged-prep cards / --staged-post cards)
-# multi_stage: true → depends on volume (intermed) when --intermed is used
+# multi_stage: true → the prep task depends on all requested intermed tasks when --intermed is used
 cards:
   - name: cards_preprocess
     stage: prep
@@ -97,13 +101,13 @@ cards:
     scripts: [afni_cards_preprocessing.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
 
-  - name: cards_post
+  - name: cards_postprocess
     stage: post
     profile: standard
     input_from: cards_preprocess
     multi_stage: true
-    scripts: [afni_cards_post.sh]
-    output_pattern: "{base_output}/post_analysis/cards"
+    scripts: [afni_cards_postprocessing.sh]
+    output_pattern: "{base_output}/postprocessing/group/cards"
 
 kidvid:
   - name: kidvid_preprocess
@@ -115,13 +119,13 @@ kidvid:
     scripts: [afni_kidvid_preprocess.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
 
-  - name: kidvid_post
+  - name: kidvid_postprocess
     stage: post
     profile: standard
     input_from: kidvid_preprocess
     multi_stage: true
-    scripts: [afni_kidvid_post.sh]
-    output_pattern: "{base_output}/post_analysis/cards"
+    scripts: [afni_kidvid_postprocessing.sh]
+    output_pattern: "{base_output}/postprocessing/group/kidvid"
 
 # Quality control (--mriqc)
 qc:
@@ -151,10 +155,10 @@ qc:
 | `profile` | **Yes** | Resource profile from `hpc_config.yaml`. Required on every task, there is no default. Tune freely, changing one only affects future submissions. |
 | `scripts` | **Yes** | Shell script filename(s) relative to `scripts_dir`. Update when swapping the underlying analysis script. |
 | `stage` | **Set at design time** | `prep` or `post` — controls intra-section dependency order. Do not change after the section is in use. |
-| `array` | **Rarely** | `true` = one SLURM array job per subject. Nearly always `true` for subject-level tasks; `false` only for group-level steps like `mriqc_post`. How many of those subjects run at once is set by `array_limit` on the task's resource profile, in [`hpc_config.yaml`](hpc-config.md). |
-| `input_from` | **Set at design time** | Name of the upstream task whose output directory becomes this task's input. Controls where the task reads data from — not the job dependency order (that is handled internally by the pipeline). |
-| `output_pattern` | **Before first run only** | Output root used by `--resume` to locate existing results. Can be set freely when first creating a task, but changing it after subjects have been processed means the pipeline can no longer find their outputs and will resubmit them. |
-| `multi_stage` | **Set at design time** | `true` = this task belongs to a staged pipeline. When any `--intermed` tasks are requested, this task waits for **all** of them to finish before starting. Without `--intermed`, it runs in parallel with `recon`. Set when first creating the section; do not toggle later. |
+| `array` | **Rarely** | `true` = one SLURM array job covering all subjects, with one array element per subject. Nearly always `true` for subject-level tasks, and `false` only for group-level steps like `mriqc_post`. How many of those subjects run at once is set by `array_limit` on the task's resource profile, in [`hpc_config.yaml`](hpc-config.md). |
+| `input_from` | **Set at design time** | Name of the upstream task whose output directory becomes this task's `$INPUT_DIR`, but only when that upstream task is requested in the same run. Otherwise `$INPUT_DIR` is the `run --input` directory. It controls where the task reads data from and adds no dependency edge (job dependency order is handled internally by the pipeline). |
+| `output_pattern` | **Before first run only** | Directory the task writes to (`$OUTPUT_DIR`), and the `$INPUT_DIR` of downstream tasks requested in the same run. `--resume` does not read it: it checks the `output_path` in your [output checks file](output-checks.md). Changing it after subjects have been processed sends new outputs to a different folder than earlier ones, so update the matching `output_path` in `{project}_checks.yaml` at the same time. Set it here rather than in the project config, since downstream tasks read the upstream `output_pattern` from `config.yaml` only. |
+| `multi_stage` | **Set at design time** | `true` = this task belongs to a staged pipeline. When any `--intermed` tasks are requested, the section's `stage: prep` task waits for **all** of them to finish before starting. Without `--intermed`, the prep task has no dependency at all and starts in parallel with `recon`. The `stage: post` task waits only for its own prep task when both are requested. Set when first creating the section. Do not toggle later. |
 
 ---
 
@@ -165,7 +169,7 @@ qc:
 | Prep/utility | `--prep` | — | `unzip`, `recon` |
 | Intermed | `--intermed volume[,bfc,...]` | `recon` | `volume`, `bfc` |
 | BIDS pipeline | `--bids-prep/post <section>` | `recon` | `rest`, `dwi` |
-| Staged pipeline | `--staged-prep/post <section>` | all intermed tasks (if `--intermed`), else `recon` | `cards`, `kidvid` |
+| Staged pipeline | `--staged-prep/post <section>` | `recon` (the prep task also waits for all intermed tasks if `--intermed`) | `cards`, `kidvid` |
 | QC | `--mriqc` | `recon` | `mriqc_preprocess`, `mriqc_post` |
 
 ---
@@ -198,9 +202,9 @@ rest_preprocess  ← depends only on recon, never on intermed
 - `volume` and `bfc` both wait for `recon`, but not for each other.
 - Every staged prep task (`multi_stage: true`, `stage: prep`) waits for **all** requested intermed tasks.
 - BIDS pipelines (`--bids-prep/post`) are unaffected; they never depend on intermed.
-- If `--intermed` is omitted entirely, staged pipelines run in parallel with `recon` (no intermed dependency at all).
+- If `--intermed` is omitted entirely, staged prep tasks start in parallel with `recon` (no dependency at all).
 
-To add a new intermed task, add an entry under `intermed:` in `config.yaml` and a matching entry under `tasks:` in your project config. It becomes available as `--intermed <name>` immediately.
+To add a new intermed task, add an entry under `intermed:` in `config.yaml` and, if the task needs parameters, a matching entry under `tasks:` in your project config. It becomes available as `--intermed <name>` immediately.
 
 ---
 

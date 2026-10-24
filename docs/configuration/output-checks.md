@@ -6,7 +6,7 @@ title: Output Checks Configuration
 
 The output checks system serves two purposes:
 
-1. **`--resume`**: before submitting each task's SLURM array job, the pipeline checks which subjects already have valid outputs and silently excludes them from the submission. Checks are scoped to the tasks you explicitly request on the command line; tasks not included in the current invocation are not evaluated, even if they are configured in the YAML or have failed previously.
+1. **`--resume`**: before submitting each task's SLURM array job, the pipeline checks which subjects already have valid outputs and excludes them from the submission, printing which subjects it skipped. Checks are scoped to the tasks you explicitly request on the command line. Tasks not included in the current invocation are not evaluated, even if they are configured in the YAML or have failed previously.
 2. **`neuromaestro check-outputs`**: a standalone command that runs the same checks on demand and saves a CSV report.
 
 Both use the same YAML configuration file.
@@ -19,21 +19,22 @@ config/results_check/{project}_checks.yaml
 
 The file is named after your project (same as your `{project}_config.yaml`). For example, project `branch` → `branch_checks.yaml`.
 
-Generate a blank template with the CLI or the GUI:
+Generate a starter template with the CLI or the GUI:
 
 ```bash
-neuromaestro generate-checks branch
+neuromaestro generate-checks branch --config-dir /data/config
 ```
 
 Or open the **Results Check Config** tab in the GUI and click **New**.
 
-After generating, edit the file to add your task checks, then save it back via the GUI **Save** button or directly on disk.
+The template holds two live example entries (`rest_preprocess` and `recon`) that take effect as written. After generating, replace them with your task checks, then save the file via the GUI **Save** button or directly on disk.
 
 If the file doesn't exist when you run `--resume`, a warning is printed and all subjects are submitted for every task:
 
 ```
-Warning: Output checks config not found: .../branch_checks.yaml
-         Create 'branch_checks.yaml' in .../results_check to enable resume.
+Warning: Output checks config not found: .../results_check/branch_checks.yaml
+Create 'branch_checks.yaml' in .../results_check to enable resume and check-outputs for this project.
+Warning: --resume requested but no checks config found. Proceeding without skipping.
 ```
 
 ## File Structure
@@ -42,6 +43,7 @@ Warning: Output checks config not found: .../branch_checks.yaml
 # Each top-level key is a task name (must match config.yaml exactly)
 task_name:
   output_path: "{work_dir}/path/to/{prefix}{subject}/ses-{session}/"
+  scope: group                # optional, only for group-level tasks (see below)
 
   # Check type 1: specific files must exist
   required_files:
@@ -60,7 +62,7 @@ Both check types are optional and can be combined freely within one task.
 
 ## Path Placeholders
 
-The `output_path` and `pattern` fields support these placeholders:
+`output_path` supports all four placeholders below. A `required_files` pattern supports `{subject}`, `{prefix}` and `{session}`. A `count_check` pattern is used as written, with no placeholder substitution, so keep subject-specific parts of the path in `output_path`.
 
 | Placeholder | Expands to | Example |
 |-------------|-----------|---------|
@@ -133,7 +135,7 @@ recon:
 
 **Logic:**
 
-- `actual` = number of files matching `output_path/pattern`
+- `actual` = number of files matching `output_path/pattern` (the pattern is not expanded, see [Path Placeholders](#path-placeholders))
 - `|actual − expected_count| ≤ tolerance` → **PASS**
 - `actual > expected_count + tolerance` → **FAIL** (`too many files`)
 - `actual < expected_count − tolerance` → **FAIL** (`too few files`)
@@ -187,13 +189,13 @@ rest_preprocess:
   output_path: "{work_dir}/BIDS_derivatives/fmriprep/"
   required_files:
     - pattern: "sub-{subject}*.html"
-      min_size_kb: 500
+      min_size_kb: 50
 
 rest_post:
   output_path: "{work_dir}/BIDS_derivatives/xcpd/sub-{subject}/ses-{session}"
   required_files:
     - pattern: "sub-{subject}*.html"
-      min_size_kb: 200
+      min_size_kb: 50
 
 # Task fMRI
 cards_preprocess:
@@ -213,28 +215,41 @@ dwi_preprocess:
   output_path: "{work_dir}/BIDS_derivatives/qsiprep"
   required_files:
     - pattern: "sub-{subject}*.html"
-      min_size_kb: 200
+      min_size_kb: 50
 
 dwi_post:
   output_path: "{work_dir}/BIDS_derivatives/qsirecon"
   required_files:
-    - pattern: "sub-{subject}*.html"
-      min_size_kb: 200
+    - pattern: "derivatives/qsirecon-*/sub-{subject}*.html"
+      min_size_kb: 50
 
 # Quality control
 mriqc_preprocess:
   output_path: "{work_dir}/quality_control/mriqc"
   required_files:
     - pattern: "sub-{subject}*.html"
-      min_size_kb: 100
+      min_size_kb: 30
 
 mriqc_post:
   output_path: "{work_dir}/quality_control/mriqc"
   required_files:
     - pattern: "group_*.html"
-      min_size_kb: 50
+      min_size_kb: 30
 ```
 :::
+
+## Group-Level Tasks: `scope: group`
+
+A task whose output is one group result rather than one result per subject (such as `mriqc_post` or a group statistics step) can set `scope: group`. Its checks then run once instead of once per subject, with `{subject}` filled in as `GROUP`, so group checks should not depend on `{subject}`. Under `--resume` the whole task is skipped when every check passes and is submitted as usual otherwise. In the `check-outputs` CSV its rows carry `GROUP` in the `subject` column.
+
+```yaml
+mriqc_post:
+  scope: group
+  output_path: "{work_dir}/quality_control/mriqc"
+  required_files:
+    - pattern: "group_*.html"
+      min_size_kb: 30
+```
 
 ## How a Subject's Status Is Determined
 
@@ -275,16 +290,16 @@ neuromaestro check-outputs \
 # Check only specific tasks
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --session 01 \
   --subjects 001,002,003 \
   --task rest_preprocess
 
-# Point to a non-default checks file
+# Read {project}_checks.yaml from a non-default directory
 neuromaestro check-outputs \
   --project my_study \
-  --work /data/work \
+  --work /data/processed/my_study \
   --config-dir /data/config \
   --session 01 \
   --subjects 001,002,003 \
@@ -319,8 +334,8 @@ Example output (3 subjects, 2 tasks):
 | task | subject | session | check_type | pattern | expected | actual | status |
 |------|---------|---------|------------|---------|----------|--------|--------|
 | rest_preprocess | 001 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 1 | PASS |
-| rest_preprocess | 002 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 0 | FAIL: file not found |
-| rest_preprocess | 003 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 1 | FAIL: file exists but too small (< 500 KB) |
+| rest_preprocess | 002 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 0 | FAIL: file not found (sub-{subject}*.html) |
+| rest_preprocess | 003 | 01 | required_files | sub-{subject}*.html | exists + ≥500 KB | 1 | FAIL: file exists but too small (< 500 KB) (sub-{subject}*.html) |
 | recon | 001 | 01 | count_check:anat | anat/*.nii.gz | 1±0 | 1 | PASS |
 | recon | 001 | 01 | count_check:fmap | fmap/*.nii.gz | 4±1 | 4 | PASS |
 | recon | 002 | 01 | count_check:anat | anat/*.nii.gz | 1±0 | 1 | PASS |
@@ -346,5 +361,5 @@ Check for a file that is always present inside the directory, e.g. a report HTML
 Run `check-outputs` and open the CSV. The `pattern` and `actual` columns show exactly what was globbed and how many files were found. Resolve the `output_path` manually on the HPC to verify the path is correct:
 
 ```bash
-ls /data/work/my_study/BIDS_derivatives/fmriprep/sub-002*.html
+ls /data/processed/my_study/BIDS_derivatives/fmriprep/sub-002*.html
 ```

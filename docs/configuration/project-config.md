@@ -15,7 +15,7 @@ A complete annotated example follows.
 # 1. branch_config.yaml — BRANCH study project configuration
 
 prefix: "sub-"               # Subject directory prefix (always "sub-" for BIDS)
-scripts_dir: "scripts/branch"  # Relative (to pipeline/) or absolute path to your scripts
+scripts_dir: "scripts/branch"  # Absolute path recommended (a relative path resolves against the launch directory)
 
 database:
   db_path: "$WORK_DIR/database/pipeline_jobs.db"
@@ -102,13 +102,37 @@ tasks:
     censor_motion: "0.3"
     censor_outliers: "0.05"
 
+  cards_postprocess:
+    environ: ["afni_24.3.06"]
+    mask_frac: "1.0"
+    conditions: ["BW", "BL", "LW", "LL", "NeutralW", "AntLongBW"]
+    master_id: "027"
+    jobs: "8"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
+
+  kidvid_postprocess:
+    environ: ["afni_24.3.06"]
+    mask_frac: "1.0"
+    contrasts: ["neg", "neut", "pos"]
+    clustsim: "20"
+    master_id: "027"
+    pthr: "0.001"
+    athr: "0.05"
+    nn: "1"
+
   dwi_preprocess:
-    environ: ["fsl_6.0.7.14"]
     container: "qsiprep-1.0.0.sif"
     license: "license.txt"
+    template: "MNI152NLin2009cAsym"
+    output_resolution: 2.0
 
   dwi_post:
-    environ: ["fsl_6.0.7.14"]
+    container: "qsirecon-1.2.0.sif"
+    license: "license.txt"
+    mode: "dsi_studio_autotrack"
+    atlases: "Gordon333Ext"
 
   mriqc_preprocess:
     container: "mriqc_24.0.2.sif"
@@ -124,25 +148,25 @@ tasks:
 Subject directory prefix. Almost always `"sub-"` for BIDS datasets.
 
 ### `scripts_dir`
-Directory where your project's shell scripts live. Two forms are accepted:
+Directory where your project's shell scripts live. Use an absolute path, e.g. the `scripts/` folder that `neuromaestro init` creates in your study directory:
 
-- **Relative path** — resolved relative to `src/neuromaestro/pipeline/`. Use this when scripts are stored inside the package (default for bundled projects):
-  ```yaml
-  scripts_dir: "scripts/branch"   # → src/neuromaestro/pipeline/scripts/branch/
-  ```
-- **Absolute path** — use this when scripts live outside the package, e.g. on a shared lab directory:
-  ```yaml
-  scripts_dir: "/scratch/cglab/projects/my_study/scripts"
-  ```
+```yaml
+scripts_dir: "/scratch/cglab/projects/my_study/scripts"
+```
 
-If the script is not found the error message shows the resolved full path so you can diagnose the problem immediately.
+A relative path such as `"scripts/branch"` is resolved against the directory you launch `neuromaestro` from, not against the config directory or the package, so it only works if you always start from the same place.
+
+If a script is not found, the error message shows the `scripts_dir` path as configured and, when that directory exists, the files it contains.
+
+### `database`
+`db_path` sets where the job database is written, and is required. The pipeline replaces the literal `$WORK_DIR` with the `run --work` directory without the project name, so the default `"$WORK_DIR/database/pipeline_jobs.db"` becomes e.g. `/data/work/database/pipeline_jobs.db`, with JSONL job logs in `/data/work/database/json/`. No other variable is expanded. Inside the job, `$WORK_DIR` is `--work` plus the project name (e.g. `/data/work/my_study`), whose `log/` folder holds the job logs and wrappers.
 
 ### `envir_dir`
 All paths become `$UPPERCASE_ENV_VARS` inside wrapper scripts:
 
 | Field | Env var | Purpose |
 |-------|---------|---------|
-| `container_dir` | `$CONTAINER_DIR` | Singularity `.sif` files |
+| `container_dir` | `$CONTAINER_DIR` | Singularity `.sif` files (required) |
 | `virtual_envir` | `$VIRTUAL_ENVIR` | Conda/venv base |
 | `template_dir` | `$TEMPLATE_DIR` | MRI templates and atlases |
 | `atlas_dir` | `$ATLAS_DIR` | Parcellation atlases |
@@ -151,7 +175,7 @@ All paths become `$UPPERCASE_ENV_VARS` inside wrapper scripts:
 | `stimulus_dir` | `$STIMULUS_DIR` | Task timing/stimulus files |
 
 ### `global_python`
-Shell commands run on the compute node before every task, used to activate the Python environment for database logging. Needs: `typer`, `pandas`, `sqlite3`.
+Shell commands run on the compute node before every task, used to activate the Python environment for database logging. The environment needs `typer`. The logging script otherwise uses only the Python standard library.
 
 ### `modules`
 Named groups of `module load` commands. Reference them by name in `tasks.<name>.environ`. This way you define module versions once and reuse them across tasks.
@@ -173,11 +197,11 @@ Common per-task fields:
 | `censor_outliers` | Outlier voxel fraction threshold |
 
 :::{important}
-**All fields are exported as `$UPPERCASE` environment variables in the wrapper script and are accessible inside your shell scripts.**
+**All fields except the structural ones listed in step 4 below are exported as `$UPPERCASE` environment variables in the wrapper script and are accessible inside your shell scripts.** List values are joined with spaces. Nested mappings are skipped with a warning.
 :::
 
 :::{note}
-The field names under `envir_dir:` and `tasks:` are not hardcoded — you can add or rename them freely. Every key you define becomes a `$UPPERCASE` variable available in your analysis scripts. The pipeline does not care what you call them; it just uppercases every key and exports it. Your scripts are responsible for using the variable names that match what you put in the config.
+Apart from `envir_dir.container_dir`, which `run` requires, the field names under `envir_dir:` and `tasks:` are not hardcoded. You can add or rename them freely, within the reserved names listed in the warning below. Every key you define becomes a `$UPPERCASE` variable available in your analysis scripts. The pipeline does not care what you call them. It just uppercases every key and exports it. Your scripts are responsible for using the variable names that match what you put in the config.
 :::
 
 ## How `tasks` and `modules` Relate
@@ -223,24 +247,28 @@ tasks:
 
 ### 2. Generated wrapper script (auto-created per submission)
 
-The pipeline writes a temporary wrapper in `$WORK_DIR/log/wrapper/` before calling `sbatch`. You normally never need to read this file; it exists for debugging and reproducibility records.
+The pipeline writes a wrapper to `{--work}/{project}/log/wrapper/` before calling `sbatch` (`--dry-run` writes it too, without submitting). The file is named after the script, e.g. `afni_cards_preprocessing_<timestamp>_wrapper.sh`. You normally never need to read it. It is kept for debugging and reproducibility records. The example below assumes `--work /work/cglab/BRANCH/work`, `--output /work/cglab/BRANCH/processed` and `--project branch`.
 
 :::{dropdown} View example wrapper script
 ```bash
 #!/bin/bash
-# Auto-generated wrapper script — cards_preprocess
-# Submission Command:
-# sbatch --partition=general ... cards_preprocess_1234567890_wrapper.sh
 
-# Standard paths (always present)
+# Auto-generated wrapper script
+# ...
+# Submission Command:
+# sbatch --partition=batch ... /work/cglab/BRANCH/work/branch/log/wrapper/afni_cards_preprocessing_1234567890_wrapper.sh
+
+# Basic paths (always present)
 export SUBJECTS='001 002 003 ...'
-export INPUT_DIR='/work/cglab/BRANCH/BIDS'
-export OUTPUT_DIR='/work/cglab/BRANCH/derivatives'
-export WORK_DIR='/work/cglab/BRANCH'
+export INPUT_DIR='/work/cglab/BRANCH/processed/branch/BIDS'
+export OUTPUT_DIR='/work/cglab/BRANCH/processed/branch/AFNI_derivatives'
+export WORK_DIR='/work/cglab/BRANCH/work/branch'
 export CONTAINER_DIR='/work/cglab/containers'
-export LOG_DIR='/work/cglab/BRANCH/log'
-export DB_PATH='/work/cglab/BRANCH/database/pipeline_jobs.db'
+export LOG_DIR='/work/cglab/BRANCH/work/branch/log'
+export DB_PATH='/work/cglab/BRANCH/work/database/pipeline_jobs.db'
 export TASK_NAME='cards_preprocess'
+export SCRIPT_DIR='/path/to/site-packages/neuromaestro/pipeline'
+export EXECUTION_ID='12'
 
 # Global Python (for database logging)
 export GLOBAL_PYTHON_COMMANDS=$(cat << "PYTHON_EOF"
@@ -257,16 +285,21 @@ ml AFNI/24.3.06-foss-2023a
 ENV_EOF
 )
 
-# envir_dir paths
+# envir_dir paths, then session, prefix and project from the run
 export GLOBAL_ENV_VARS=$(cat << "GENV_EOF"
 export CONTAINER_DIR='/work/cglab/containers'
 export TEMPLATE_DIR='/work/cglab/projects/BRANCH/all_data/for_AFNI/'
 ...
+export SESSION='01'
+export PREFIX='sub-'
+export PROJECT='branch'
 GENV_EOF
 )
 
-# Task parameters (every tasks.cards_preprocess key becomes $UPPERCASE)
+# Task parameters (config.yaml and tasks.cards_preprocess keys, minus structural fields)
 export TASK_PARAMS=$(cat << "TASK_EOF"
+export STAGE='prep'
+export MULTI_STAGE='True'
 export REMOVE_TRS='2'
 export TEMPLATE='HaskinsPeds_NL_template1.0_SSW.nii'
 export BLUR_SIZE='4.0'
@@ -277,32 +310,23 @@ TASK_EOF
 
 # Execute
 source "$SCRIPT_DIR/utils/wrapper_functions.sh"
-execute_wrapper "/path/to/scripts/branch/cards_preprocess.sh"
+execute_wrapper "/path/to/scripts/branch/afni_cards_preprocessing.sh"
 ```
 :::
 
 :::{warning}
 **Two rules for `envir_dir` and `tasks` values.**
 
-*Values are passed through literally.* They are written into the wrapper in
-single quotes, so a value containing `$VAR`, a backtick or `$(...)` reaches your
-script exactly as written rather than being expanded on the compute node. If you
-need something evaluated at run time, put it in `global_python` or `modules`
-instead: those are command lists and still expand normally.
+*Values are passed through literally.* They are written into the wrapper in single quotes, so a value containing `$VAR`, a backtick or `$(...)` reaches your script exactly as written rather than being expanded on the compute node. If you need something evaluated at run time, put it in `global_python` or `modules` instead: those are command lists and still expand normally.
 
-*A few key names are reserved.* Every key is upper-cased, so a key named `path`
-would become `export PATH=...` and leave the job unable to find any command.
-Submission fails with an error if a key maps to `PATH`, `HOME`, `SHELL`, `PWD`,
-`OLDPWD` or `IFS`. Rename it, for example to `tool_path`. Other environment
-variables are yours to set: a key named `lc_all` or `pythonpath` is accepted,
-since a task may legitimately need to override those.
+*A few key names are reserved.* Every key is upper-cased, so a key named `path` would become `export PATH=...` and leave the job unable to find any command. Submission fails with an error if a key maps to `PATH`, `HOME`, `SHELL`, `PWD`, `OLDPWD` or `IFS`, or to a variable the wrapper sets itself: `SUBJECTS`, `SUBJECT_ID`, `SUBJECTS_ARRAY`, `NUM_SUBJECTS`, `INPUT_DIR`, `OUTPUT_DIR`, `WORK_DIR`, `LOG_DIR`, `SUB_LOG_DIR`, `LOG_PATH`, `DB_PATH`, `TASK_NAME`, `SCRIPT_DIR`, `EXECUTION_ID` or `ENV_FILE`. Rename it, for example to `tool_path`. Under `envir_dir`, keys named `session`, `prefix` or `project` are silently replaced by the values of the current run. Other environment variables are yours to set: a key named `lc_all` or `pythonpath` is accepted, since a task may legitimately need to override those.
 :::
 
 ### 3. Your analysis script uses those variables
 
 ```bash
 #!/bin/bash
-# scripts/branch/cards_preprocess.sh
+# scripts/branch/afni_cards_preprocessing.sh (simplified)
 # The wrapper framework passes the current subject as $1.
 
 subject=$1
@@ -321,7 +345,7 @@ afni_proc.py \
 
 ### 4. Adding a custom parameter
 
-Any key you add under `tasks.<name>` that is not a reserved field (`name`, `environ`, `profile`, `array`, `container`, `input_from`) is automatically exported as `$UPPERCASE` with no code changes needed:
+Any key you add under `tasks.<name>` that is not a structural field (`name`, `scripts`, `profile`, `array`, `input_from`, `output_pattern`, `environ`) is automatically exported as `$UPPERCASE` with no code changes needed. So is `container` (as `$CONTAINER`), and so are the non-structural keys inherited from `config.yaml` (`stage`, `multi_stage`). For example:
 
 ```yaml
 tasks:
