@@ -160,7 +160,7 @@ python -m neuromaestro.pipeline.utils.job_db query_jobs \
 
 | Option | Description |
 |--------|-------------|
-| `--db-path` | Path to `pipeline_jobs.db`. Always pass it: the default is `pipeline_jobs.db` in the current directory, and a path with no database gets a new empty one, which prints `No matching records found` |
+| `--db-path` | Path to `pipeline_jobs.db`. Always pass it: the default is `pipeline_jobs.db` in the current directory. A path with no database stops with an error instead of querying an empty one |
 | `--limit` | Maximum number of records, newest first (default: 20) |
 | `--subject` | Filter by subject ID |
 | `--task-name` | Filter by task name |

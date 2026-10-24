@@ -119,6 +119,14 @@ def get_db_connection(db_path: str):
 
     return conn
 
+def _connect_existing(db_path: str):
+    """Connection for a read-only query: refuses to create the database it was pointed at."""
+    if not os.path.isfile(db_path):
+        typer.echo(f"Error: no database at {db_path}. Check --db-path, or run merge-logs first.", err=True)
+        raise typer.Exit(1)
+    return get_db_connection(db_path)
+
+
 @app.command("init_db")
 def init_db(db_path: str = "pipeline_jobs.db"):
     """Initialize database"""
@@ -406,7 +414,7 @@ def query_pipeline_executions(
     db_path: str = "pipeline_jobs.db"
 ):
     """Query pipeline execution records from database"""
-    conn = get_db_connection(db_path)
+    conn = _connect_existing(db_path)
     c = conn.cursor()
     
     query = "SELECT * FROM pipeline_executions"
@@ -529,7 +537,7 @@ def query_jobs(
     db_path: str = "pipeline_jobs.db"
 ):
     """Query job status records from database"""
-    conn = get_db_connection(db_path)
+    conn = _connect_existing(db_path)
     c = conn.cursor()
     
     query = "SELECT * FROM job_status"

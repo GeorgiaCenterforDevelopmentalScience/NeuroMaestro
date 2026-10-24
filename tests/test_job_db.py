@@ -576,6 +576,18 @@ class TestQueryOutput:
         self._insert(db, "job_status", [])
         assert self._cli("query_jobs", "--db-path", db) == ["No matching records found"]
 
+    @pytest.mark.parametrize("command", ["query_jobs", "query_pipeline_executions"])
+    def test_missing_database_is_an_error_not_a_new_empty_one(self, tmp_path, command):
+        # a typo'd --db-path used to create an empty database and report "No matching records found"
+        from typer.testing import CliRunner
+        from neuromaestro.pipeline.utils.job_db import app
+        db = tmp_path / "typo" / "jobs.db"
+        result = CliRunner().invoke(app, [command, "--db-path", str(db)])
+        assert result.exit_code == 1
+        assert result.output.splitlines() == [
+            f"Error: no database at {db}. Check --db-path, or run merge-logs first."]
+        assert not db.parent.exists()
+
     FAILED_RUN = dict(execution_id=1001, execution_time="2026-10-01T10:00:00", command_line="neuromaestro run",
                       project_name="proj_a", session="01", subjects="001,002", requested_tasks="recon",
                       dry_run=0, total_jobs=2, status="FAILED", error_msg="scheduler down")
