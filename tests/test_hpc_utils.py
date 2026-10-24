@@ -91,6 +91,42 @@ class TestGetHPCResources:
         assert resources.partition == "highmem"
         assert resources.cpus_per_task == 16
 
+    def _with_profile(self, profile, defaults=None):
+        hpc = copy.deepcopy(MOCK_HPC_CONFIG)
+        hpc["resource_profiles"]["p"] = profile
+        if defaults is not None:
+            hpc["defaults"] = defaults
+        return patch(HPC_CONFIG_PATH, hpc)
+
+    def test_memory_per_cpu_alone_is_enough(self):
+        # used to raise KeyError: 'memory'
+        with self._with_profile({"memory_per_cpu": "4gb", "time": "01:00:00"}):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources, SLURMBackend
+            resources = get_hpc_resources({"name": "t", "profile": "p"})
+        assert (resources.memory, resources.memory_per_cpu) == (None, "4gb")
+        slurm = copy.deepcopy(MOCK_HPC_CONFIG["slurm"])
+        slurm["resource_flags"]["mem_per_cpu"] = "--mem-per-cpu={value}"  # as in the shipped hpc_config.yaml
+        args = SLURMBackend(slurm).build_job_args(
+            resources=resources, array_param=None, wait_jobs=None,
+            job_name="j", log_output="o", log_error="e")
+        assert "--mem-per-cpu=4gb" in args
+        assert not any(a.startswith("--mem=") for a in args)
+
+    def test_profile_without_any_memory_names_the_missing_key(self):
+        with self._with_profile({"time": "01:00:00"}):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
+            with pytest.raises(ValueError) as exc:
+                get_hpc_resources({"name": "t", "profile": "p"})
+        assert str(exc.value) == ("Profile 'p' in hpc_config.yaml sets no memory (or memory_per_cpu). "
+                                  "Add it to the profile or to 'defaults'.")
+
+    def test_partition_missing_from_profile_and_defaults_names_the_key(self):
+        with self._with_profile({"memory": "8gb", "time": "01:00:00"},
+                                defaults={"nodes": 1, "ntasks": 1, "cpus_per_task": 4}):
+            from neuromaestro.pipeline.utils.hpc_utils import get_hpc_resources
+            with pytest.raises(ValueError, match=r"^Profile 'p' in hpc_config.yaml sets no partition\. "):
+                get_hpc_resources({"name": "t", "profile": "p"})
+
 
 # ===========================================================================
 # 2. get_environment_commands

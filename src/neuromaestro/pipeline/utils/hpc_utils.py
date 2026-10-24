@@ -382,7 +382,7 @@ class HPCResources:
     nodes: int
     ntasks: int
     cpus_per_task: int
-    memory: str
+    memory: Optional[str]
     time: str
     memory_per_cpu: Optional[str] = None
     gres: Optional[str] = None
@@ -409,7 +409,18 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
         raise ValueError(f"Profile '{profile_name}' not found. Available: {available}")
     
     merged_config = {**defaults, **profile_config}
-    
+
+    # memory_per_cpu replaces --mem in the submission, so either one is enough
+    required = {key: key for key in ('partition', 'nodes', 'ntasks', 'cpus_per_task', 'time')}
+    if 'memory_per_cpu' not in merged_config:
+        required['memory'] = 'memory (or memory_per_cpu)'
+    missing = [label for key, label in required.items() if key not in merged_config]
+    if missing:
+        raise ValueError(
+            f"Profile '{profile_name}' in hpc_config.yaml sets no {', '.join(missing)}. "
+            "Add it to the profile or to 'defaults'."
+        )
+
     array_param = None
     if task_config.get('array', False):
         # {num} is filled in with the subject count in submit_slurm_job
@@ -421,7 +432,7 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
         nodes=merged_config['nodes'],
         ntasks=merged_config['ntasks'],
         cpus_per_task=merged_config['cpus_per_task'],
-        memory=merged_config['memory'],
+        memory=merged_config.get('memory'),
         memory_per_cpu=merged_config.get('memory_per_cpu'),
         gres=merged_config.get('gres'),
         time=merged_config['time'],

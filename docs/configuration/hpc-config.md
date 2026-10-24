@@ -60,13 +60,13 @@ resource_profiles:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `memory` | Yes | Total job memory. Becomes `--mem` in SLURM. Format: `"32gb"`, `"64gb"`. Required even when `memory_per_cpu` is set. |
-| `memory_per_cpu` | No | Per-CPU memory allocation. Becomes `--mem-per-cpu` and replaces `--mem` when set. Use when your cluster bills by CPU-hour. `memory` must still be present in the profile or in `defaults`. |
+| `memory` | Yes, unless `memory_per_cpu` is set | Total job memory. Becomes `--mem` in SLURM. Format: `"32gb"`, `"64gb"`. |
+| `memory_per_cpu` | Alternative to `memory` | Per-CPU memory allocation. Becomes `--mem-per-cpu` and replaces `--mem` when set. Use when your cluster bills by CPU-hour. |
 | `time` | Yes | Wall-clock time limit. Format: `"HH:MM:SS"` or `"D-HH:MM:SS"`. Jobs exceeding this are killed by the scheduler. |
 | `nodes` | Yes | Number of compute nodes. Almost always `1` for neuroimaging jobs. |
 | `ntasks` | Yes | Number of parallel tasks within a job. Almost always `1` (the wrapper launches one process per subject). |
 | `cpus_per_task` | Yes | CPU cores allocated per task. Becomes `--cpus-per-task`. Set to match the parallelism of the underlying tool (e.g. 16 for AFNI, 16 for fMRIPrep). |
-| `partition` | Yes (here or in `defaults`) | Queue/partition name. Overrides `defaults.partition` when set. Submission fails if neither the profile nor `defaults` sets it. |
+| `partition` | Yes (here or in `defaults`) | Queue/partition name. Overrides `defaults.partition` when set. If neither the profile nor `defaults` sets it, submission (and `--dry-run`) stops with an error naming the profile. The same holds for the other required fields. |
 | `gres` | No | Generic resources such as GPUs. Becomes `--gres` (e.g. `"gpu:1"` → `--gres=gpu:1`). |
 | `array_limit` | No | Caps how many subjects of an array task run at once. Becomes the `%N` in `--array=1-50%15`. Only applies to tasks marked `array: true` in `config.yaml`. Omit it to leave the array unthrottled, letting the scheduler run as many subjects as the queue allows. |
 | `additional_args` | No | List of raw scheduler flags appended verbatim to the submission command. Use for cluster-specific flags not covered above (e.g. `--constraint=avx512`, `--account=mylab`). |
